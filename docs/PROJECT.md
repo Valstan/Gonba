@@ -130,6 +130,40 @@ Payload:
 
 ## Деплой
 
+### Удалённый доступ к серверу (SSH)
+
+Настроено SSH-подключение к production-серверу через конфигурацию на локальном компьютере:
+
+- Файл конфигурации: `C:\Users\Valstan\.ssh\config`
+- Хост: `GONBA`
+- Сервер: `831d0ce99bdf.vps.myjino.ru:22`
+- Пользователь: `valstan`
+- Ключ: `~/.ssh/id_rsa`
+
+**Для нейросетей-разработчиков**: ты можешь подключаться к серверу через SSH, используя алиас `GONBA`. Это позволяет:
+
+- Управлять сервисом (`sudo systemctl status/restart/stop gonba`)
+- Просматривать логи (`journalctl -u gonba -f`)
+- Обновлять код (`cd /home/valstan/GONBA && git pull`)
+- Собирать и деплоить новые версии
+- Выполнять любые команды на сервере
+
+Примеры команд:
+
+```bash
+# Проверить статус сервиса
+ssh valstan@GONBA "sudo systemctl status gonba.service --no-pager -l"
+
+# Перезапустить сервис
+ssh valstan@GONBA "sudo systemctl restart gonba"
+
+# Посмотреть логи
+ssh valstan@GONBA "journalctl -u gonba -n 50 --no-pager"
+
+# Обновить код из репозитория
+ssh valstan@GONBA "cd /home/valstan/GONBA && git pull && npm run build && sudo systemctl restart gonba"
+```
+
 ### Systemd (production)
 
 Сервис в системе: `gonba.service`
