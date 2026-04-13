@@ -13,6 +13,11 @@ export type SectionDefinition = {
   status: SectionStatus
   imageKeywords: string[]
   ctas: SectionCTA[]
+  accentColor: string
+  icon: string
+  gradient: string
+  projectSlug: string
+  enabledSections: string[]
 }
 
 export const sections: SectionDefinition[] = [
@@ -28,6 +33,11 @@ export const sections: SectionDefinition[] = [
       { label: 'Проекты', href: '/projects' },
       { label: 'Контакты', href: '/contact' },
     ],
+    accentColor: '#6366f1',
+    icon: '🏠',
+    gradient: 'from-indigo-500 to-violet-500',
+    projectSlug: 'gonba',
+    enabledSections: ['posts', 'contacts'],
   },
   {
     slug: 'village-and-temple',
@@ -37,11 +47,16 @@ export const sections: SectionDefinition[] = [
     status: 'planned',
     imageKeywords: ['храм', 'село', 'история'],
     ctas: [{ label: 'Раздел в разработке', href: '/coming-soon/village-and-temple' }],
+    accentColor: '#f59e0b',
+    icon: '⛪',
+    gradient: 'from-amber-500 to-orange-500',
+    projectSlug: 'gonba',
+    enabledSections: [],
   },
   {
     slug: 'sadovaya-feya-gulfiya-kharisovna',
     title: 'Садовая фея Гульфия Харисовна',
-    shortLabel: 'Садовая фея Гульфия Харисовна',
+    shortLabel: 'Садовая фея',
     description: 'Проект с авторским подходом к ландшафту, цветению и сезонному уходу за садом.',
     status: 'ready',
     imageKeywords: ['сад', 'ландшафт', 'растения', 'Гульфия', 'коклюш'],
@@ -49,6 +64,11 @@ export const sections: SectionDefinition[] = [
       { label: 'Записи', href: '/sections/sadovaya-feya-gulfiya-kharisovna#posts' },
       { label: 'Подробнее', href: '/projects/vyatskaya-lepota' },
     ],
+    accentColor: '#10b981',
+    icon: '🌿',
+    gradient: 'from-emerald-500 to-green-500',
+    projectSlug: 'vyatskaya-lepota',
+    enabledSections: ['posts', 'events', 'gallery'],
   },
   {
     slug: 'vyatskaya-lepota-malmyzh',
@@ -62,6 +82,11 @@ export const sections: SectionDefinition[] = [
       { label: 'Страница проекта', href: '/projects/vyatskaya-lepota' },
       { label: 'Все проекты', href: '/projects' },
     ],
+    accentColor: '#ef4444',
+    icon: '🎨',
+    gradient: 'from-red-500 to-rose-500',
+    projectSlug: 'vyatskaya-lepota',
+    enabledSections: ['posts', 'events', 'services', 'gallery'],
   },
   {
     slug: 'craft-workshops-gonba',
@@ -75,6 +100,11 @@ export const sections: SectionDefinition[] = [
       { label: 'Сервисы', href: '/services' },
       { label: 'События', href: '/events' },
     ],
+    accentColor: '#8b5cf6',
+    icon: '🔨',
+    gradient: 'from-violet-500 to-purple-500',
+    projectSlug: 'gonba',
+    enabledSections: ['posts', 'events', 'services'],
   },
   {
     slug: 'district-excursions',
@@ -88,6 +118,11 @@ export const sections: SectionDefinition[] = [
       { label: 'События', href: '/events' },
       { label: 'Сервисы', href: '/services' },
     ],
+    accentColor: '#0ea5e9',
+    icon: '🗺️',
+    gradient: 'from-sky-500 to-blue-500',
+    projectSlug: 'travel-club-malmyzh',
+    enabledSections: ['posts', 'events', 'services'],
   },
   {
     slug: 'eco-hotel-booking',
@@ -101,11 +136,16 @@ export const sections: SectionDefinition[] = [
       { label: 'Страница проекта', href: '/projects/eco-hotel-vyatka' },
       { label: 'Сервисы', href: '/services' },
     ],
+    accentColor: '#22c55e',
+    icon: '🏡',
+    gradient: 'from-green-500 to-lime-500',
+    projectSlug: 'eco-hotel-vyatka',
+    enabledSections: ['posts', 'services', 'gallery', 'contacts'],
   },
   {
     slug: 'konnyy-klub-gmalyzh',
     title: 'Конный клуб г.Малмыж',
-    shortLabel: 'Конный клуб г.Малмыж',
+    shortLabel: 'Конный клуб',
     description: 'Тренировки, прогулки, маршруты и семейные программы с лошадьми для гостей.',
     status: 'ready',
     imageKeywords: ['конный', 'клуб', 'лошадь', 'Малмыж', 'петля'],
@@ -114,6 +154,11 @@ export const sections: SectionDefinition[] = [
       { label: 'События', href: '/events' },
       { label: 'Проекты', href: '/projects/travel-club-malmyzh' },
     ],
+    accentColor: '#d97706',
+    icon: '🐴',
+    gradient: 'from-amber-600 to-yellow-500',
+    projectSlug: 'travel-club-malmyzh',
+    enabledSections: ['posts', 'events', 'gallery'],
   },
   {
     slug: 'vyatskiy-sbor',
@@ -127,6 +172,11 @@ export const sections: SectionDefinition[] = [
       { label: 'Магазин', href: '/shop' },
       { label: 'Страница проекта', href: '/projects/vyatskiy-sbor' },
     ],
+    accentColor: '#84cc16',
+    icon: '🍯',
+    gradient: 'from-lime-500 to-green-500',
+    projectSlug: 'vyatskiy-sbor',
+    enabledSections: ['posts', 'shop'],
   },
   {
     slug: 'village-events',
@@ -140,6 +190,11 @@ export const sections: SectionDefinition[] = [
       { label: 'Афиша событий', href: '/events' },
       { label: 'Новости', href: '/posts' },
     ],
+    accentColor: '#ec4899',
+    icon: '🎉',
+    gradient: 'from-pink-500 to-rose-500',
+    projectSlug: 'gonba',
+    enabledSections: ['posts', 'events', 'gallery'],
   },
 ]
 

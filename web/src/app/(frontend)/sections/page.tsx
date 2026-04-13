@@ -1,8 +1,5 @@
-import { redirect } from 'next/navigation'
+import SectionMapPage from './SectionMapPage'
 
-export const dynamic = 'force-static'
-export const revalidate = 600
-
-export default async function SectionsPage() {
-  redirect('/projects')
+export default function Page() {
+  return <SectionMapPage />
 }

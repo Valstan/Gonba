@@ -1,4 +1,4 @@
-import { redirect } from 'next/navigation'
+import SectionDetailPage from './SectionDetailPage'
 
 type Args = {
   params: Promise<{
@@ -6,7 +6,6 @@ type Args = {
   }>
 }
 
-export default async function SectionPage({ params: paramsPromise }: Args) {
-  const { slug } = await paramsPromise
-  redirect(`/projects/${slug}`)
+export default function Page({ params }: Args) {
+  return <SectionDetailPage params={params} />
 }
