@@ -1,6 +1,6 @@
 import type { GlobalConfig } from 'payload'
 
-import { adminOrEditor } from '../access/adminOrEditor'
+import { adminOrEditor } from '../../access/adminOrEditor'
 
 export const VkAutoSyncSettings: GlobalConfig = {
   slug: 'vkAutoSyncSettings',
