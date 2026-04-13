@@ -21,6 +21,55 @@ export async function POST(request: Request) {
   const payload = await getPayload({ config: configPromise })
 
   const body = await request.json().catch(() => ({}))
+
+  // Seed: создать начальный источник
+  if (body.seed) {
+    try {
+      const vkToken = process.env.VK_TOKEN_229392127 || process.env.VK_TOKEN
+      if (!vkToken) {
+        return Response.json({ error: 'VK token not found in env' }, { status: 500 })
+      }
+
+      const existing = await payload.find({
+        collection: 'vkAutoSync',
+        overrideAccess: true,
+        limit: 1,
+      })
+
+      if (existing.docs.length > 0) {
+        return Response.json({
+          message: 'Source already exists',
+          source: existing.docs[0],
+        })
+      }
+
+      const source = await payload.create({
+        collection: 'vkAutoSync',
+        overrideAccess: true,
+        data: {
+          communityUrl: 'https://vk.com/club229392127',
+          groupId: 229392127,
+          accessToken: vkToken,
+          sectionSlug: 'vyatskaya-lepota-malmyzh',
+          projectSlug: 'vyatskaya-lepota',
+          syncIntervalHours: 3,
+          isEnabled: true,
+          postType: 'news',
+          lastSyncStatus: 'pending',
+        },
+      })
+
+      return Response.json({
+        success: true,
+        message: 'VK Auto-Sync source created',
+        source,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      return Response.json({ error: message }, { status: 500 })
+    }
+  }
+
   const sourceId = body.sourceId as number | undefined
 
   try {

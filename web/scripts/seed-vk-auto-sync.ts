@@ -1,6 +1,10 @@
 /**
  * Скрипт для создания начальной конфигурации авто-импорта VK
- * Запуск: npx tsx scripts/seed-vk-auto-sync.ts
+ * Запуск: cd web && set -a && source .env && set +a && npx tsx scripts/seed-vk-auto-sync.ts
+ * 
+ * ВАЖНО: Не запускайте через `npx tsx` если есть активное соединение — 
+ * используйте API endpoint вместо этого:
+ * POST /api/vk-auto-sync/trigger (с Bearer CRON_SECRET)
  */
 import configPromise from '@payload-config'
 import { getPayload } from 'payload'
