@@ -1,0 +1,1070 @@
+ .yadisk {
+  --yadisk-bg: var(--theme-elevation-900, #0f172a);
+  --yadisk-card: var(--theme-elevation-0, #ffffff);
+  --yadisk-card-soft: var(--theme-elevation-50, #f8fafc);
+  --yadisk-border: var(--theme-elevation-150, #e2e8f0);
+  --yadisk-muted: var(--theme-elevation-600, #64748b);
+  --yadisk-text: var(--theme-elevation-900, #0f172a);
+  --yadisk-primary: var(--theme-success-500, #2563eb);
+  --yadisk-success: var(--theme-success-500, #16a34a);
+  --yadisk-danger: var(--theme-error-500, #dc2626);
+  --yadisk-primary-soft: var(--theme-success-100, #eff6ff);
+  --yadisk-danger-soft: var(--theme-error-100, #fee2e2);
+  --yadisk-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+.yadisk__container {
+  width: 100%;
+  max-width: none;
+  padding: 0 16px 24px;
+  box-sizing: border-box;
+}
+
+.yadisk__titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.yadisk__title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--yadisk-text);
+}
+
+.yadisk__back-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--yadisk-border);
+  background: var(--yadisk-card);
+  color: var(--yadisk-text);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.yadisk__back-link:hover {
+  background: var(--yadisk-card-soft);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+}
+
+.yadisk__panel {
+  border-radius: 20px;
+  box-shadow: var(--yadisk-shadow);
+}
+
+.yadisk__layout {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 980px) {
+  .yadisk__layout {
+    grid-template-columns: var(--yadisk-sidebar-width, 300px) 10px minmax(0, 1fr);
+  }
+}
+
+.yadisk__sidebar {
+  border: 1px solid var(--yadisk-border);
+  background: var(--yadisk-card);
+  min-height: 240px;
+}
+
+.yadisk__splitter {
+  display: none;
+}
+
+@media (min-width: 980px) {
+  .yadisk__splitter {
+    display: block;
+    width: 10px;
+    border-radius: 999px;
+    cursor: col-resize;
+    background: transparent;
+    position: relative;
+  }
+
+  .yadisk__splitter::before {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    border-radius: 999px;
+    background: var(--yadisk-border);
+  }
+
+  .yadisk__splitter:hover::before {
+    background: var(--yadisk-primary);
+  }
+}
+
+@media (min-width: 980px) {
+  .yadisk__sidebar {
+    position: sticky;
+    top: 16px;
+    max-height: calc(100vh - 32px);
+    overflow: auto;
+  }
+}
+
+.yadisk__sidebar-title {
+  color: var(--yadisk-text);
+}
+
+.yadisk__trash {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 1px dashed var(--yadisk-border);
+  cursor: pointer;
+  position: sticky;
+  top: 16px;
+  background: var(--yadisk-card);
+}
+
+.yadisk__sidebar-add {
+  width: 100%;
+}
+
+.yadisk__sidebar .yadisk__trash {
+  position: static;
+  top: auto;
+  margin-top: 14px;
+}
+
+.yadisk__trash:hover {
+  border-color: var(--yadisk-primary);
+  background: var(--yadisk-primary-soft);
+}
+
+.yadisk__trash-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--yadisk-danger-soft);
+  color: var(--yadisk-danger);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.yadisk__trash-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.yadisk__trash-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--yadisk-text);
+}
+
+.yadisk__trash-subtitle {
+  font-size: 12px;
+  color: var(--yadisk-muted);
+}
+
+.yadisk__trash-hint {
+  font-size: 11px;
+  color: var(--yadisk-danger);
+}
+
+.yadisk__modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 60;
+}
+
+.yadisk__modal {
+  width: min(720px, 100%);
+  background: var(--yadisk-card);
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: var(--yadisk-shadow);
+}
+
+.yadisk__modal-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--yadisk-text);
+}
+
+.yadisk__modal-text {
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--yadisk-muted);
+}
+
+.yadisk__modal-list {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.yadisk__modal-item {
+  border: 1px solid var(--yadisk-border);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.yadisk__modal-item-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--yadisk-text);
+}
+
+.yadisk__modal-item-meta {
+  font-size: 12px;
+  color: var(--yadisk-muted);
+  margin-top: 2px;
+}
+
+.yadisk__modal-links {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.yadisk__modal-links a {
+  color: var(--yadisk-primary);
+}
+
+.yadisk__modal-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.yadisk__tree {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.yadisk__tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 10px;
+  padding: 6px 8px;
+  transition: background 0.2s ease;
+  cursor: pointer;
+}
+
+.yadisk__tree-row:hover {
+  background: var(--yadisk-card-soft);
+}
+
+.yadisk__tree-row.is-active {
+  background: var(--yadisk-primary-soft);
+}
+
+.yadisk__tree-toggle {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: #475569;
+  width: 18px;
+  text-align: center;
+}
+
+.yadisk__tree-label {
+  background: transparent;
+  border: none;
+  cursor: inherit;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.yadisk__tree-loading {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--yadisk-muted);
+}
+
+.yadisk__tree-empty {
+  font-size: 12px;
+  color: var(--yadisk-muted);
+  padding: 4px 0;
+}
+
+.yadisk__header h2 {
+  margin: 0;
+}
+
+.yadisk__path-line {
+  font-size: 12px;
+  color: var(--yadisk-muted);
+}
+
+.yadisk__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.yadisk__upload-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--yadisk-muted);
+}
+
+.yadisk__content-area {
+  max-height: 68vh;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.yadisk__tasks {
+  border: 1px solid var(--yadisk-border);
+  background: var(--yadisk-card);
+}
+
+.yadisk__tasks-float {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 75;
+  width: min(360px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.yadisk__task {
+  border: 1px solid var(--yadisk-border);
+  background: var(--yadisk-card);
+}
+
+.yadisk__task-status {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.yadisk__task-status--running {
+  background: var(--yadisk-primary-soft);
+  color: var(--yadisk-primary);
+}
+
+.yadisk__task-status--done {
+  background: var(--theme-success-100, #dcfce7);
+  color: var(--theme-success-700, #166534);
+}
+
+.yadisk__task-status--error {
+  background: var(--yadisk-danger-soft);
+  color: var(--yadisk-danger);
+}
+
+.yadisk__progress {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--yadisk-border);
+  overflow: hidden;
+}
+
+.yadisk__progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--yadisk-primary), var(--yadisk-success));
+  transition: width 0.2s ease;
+}
+
+.yadisk__button {
+  border: 1px solid var(--yadisk-border);
+  border-radius: 14px;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.yadisk__button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+}
+
+.yadisk__button--primary {
+  background: var(--yadisk-primary);
+  color: #fff;
+  border-color: transparent;
+}
+
+.yadisk__button--success {
+  background: var(--yadisk-success);
+  color: #fff;
+  border-color: transparent;
+}
+
+.yadisk__button--danger {
+  background: var(--yadisk-danger);
+  color: #fff;
+  border-color: transparent;
+}
+
+.yadisk__button--outline {
+  background: var(--yadisk-card);
+  color: var(--yadisk-text);
+}
+
+.yadisk__button:disabled,
+.yadisk__button[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.yadisk__breadcrumbs {
+  gap: 8px;
+}
+
+.yadisk__token-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.yadisk__toolbar-label {
+  color: var(--yadisk-muted);
+  font-weight: 500;
+}
+
+.yadisk__breadcrumb {
+  border-radius: 999px;
+  padding: 6px 12px;
+  border: 1px solid var(--yadisk-border);
+  background: var(--yadisk-card);
+  font-size: 13px;
+  color: var(--yadisk-text);
+}
+
+.yadisk__breadcrumb:hover {
+  background: var(--yadisk-card-soft);
+}
+
+.yadisk__breadcrumb--active {
+  background: var(--yadisk-primary-soft);
+  border-color: var(--yadisk-primary);
+  color: var(--yadisk-primary);
+}
+
+.yadisk__view-toggle {
+  display: inline-flex;
+  border-radius: 999px;
+  border: 1px solid var(--yadisk-border);
+  overflow: hidden;
+  background: var(--yadisk-card);
+}
+
+.yadisk__view-button {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--yadisk-text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.yadisk__view-button.is-active {
+  background: var(--yadisk-primary);
+  color: var(--yadisk-card);
+}
+
+.yadisk__runtime-error {
+  border: 1px solid var(--yadisk-danger);
+  background: var(--yadisk-danger-soft);
+  color: var(--yadisk-danger);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.yadisk__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.yadisk__badge-line {
+  display: inline-flex;
+  margin-top: 10px;
+}
+
+.yadisk__badge--folder {
+  background: #facc15;
+  color: #713f12;
+}
+
+.yadisk__badge--image {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.yadisk__badge--video {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.yadisk__badge--audio {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.yadisk__badge--pdf {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.yadisk__badge--doc {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.yadisk__badge--sheet {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.yadisk__badge--slide {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.yadisk__badge--archive {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.yadisk__badge--text {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.yadisk__badge--code {
+  background: #f5d0fe;
+  color: #86198f;
+}
+
+.yadisk__badge--other {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.yadisk__item-name {
+  background: none;
+  border: none;
+  padding: 0;
+  font-weight: 600;
+  color: #111827;
+  text-align: left;
+  cursor: pointer;
+}
+
+.yadisk__item-name--folder {
+  color: #ca8a04;
+}
+
+.yadisk__table-wrapper {
+  border: 1px solid var(--yadisk-border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+  overflow-x: auto;
+}
+
+.yadisk__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.yadisk__table th,
+.yadisk__table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--yadisk-border);
+  text-align: left;
+}
+
+.yadisk__table th {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 700;
+}
+
+.yadisk__table tr.is-selected {
+  background: #eff6ff;
+}
+
+.yadisk__table-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.yadisk__table-check {
+  width: 72px;
+  text-align: center;
+}
+
+.yadisk__usage-cell {
+  min-width: 220px;
+}
+
+.yadisk__usage-links {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.yadisk__usage-links a {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.yadisk__usage-links a:hover {
+  text-decoration: underline;
+}
+
+.yadisk__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.yadisk__list-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 16px;
+  border: 1px solid var(--yadisk-border);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.yadisk__list-row.is-selected {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
+.yadisk__list-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.yadisk__placeholder {
+  margin-top: 12px;
+  height: 144px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
+}
+
+.yadisk__placeholder--image {
+  background: #dbeafe;
+}
+
+.yadisk__placeholder--video {
+  background: #fee2e2;
+}
+
+.yadisk__placeholder--audio {
+  background: #dcfce7;
+}
+
+.yadisk__placeholder--doc,
+.yadisk__placeholder--pdf {
+  background: #e0e7ff;
+}
+
+.yadisk__placeholder--sheet {
+  background: #dcfce7;
+}
+
+.yadisk__placeholder--slide {
+  background: #ffedd5;
+}
+
+.yadisk__placeholder--archive {
+  background: #e2e8f0;
+}
+
+.yadisk__placeholder--folder {
+  background: #fef9c3;
+}
+
+.yadisk__grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  position: relative;
+}
+
+.yadisk__grid--sm {
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+
+.yadisk__grid--md {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.yadisk__grid--lg {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+.yadisk__preview-image {
+  margin-top: 12px;
+  width: 100%;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.yadisk__preview-media-button {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.yadisk__grid--sm .yadisk__preview-image,
+.yadisk__grid--sm .yadisk__placeholder {
+  height: 120px;
+}
+
+.yadisk__grid--sm .yadisk__folder-preview {
+  height: 120px;
+}
+
+.yadisk__grid--md .yadisk__preview-image,
+.yadisk__grid--md .yadisk__placeholder {
+  height: 160px;
+}
+
+.yadisk__grid--md .yadisk__folder-preview {
+  height: 160px;
+}
+
+.yadisk__grid--lg .yadisk__preview-image,
+.yadisk__grid--lg .yadisk__placeholder {
+  height: 220px;
+}
+
+.yadisk__grid--lg .yadisk__folder-preview {
+  height: 220px;
+}
+
+.yadisk__card {
+  border: 1px solid var(--yadisk-border);
+  border-radius: 18px;
+  background: var(--yadisk-card);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
+}
+
+.yadisk__card:hover {
+  border-color: var(--yadisk-primary);
+  box-shadow: 0 10px 18px rgba(37, 99, 235, 0.1);
+}
+
+.yadisk__card--selected {
+  border-color: var(--yadisk-primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+
+.yadisk__selection-box {
+  position: absolute;
+  border: 1px solid color-mix(in srgb, var(--yadisk-primary) 80%, transparent);
+  background: color-mix(in srgb, var(--yadisk-primary) 18%, transparent);
+  border-radius: 8px;
+  pointer-events: none;
+  z-index: 8;
+}
+
+.yadisk__card-check {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  z-index: 2;
+}
+
+.yadisk__folder-preview {
+  margin-top: 12px;
+  border-radius: 14px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-warning-200, #fef08a) 70%, var(--yadisk-card) 30%) 0%,
+    color-mix(in srgb, var(--theme-warning-300, #fde047) 80%, var(--yadisk-card) 20%) 100%
+  );
+  border: 1px solid var(--theme-warning-400, #facc15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  gap: 10px;
+}
+
+.yadisk__folder-icon {
+  font-size: 52px;
+  line-height: 1;
+}
+
+.yadisk__folder-name {
+  max-width: 100%;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--theme-warning-900, #713f12);
+  text-align: center;
+  line-height: 1.2;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.yadisk__preview-caption {
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--yadisk-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.yadisk__preview-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--yadisk-muted);
+  text-transform: uppercase;
+}
+
+.yadisk__loading,
+.yadisk__empty {
+  color: var(--yadisk-muted);
+}
+
+.yadisk__empty {
+  border-radius: 18px;
+}
+
+.yadisk__viewer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.75);
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.yadisk__viewer {
+  width: min(1200px, 100%);
+  max-height: 92vh;
+  background: #0b1020;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 16px;
+  color: #e2e8f0;
+  position: relative;
+}
+
+.yadisk__viewer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.yadisk__viewer-title {
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.yadisk__viewer-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.yadisk__viewer-button {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.75);
+  color: #e2e8f0;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.yadisk__viewer-stage {
+  display: grid;
+  grid-template-columns: 48px 1fr 48px;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+}
+
+.yadisk__viewer-nav {
+  height: 44px;
+  width: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(15, 23, 42, 0.7);
+  color: #e2e8f0;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.yadisk__viewer-image {
+  width: 100%;
+  max-height: 72vh;
+  object-fit: contain;
+  border-radius: 12px;
+  background: #020617;
+}
+
+.yadisk__viewer-footer {
+  padding: 0 16px 14px;
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.yadisk__viewer-menu {
+  position: absolute;
+  right: 16px;
+  top: 52px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: #0f172a;
+  overflow: hidden;
+  z-index: 5;
+}
+
+.yadisk__viewer-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: #e2e8f0;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.yadisk__viewer-menu button:hover {
+  background: rgba(59, 130, 246, 0.25);
+}
+
+.yadisk__viewer-menu button.is-danger {
+  color: #fca5a5;
+}
+
+.yadisk__popup-menu {
+  position: fixed;
+  z-index: 70;
+  min-width: 180px;
+  border-radius: 12px;
+  border: 1px solid var(--yadisk-border);
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.22);
+  overflow: hidden;
+}
+
+.yadisk__popup-menu button {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.yadisk__popup-menu button:hover {
+  background: #f8fafc;
+}
+
+@media (max-width: 640px) {
+  .yadisk__actions {
+    grid-template-columns: 1fr;
+  }
+
+  .yadisk__button {
+    font-size: 15px;
+    padding: 14px 16px;
+  }
+
+  .yadisk__list-row {
+    grid-template-columns: 1fr;
+    align-items: flex-start;
+  }
+
+  .yadisk__content-area {
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
+  }
+
+  .yadisk__viewer-stage {
+    grid-template-columns: 1fr;
+  }
+
+  .yadisk__viewer-nav {
+    justify-self: center;
+  }
+}

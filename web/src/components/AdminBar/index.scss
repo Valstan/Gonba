@@ -1,0 +1,110 @@
+@import '~@payloadcms/ui/scss';
+
+.admin-bar {
+  @include small-break {
+    display: none;
+  }
+
+  .admin-bar__controlHidden {
+    display: none !important;
+  }
+
+  .admin-bar__create,
+  .admin-bar__edit,
+  .admin-bar__logout,
+  .admin-bar__preview {
+    position: relative;
+    color: transparent;
+  }
+
+  .admin-bar__create span,
+  .admin-bar__edit span,
+  .admin-bar__logout span,
+  .admin-bar__preview span {
+    color: transparent;
+  }
+
+  .admin-bar__create::after,
+  .admin-bar__edit::after,
+  .admin-bar__logout::after,
+  .admin-bar__preview::after {
+    color: #fff;
+    left: 0;
+    position: absolute;
+    top: 0;
+    white-space: nowrap;
+  }
+
+  .admin-bar__create::after {
+    content: 'Новая страница';
+  }
+
+  .admin-bar__edit::after {
+    content: 'Редактировать';
+  }
+
+  .admin-bar__logout::after {
+    content: 'Выйти';
+  }
+
+  .admin-bar__preview::after {
+    content: 'Выйти из предпросмотра';
+  }
+
+  &__shell {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  &__modeSwitch {
+    width: fit-content;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  &__modeButton {
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 12px;
+    line-height: 1;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  &__modeButton.is-active {
+    color: #111;
+    background: #fff;
+  }
+
+  &__quick-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__actionLink {
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 999px;
+    color: #fff;
+    display: inline-flex;
+    font-size: 12px;
+    padding: 6px 10px;
+    text-decoration: none;
+    transition: all 0.2s ease;
+  }
+
+  &__actionLink:hover {
+    border-color: #fff;
+    background-color: rgba(255, 255, 255, 0.12);
+  }
+}
