@@ -24,20 +24,33 @@ export function SectionNavigator({ sections }: SectionNavigatorProps) {
             if (isActive) {
               classNameStr = `flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white shadow-lg bg-gradient-to-r ${section.gradient}`
             } else if (isPlanned) {
-              classNameStr = 'flex shrink-0 cursor-not-allowed items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-muted-foreground/50'
+              classNameStr = 'flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-muted-foreground/50'
             } else {
               classNameStr = 'flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-accent hover:text-foreground'
+            }
+
+            const content = (
+              <>
+                <span className="text-base">{section.icon}</span>
+                <span className="whitespace-nowrap">{section.shortLabel}</span>
+              </>
+            )
+
+            if (isPlanned) {
+              return (
+                <span key={section.slug} className={classNameStr} title="Скоро откроется">
+                  {content}
+                </span>
+              )
             }
 
             return (
               <Link
                 key={section.slug}
-                href={isPlanned ? '#' : `/sections/${section.slug}`}
+                href={`/sections/${section.slug}`}
                 className={classNameStr}
-                {...(isPlanned ? { onClick: (e) => e.preventDefault() } : {})}
               >
-                <span className="text-base">{section.icon}</span>
-                <span className="whitespace-nowrap">{section.shortLabel}</span>
+                {content}
               </Link>
             )
           })}
