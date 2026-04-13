@@ -16,14 +16,17 @@ import { Orders } from './collections/Orders'
 import { Services } from './collections/Services'
 import { Users } from './collections/Users'
 import { VkImportQueue } from './collections/VkImportQueue'
+import { VkAutoSync } from './collections/VkAutoSync'
 import { Footer } from './Footer/config'
 import { Header } from './Header/config'
 import { HomeCarousel } from './HomeCarousel/config'
+import { VkAutoSyncSettings } from './globals/VkAutoSyncSettings/config'
 import { plugins } from './plugins'
 import { defaultLexical } from '@/fields/defaultLexical'
 import { translations } from '@payloadcms/translations/all'
 import { getServerSideURL } from './utilities/getURL'
 import { cleanupYandexTrash } from './server/integrations/yandex-disk'
+import { syncAllVkSources } from './server/integrations/vk-auto-sync'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -118,12 +121,13 @@ export default buildConfig({
     Orders,
     Bookings,
     VkImportQueue,
+    VkAutoSync,
     Media,
     Categories,
     Users,
   ],
   cors: [getServerSideURL()].filter(Boolean),
-  globals: [Header, Footer, HomeCarousel],
+  globals: [Header, Footer, HomeCarousel, VkAutoSyncSettings],
   plugins,
   secret: process.env.PAYLOAD_SECRET,
   sharp,
@@ -152,6 +156,16 @@ export default buildConfig({
         return authHeader === `Bearer ${secret}`
       },
     },
-    tasks: [],
+    tasks: [
+      {
+        slug: 'vkAutoSync',
+        handler: async ({ payload }) => {
+          const results = await syncAllVkSources(payload)
+          const imported = results.filter((r) => r.newPostId).length
+          payload.logger.info(`VK Auto-Sync: ${results.length} sources checked, ${imported} posts imported`)
+          return results
+        },
+      },
+    ],
   },
 })
