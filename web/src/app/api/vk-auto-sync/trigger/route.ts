@@ -25,7 +25,7 @@ export async function POST(request: Request) {
   // Seed: создать начальный источник
   if (body.seed) {
     try {
-      const vkToken = process.env.VK_TOKEN_229392127 || process.env.VK_TOKEN
+      const vkToken = process.env.VK_TOKEN_229392127 || process.env.VK_TOKEN_VALSTAN || process.env.VK_TOKEN
       if (!vkToken) {
         return Response.json({ error: 'VK token not found in env' }, { status: 500 })
       }
