@@ -7,6 +7,9 @@ dist/
 .next/
 .vercel/
 
+# TypeScript incremental build cache
+*.tsbuildinfo
+
 # Env files
 .env
 .env.*
@@ -19,8 +22,13 @@ Thumbs.db
 # Payload media
 public/media/
 
-# Payload generated types
+# Payload generated files
 web/src/payload-types.ts
+web/src/app/(payload)/admin/importMap.js
+
+# Temporary / working files
+.tmp/
+*.tmp
 
 # Playwright
 test-results/
@@ -33,8 +41,17 @@ playwright/.cache/
 *.swp
 *.swo
 *~
+*.code-workspace
 
 # Logs
 *.log
 npm-debug.log*
 pnpm-debug.log*
+
+# OS thumbnails
+thumbnails/
+
+# Data dumps / local exports (VK exports, personal photos in docs)
+docs/vk_export_*.txt
+docs/photo_*.jpg
+docs/Описание*.txt
