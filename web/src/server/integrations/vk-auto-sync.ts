@@ -443,7 +443,7 @@ export async function syncVkSource(
 
     const createdPostId = typeof postDoc.id === 'number' ? postDoc.id : Number(postDoc.id)
 
-    // Обновляем источник
+    // Обновляем источник (без syncLog — упрощаем)
     const newTotal = (sourceDoc.totalImported || 0) + 1
     await payload.update({
       collection: 'vk-auto-sync',
@@ -454,7 +454,6 @@ export async function syncVkSource(
         lastSyncStatus: 'success',
         lastSyncAt: new Date().toISOString(),
         totalImported: newTotal,
-        syncLog: [logEntry('success', `Импортирован пост #${newPost.id}`, createdPostId), ...(sourceDoc.syncLog || [])].slice(0, 50),
       },
     })
 
@@ -468,7 +467,6 @@ export async function syncVkSource(
     const errorMessage = error instanceof Error ? error.message : String(error)
 
     try {
-      const currentDoc = await payload.findByID({ collection: 'vk-auto-sync', id: sourceId, overrideAccess: true })
       await payload.update({
         collection: 'vk-auto-sync',
         id: sourceId,
@@ -477,12 +475,6 @@ export async function syncVkSource(
           lastSyncStatus: 'error',
           lastSyncAt: new Date().toISOString(),
           lastError: errorMessage,
-          syncLog: [{
-            timestamp: new Date().toISOString(),
-            status: 'error',
-            message: errorMessage,
-            postId: null,
-          }, ...(currentDoc?.syncLog || [])].slice(0, 50),
         },
       })
     } catch {
