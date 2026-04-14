@@ -411,8 +411,8 @@ export async function syncVkSource(
 
     // Формируем заголовок из первых 80 символов текста
     const title = newPost.text.length > 80 ? newPost.text.substring(0, 80).trim() + '...' : newPost.text
-    const slugBase = generateSlug(title)
-    const slug = `${slugBase}-${newPost.id}`
+    const slugBase = generateSlug(title) || `vk-post`
+    const slug = `${slugBase}-${newPost.id}`.substring(0, 100).replace(/-+$/, '')
 
     // Создаём пост
     const postDoc = await payload.create({
