@@ -2,6 +2,19 @@ import type { Payload } from 'payload'
 
 const VK_API_VERSION = '5.199'
 
+/**
+ * Задержка между запросами к VK API (мс)
+ * VK limit: 3 запроса/сек для user tokens, 20 для service
+ * Ставим 1000мс — безопасно, 1 запрос в секунду
+ */
+const VK_API_DELAY_MS = Number(process.env.VK_IMPORT_DELAY_MS || 1000)
+
+/**
+ * Счётчик для ротации токенов
+ * Переключается между VK_TOKEN_VALSTAN и VK_TOKEN_VITA
+ */
+let tokenRoundRobin = 0
+
 type VkWallPost = {
   id: number
   date: number
@@ -22,6 +35,10 @@ type VkApiResponse = {
     count: number
     items: VkWallPost[]
   }
+  error?: {
+    error_code: number
+    error_msg: string
+  }
 }
 
 type SyncResult = {
@@ -32,35 +49,123 @@ type SyncResult = {
 }
 
 /**
- * Получает посты из VK сообщества
+ * Получает доступные VK-токены из окружения
+ * Возвращает пул токенов для ротации
  */
-async function fetchVkPosts(groupId: number, accessToken: string, count: number = 5): Promise<VkWallPost[]> {
-  const url = 'https://api.vk.com/method/wall.get'
-  const params = new URLSearchParams({
-    owner_id: `-${groupId}`,
-    count: String(count),
-    access_token: accessToken,
-    v: VK_API_VERSION,
-    filter: 'owner',
-    extended: '0',
-  })
+function getVkTokenPool(): string[] {
+  const tokens: string[] = []
 
-  const response = await fetch(`${url}?${params.toString()}`, {
-    method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
-  })
+  // Основные токены
+  const valstan = process.env.VK_TOKEN_VALSTAN
+  const vita = process.env.VK_TOKEN_VITA
+  const generic = process.env.VK_TOKEN
 
-  if (!response.ok) {
-    throw new Error(`VK API HTTP error: ${response.status}`)
+  if (valstan) tokens.push(valstan)
+  if (vita) tokens.push(vita)
+  if (generic && !tokens.includes(generic)) tokens.push(generic)
+
+  // Токены для конкретных групп: VK_TOKEN_{groupId}
+  for (const [key, value] of Object.entries(process.env)) {
+    if (key.startsWith('VK_TOKEN_') && !['VK_TOKEN_VALSTAN', 'VK_TOKEN_VITA', 'VK_TOKEN'].includes(key)) {
+      if (value && !tokens.includes(value)) {
+        tokens.push(value)
+      }
+    }
   }
 
-  const data = (await response.json()) as VkApiResponse
+  return tokens.length > 0 ? tokens : ['']
+}
 
-  if (data.error) {
-    throw new Error(`VK API error: ${data.error.error_msg} (${data.error.error_code})`)
+/**
+ * Получает следующий токен из пула (round-robin)
+ * Равномерно распределяет нагрузку между токенами
+ */
+function getNextVkToken(): string {
+  const pool = getVkTokenPool()
+  if (pool.length <= 1) return pool[0]
+
+  const token = pool[tokenRoundRobin % pool.length]
+  tokenRoundRobin++
+  return token
+}
+
+/**
+ * Безопасная задержка между запросами
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Получает посты из VK сообщества с обработкой ошибок и retry
+ */
+async function fetchVkPosts(
+  groupId: number,
+  preferredToken: string,
+  count: number = 3,
+  retries: number = 2,
+): Promise<VkWallPost[]> {
+  const tokenPool = getVkTokenPool()
+
+  // Если preferredToken заблокирован, пробуем другие
+  const tokensToTry = preferredToken && tokenPool.includes(preferredToken)
+    ? [preferredToken, ...tokenPool.filter((t) => t !== preferredToken)]
+    : tokenPool
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    for (let i = 0; i < tokensToTry.length; i++) {
+      const token = tokensToTry[(attempt + i) % tokensToTry.length]
+      if (!token) continue
+
+      // Задержка между попытками
+      if (attempt > 0 || i > 0) {
+        await sleep(VK_API_DELAY_MS * (attempt + 1))
+      }
+
+      try {
+        const url = 'https://api.vk.com/method/wall.get'
+        const params = new URLSearchParams({
+          owner_id: `-${groupId}`,
+          count: String(Math.min(count, 10)), // макс 10 за раз
+          access_token: token,
+          v: VK_API_VERSION,
+          filter: 'owner',
+          extended: '0',
+        })
+
+        const response = await fetch(`${url}?${params.toString()}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        })
+
+        if (!response.ok) {
+          if (attempt < retries) continue
+          throw new Error(`VK API HTTP error: ${response.status}`)
+        }
+
+        const data = (await response.json()) as VkApiResponse
+
+        if (data.error) {
+          // Error 5: User authorization failed — токен недействителен
+          // Error 8: Application is blocked — приложение заблокировано
+          // Error 14: Captcha needed — слишком много запросов
+          const { error_code, error_msg } = data.error
+          if (error_code === 5 || error_code === 8 || error_code === 14) {
+            continue // пробуем следующий токен
+          }
+          if (attempt < retries) continue
+          throw new Error(`VK API error: ${error_msg} (${error_code})`)
+        }
+
+        return data.response.items
+      } catch {
+        if (i === tokensToTry.length - 1 && attempt >= retries) throw
+        continue
+      }
+    }
   }
 
-  return data.response.items
+  throw new Error('Все VK-токены исчерпаны или заблокированы')
 }
 
 /**
@@ -177,7 +282,7 @@ export async function syncVkSource(
   payload: Payload,
   sourceId: number | string,
 ): Promise<SyncResult> {
-  const logEntry = (status: SyncResult['success'] extends true ? 'success' : 'error' | 'no-new-posts' | 'skipped', message: string, postId?: number) => ({
+  const logEntry = (status: 'success' | 'error' | 'no-new-posts' | 'skipped', message: string, postId?: number) => ({
     timestamp: new Date().toISOString(),
     status,
     message,
@@ -200,7 +305,7 @@ export async function syncVkSource(
       return { success: false, message: 'Источник отключён' }
     }
 
-    const { groupId, accessToken, sectionSlug, projectSlug, postType, lastSyncedPostId, syncIntervalHours } = sourceDoc
+    const { groupId, sectionSlug, projectSlug, postType, lastSyncedPostId, syncIntervalHours } = sourceDoc
 
     // Проверяем, прошло ли достаточно времени с последней синхронизации
     if (sourceDoc.lastSyncAt) {
@@ -212,8 +317,9 @@ export async function syncVkSource(
       }
     }
 
-    // Получаем посты из VK
-    const posts = await fetchVkPosts(groupId, accessToken, 5)
+    // Получаем посты из VK с ротацией токенов
+    // Используем accessToken из конфига как preferred, но fallback на пул
+    const posts = await fetchVkPosts(groupId, sourceDoc.accessToken || '', 3)
 
     if (!posts || posts.length === 0) {
       await payload.update({
@@ -303,8 +409,8 @@ export async function syncVkSource(
       }
     }
 
-    // Формируем заголовок из первых 60 символов текста
-    const title = newPost.text.length > 60 ? newPost.text.substring(0, 60).trim() + '...' : newPost.text
+    // Формируем заголовок из первых 80 символов текста
+    const title = newPost.text.length > 80 ? newPost.text.substring(0, 80).trim() + '...' : newPost.text
     const slugBase = generateSlug(title)
     const slug = `${slugBase}-${newPost.id}`
 
@@ -359,6 +465,7 @@ export async function syncVkSource(
     const errorMessage = error instanceof Error ? error.message : String(error)
 
     try {
+      const currentDoc = await payload.findByID({ collection: 'vk-auto-sync', id: sourceId, overrideAccess: true })
       await payload.update({
         collection: 'vk-auto-sync',
         id: sourceId,
@@ -372,7 +479,7 @@ export async function syncVkSource(
             status: 'error',
             message: errorMessage,
             postId: null,
-          }, ...(await payload.findByID({ collection: 'vk-auto-sync', id: sourceId, overrideAccess: true })).syncLog || []].slice(0, 50),
+          }, ...(currentDoc?.syncLog || [])].slice(0, 50),
         },
       })
     } catch {
@@ -385,6 +492,7 @@ export async function syncVkSource(
 
 /**
  * Запускает синхронизацию всех активных источников
+ * С задержкой между источниками для защиты от rate limit
  */
 export async function syncAllVkSources(payload: Payload): Promise<SyncResult[]> {
   const sources = await payload.find({
@@ -398,7 +506,14 @@ export async function syncAllVkSources(payload: Payload): Promise<SyncResult[]> 
 
   const results: SyncResult[] = []
 
-  for (const source of sources.docs) {
+  for (let i = 0; i < sources.docs.length; i++) {
+    const source = sources.docs[i]
+
+    // Задержка между источниками (VK rate limit protection)
+    if (i > 0) {
+      await sleep(VK_API_DELAY_MS)
+    }
+
     const result = await syncVkSource(payload, source.id)
     results.push(result)
   }
