@@ -158,9 +158,12 @@ async function fetchVkPosts(
         }
 
         return data.response.items
-      } catch {
-        if (i === tokensToTry.length - 1 && attempt >= retries) throw
-        continue
+      } catch (err) {
+        // Если последний токен и все попытки исчерпаны — пробрасываем ошибку
+        if (i === tokensToTry.length - 1 && attempt >= retries) {
+          throw err
+        }
+        // Иначе пробуем следующий токен
       }
     }
   }
