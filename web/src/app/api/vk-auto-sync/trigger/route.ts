@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       }
 
       const existing = await payload.find({
-        collection: 'vkAutoSync',
+        collection: 'vk-auto-sync',
         overrideAccess: true,
         limit: 1,
       })

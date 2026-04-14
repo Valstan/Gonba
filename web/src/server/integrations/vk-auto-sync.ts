@@ -187,7 +187,7 @@ export async function syncVkSource(
   try {
     // Получаем конфигурацию источника
     const sourceDoc = await payload.findByID({
-      collection: 'vkAutoSync',
+      collection: 'vk-auto-sync',
       id: sourceId,
       overrideAccess: true,
     })
@@ -217,7 +217,7 @@ export async function syncVkSource(
 
     if (!posts || posts.length === 0) {
       await payload.update({
-        collection: 'vkAutoSync',
+        collection: 'vk-auto-sync',
         id: sourceId,
         overrideAccess: true,
         data: {
@@ -235,7 +235,7 @@ export async function syncVkSource(
 
     if (!newPost) {
       await payload.update({
-        collection: 'vkAutoSync',
+        collection: 'vk-auto-sync',
         id: sourceId,
         overrideAccess: true,
         data: {
@@ -337,7 +337,7 @@ export async function syncVkSource(
     // Обновляем источник
     const newTotal = (sourceDoc.totalImported || 0) + 1
     await payload.update({
-      collection: 'vkAutoSync',
+      collection: 'vk-auto-sync',
       id: sourceId,
       overrideAccess: true,
       data: {
@@ -360,7 +360,7 @@ export async function syncVkSource(
 
     try {
       await payload.update({
-        collection: 'vkAutoSync',
+        collection: 'vk-auto-sync',
         id: sourceId,
         overrideAccess: true,
         data: {
@@ -372,7 +372,7 @@ export async function syncVkSource(
             status: 'error',
             message: errorMessage,
             postId: null,
-          }, ...(await payload.findByID({ collection: 'vkAutoSync', id: sourceId, overrideAccess: true })).syncLog || []].slice(0, 50),
+          }, ...(await payload.findByID({ collection: 'vk-auto-sync', id: sourceId, overrideAccess: true })).syncLog || []].slice(0, 50),
         },
       })
     } catch {
@@ -388,7 +388,7 @@ export async function syncVkSource(
  */
 export async function syncAllVkSources(payload: Payload): Promise<SyncResult[]> {
   const sources = await payload.find({
-    collection: 'vkAutoSync',
+    collection: 'vk-auto-sync',
     overrideAccess: true,
     limit: 100,
     where: {
