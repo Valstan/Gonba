@@ -3,7 +3,7 @@ import type { CollectionConfig } from 'payload'
 import { adminOrEditor } from '../../access/adminOrEditor'
 import { anyone } from '../../access/anyone'
 
-export const VkAutoSync: CollectionConfig<'vkAutoSync'> = {
+export const VkAutoSync: CollectionConfig<'vk-auto-sync'> = {
   slug: 'vk-auto-sync',
   labels: {
     singular: 'Источник авто-импорта VK',

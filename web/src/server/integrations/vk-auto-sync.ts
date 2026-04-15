@@ -1,4 +1,5 @@
 import type { Payload } from 'payload'
+import type { Post } from '@/payload-types'
 
 const VK_API_VERSION = '5.199'
 
@@ -9,11 +10,6 @@ const VK_API_VERSION = '5.199'
  */
 const VK_API_DELAY_MS = Number(process.env.VK_IMPORT_DELAY_MS || 1000)
 
-/**
- * Счётчик для ротации токенов
- * Переключается между VK_TOKEN_VALSTAN и VK_TOKEN_VITA
- */
-let tokenRoundRobin = 0
 
 type VkWallPost = {
   id: number
@@ -74,19 +70,6 @@ function getVkTokenPool(): string[] {
   }
 
   return tokens.length > 0 ? tokens : ['']
-}
-
-/**
- * Получает следующий токен из пула (round-robin)
- * Равномерно распределяет нагрузку между токенами
- */
-function getNextVkToken(): string {
-  const pool = getVkTokenPool()
-  if (pool.length <= 1) return pool[0]
-
-  const token = pool[tokenRoundRobin % pool.length]
-  tokenRoundRobin++
-  return token
 }
 
 /**
@@ -191,7 +174,6 @@ async function downloadAndCreateMedia(
       overrideAccess: true,
       data: {
         alt: filename,
-        caption: '',
       },
       file: {
         data: buffer,
@@ -232,7 +214,7 @@ function generateSlug(text: string): string {
 /**
  * Создаёт Rich Text из обычного текста
  */
-function richTextFromText(text: string) {
+function richTextFromText(text: string): Post['content'] {
   if (!text || !text.trim()) {
     return {
       root: {
@@ -243,7 +225,7 @@ function richTextFromText(text: string) {
         indent: 0,
         version: 1,
       },
-    }
+    } as Post['content']
   }
 
   const paragraphs = text.split('\n').filter((line) => line.trim())
@@ -275,7 +257,7 @@ function richTextFromText(text: string) {
       indent: 0,
       version: 1,
     },
-  }
+  } as Post['content']
 }
 
 /**
@@ -404,11 +386,12 @@ export async function syncVkSource(
         const largestSize = photoAttachment.photo.sizes.reduce((prev, curr) =>
           curr.width > prev.width ? curr : prev,
         )
-        heroImageId = await downloadAndCreateMedia(
+        heroImageId =
+          (await downloadAndCreateMedia(
           payload,
           largestSize.url,
           `vk-${newPost.id}-${Date.now()}.jpg`,
-        )
+        )) ?? undefined
       }
     }
 

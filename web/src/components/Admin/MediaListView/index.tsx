@@ -160,7 +160,7 @@ const modeButtonClassName = (active: boolean) =>
   `media-list-view__button ${active ? 'media-list-view__button--active' : ''}`
 
 export const MediaListView: React.FC<ListViewClientProps> = (props) => {
-  const { collectionSlug, Table } = props
+  const { Table } = props
   const [displayMode, setDisplayMode] = useState<DisplayMode>('table')
   const [gallerySize, setGallerySize] = useState<GallerySize>('medium')
   const [isHydrated, setIsHydrated] = useState(false)
@@ -191,7 +191,7 @@ export const MediaListView: React.FC<ListViewClientProps> = (props) => {
     }
 
     return Table
-  }, [Table, collectionSlug, gallerySize, displayMode])
+  }, [Table, gallerySize, displayMode])
 
   return (
     <DefaultListView

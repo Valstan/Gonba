@@ -160,11 +160,28 @@ export default buildConfig({
     tasks: [
       {
         slug: 'vkAutoSync',
-        handler: async ({ payload }) => {
+        handler: async (args) => {
+          const payload = (args as { req?: PayloadRequest }).req?.payload
+          if (!payload) {
+            return {
+              output: {
+                success: false,
+                reason: 'Payload request context is unavailable',
+              },
+            }
+          }
+
           const results = await syncAllVkSources(payload)
           const imported = results.filter((r) => r.newPostId).length
           payload.logger.info(`VK Auto-Sync: ${results.length} sources checked, ${imported} posts imported`)
-          return results
+          return {
+            output: {
+              success: true,
+              total: results.length,
+              imported,
+              results,
+            },
+          }
         },
       },
     ],

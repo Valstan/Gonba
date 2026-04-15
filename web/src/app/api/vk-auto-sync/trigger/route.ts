@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       }
 
       const source = await payload.create({
-        collection: 'vkAutoSync',
+        collection: 'vk-auto-sync',
         overrideAccess: true,
         data: {
           communityUrl: 'https://vk.com/club229392127',

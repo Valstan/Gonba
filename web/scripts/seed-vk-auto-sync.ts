@@ -16,7 +16,7 @@ async function main() {
 
   // Проверяем, есть ли уже источники
   const existing = await payload.find({
-    collection: 'vkAutoSync',
+    collection: 'vk-auto-sync',
     overrideAccess: true,
     limit: 1,
   })
@@ -36,7 +36,7 @@ async function main() {
 
   // Создаём источник для Вятской лепоты
   const source = await payload.create({
-    collection: 'vkAutoSync',
+    collection: 'vk-auto-sync',
     overrideAccess: true,
     data: {
       communityUrl: 'https://vk.com/club229392127',

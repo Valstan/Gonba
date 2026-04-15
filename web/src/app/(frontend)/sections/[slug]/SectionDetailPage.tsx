@@ -6,7 +6,9 @@ import { sections, getSectionBySlug, type SectionDefinition } from '@/app/(front
 import { SectionNavigator } from '@/components/SectionNavigator'
 import { SectionHero } from '@/components/SectionHero'
 import { CollectionArchive } from '@/components/CollectionArchive'
+import type { CardPostData } from '@/components/Card'
 import { Media } from '@/components/Media'
+import type { Media as MediaType } from '@/payload-types'
 
 type Args = {
   params: Promise<{
@@ -29,14 +31,6 @@ export async function generateStaticParams() {
   return sections.map((section) => ({
     slug: section.slug,
   }))
-}
-
-type PostDoc = {
-  id: string | number
-  title?: string
-  slug?: string
-  categories?: unknown
-  meta?: unknown
 }
 
 type EventDoc = {
@@ -67,7 +61,7 @@ type ProjectDoc = {
   id: string | number
   title?: string
   slug?: string
-  logo?: unknown
+  logo?: number | string | MediaType | null
 }
 
 export default async function SectionDetailPage({ params: paramsPromise }: Args) {
@@ -99,7 +93,7 @@ export default async function SectionDetailPage({ params: paramsPromise }: Args)
   }
 
   // Получаем посты для этой секции
-  let posts: PostDoc[] = []
+  let posts: CardPostData[] = []
   if (section.enabledSections.includes('posts')) {
     try {
       const postsRes = await payload.find({
@@ -116,9 +110,10 @@ export default async function SectionDetailPage({ params: paramsPromise }: Args)
           slug: true,
           categories: true,
           meta: true,
+          heroImage: true,
         },
       })
-      posts = postsRes.docs as PostDoc[]
+      posts = postsRes.docs as CardPostData[]
     } catch {
       posts = []
     }
@@ -381,9 +376,9 @@ export default async function SectionDetailPage({ params: paramsPromise }: Args)
                   href={`/projects/${project.slug}`}
                   className="mt-3 flex items-center gap-3 rounded-xl border border-border/60 bg-background/60 p-4 transition-all hover:border-[var(--section-accent)]/30 hover:shadow-md"
                 >
-                  {project.logo && typeof project.logo !== 'string' ? (
+                  {project.logo && typeof project.logo === 'object' ? (
                     <Media
-                      resource={project.logo}
+                      resource={project.logo as MediaType}
                       className="h-12 w-12 shrink-0 overflow-hidden rounded-lg"
                       imgClassName="h-full w-full object-cover"
                     />
