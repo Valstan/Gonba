@@ -1,0 +1,11 @@
+[Unit]
+Description=GONBA VK Auto-Sync timer (every 3 hours)
+
+[Timer]
+OnCalendar=*-*-* 00/3:00:00
+Persistent=true
+RandomizedDelaySec=5min
+Unit=gonba-vk-sync.service
+
+[Install]
+WantedBy=timers.target
