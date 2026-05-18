@@ -2,7 +2,7 @@
 
 Цель этого документа — дать следующей сессии разработки с нейросетью быстрый и точный контекст: где что лежит, какие сервисы и функции уже есть, какие переменные окружения используются, и какие правила критичны для стабильной работы проекта.
 
-Сессию назови "ГОНЬБА 15 апреля 2026" (актуальная дата сессии разработки)
+Сессию назови "ГОНЬБА 18 мая 2026" (актуальная дата сессии разработки)
 
 ## Краткий обзор
 
@@ -71,16 +71,17 @@
 **Архитектура:**
 - Коллекция `vk-auto-sync` — список источников (URL сообщества, токен, интервал, привязка к секции/проекту)
 - Глобал `vkAutoSyncSettings` — общие настройки (интервал по умолчанию, скачивание изображений, авто-публикация)
-- Server function: `web/src/server/integrations/vk-auto-sync.ts`
-- Payload Job task: `vkAutoSync` (cron, запускается автоматически)
-- API endpoint: `POST /api/vk-auto-sync/trigger` — ручной запуск
+- Server function: `web/src/server/integrations/vk-auto-sync.ts` (`syncAllVkSources`, `syncVkSource`)
+- API endpoint: `POST /api/vk-auto-sync/trigger` — синхронизация всех источников или конкретного (по `sourceId`)
+- Payload Job task: `vkAutoSync` — задефайнен в `web/src/payload.config.ts`, но **без встроенного schedule**; запускать через API или payload-jobs runner.
+- Внешний планировщик: **systemd timer** `gonba-vk-sync.timer` (см. `deploy/systemd/gonba-vk-sync.timer` и `deploy/README.md`).
 
 **Как работает:**
-1. Каждые 3 часа (настраивается) Payload Jobs вызывает task `vkAutoSync`
-2. Task проходит по всем активным источникам из `vk-auto-sync`
-3. Для каждого источника: `wall.get` VK API → берёт 1 новый пост → скачивает изображение → создаёт пост в CMS
-4. Привязка к проекту и секции через `projectSlug` и `sectionSlug`
-5. Лог синхронизации хранится в поле `syncLog` (последние 50 записей)
+1. systemd timer `gonba-vk-sync.timer` срабатывает каждые 3 часа (`OnCalendar=*-*-* 00/3:00:00`).
+2. Юнит `gonba-vk-sync.service` (oneshot) делает `POST /api/vk-auto-sync/trigger` с `Bearer $CRON_SECRET`.
+3. Endpoint вызывает `syncAllVkSources` → для каждого активного источника: внутренний гард по `syncIntervalHours`, затем `wall.get` VK API → берёт 1 новый пост → скачивает изображение → создаёт пост в CMS.
+4. Привязка к проекту и секции через `projectSlug` и `sectionSlug`.
+5. Состояние источника обновляется в `vk_auto_sync.last_sync_*`, общее количество — в `total_imported`.
 
 **Ручной запуск:**
 ```bash

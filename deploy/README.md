@@ -47,6 +47,37 @@ sudo systemctl enable --now gonba-web
 journalctl -u gonba-web -f
 ```
 
+## VK Auto-Sync (systemd timer)
+
+Каждые 3 часа дёргает `POST /api/vk-auto-sync/trigger`, который запускает синхронизацию всех активных источников из коллекции `vk-auto-sync`.
+
+Файлы:
+
+- `deploy/systemd/gonba-vk-sync.service` — oneshot, делает curl на trigger-endpoint с `Authorization: Bearer $CRON_SECRET`.
+- `deploy/systemd/gonba-vk-sync.timer` — `OnCalendar=*-*-* 00/3:00:00`, `Persistent=true`, RandomizedDelaySec=5min.
+
+Установка:
+
+```bash
+sudo cp /home/valstan/GONBA/deploy/systemd/gonba-vk-sync.service /etc/systemd/system/
+sudo cp /home/valstan/GONBA/deploy/systemd/gonba-vk-sync.timer   /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now gonba-vk-sync.timer
+```
+
+Проверка:
+
+```bash
+systemctl list-timers gonba-vk-sync.timer
+journalctl -u gonba-vk-sync -n 50 --no-pager
+sudo systemctl start gonba-vk-sync.service   # ручной запуск разово
+```
+
+Требования:
+
+- В `/home/valstan/GONBA/web/.env` должен быть установлен `CRON_SECRET`.
+- Приложение должно быть доступно на `http://127.0.0.1:3000` (по умолчанию).
+
 ## Swap и устойчивость сборки/тестов
 
 Если в этой среде `npm run build` падает по памяти (`Killed`, код 137), включите постоянный swap перед следующими шагами:
