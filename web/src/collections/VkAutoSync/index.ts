@@ -166,7 +166,4 @@ export const VkAutoSync: CollectionConfig<'vk-auto-sync'> = {
     },
   ],
   hooks: {},
-  versions: {
-    drafts: false,
-  },
 }
