@@ -4,6 +4,7 @@ import { getPayload } from 'payload'
 import React from 'react'
 
 import { HomeCarouselMenuClient } from './HomeCarouselMenuClient'
+import { HomeProjectGridMobile } from './HomeProjectGridMobile'
 import { queryProjects } from './projects/queries'
 
 export const metadata: Metadata = {
@@ -95,7 +96,11 @@ export default async function HomePage() {
           </p>
         </div>
 
-        <HomeCarouselMenuClient centerItem={centerItem} items={orbitItems} />
+        <HomeProjectGridMobile projects={projects} centerSlug={centerProject?.slug || CENTER_SLUG} />
+
+        <div className="hidden md:block">
+          <HomeCarouselMenuClient centerItem={centerItem} items={orbitItems} />
+        </div>
       </section>
     </main>
   )

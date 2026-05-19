@@ -166,36 +166,63 @@ Payload:
 
 ### Удалённый доступ к серверу (SSH)
 
-Настроено SSH-подключение к production-серверу через конфигурацию на локальном компьютере:
+Настроено SSH-подключение к production-серверу с локальной машины разработчика.
 
-- Файл конфигурации: `C:\Users\Valstan\.ssh\config`
-- Хост: `GONBA`
-- Сервер: `831d0ce99bdf.vps.myjino.ru:22`
+Параметры подключения:
+
+- Хост: `831d0ce99bdf.vps.myjino.ru`
+- Порт: `22`
 - Пользователь: `valstan`
-- Ключ: `~/.ssh/id_rsa`
+- Ключ: ed25519 (обычно `~/.ssh/id_ed25519`; раньше в документации фигурировал `~/.ssh/id_rsa` — это устарело)
+- ОС сервера: Ubuntu Linux 24.04 (ядро 6.8.x)
 
-**Для нейросетей-разработчиков**: ты можешь подключаться к серверу через SSH, используя алиас `GONBA`. Это позволяет:
+**На локалке желательно завести алиас `GONBA` в `~/.ssh/config`:**
+
+```
+Host GONBA
+  HostName 831d0ce99bdf.vps.myjino.ru
+  Port 22
+  User valstan
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+  StrictHostKeyChecking accept-new
+```
+
+После этого все примеры ниже работают как `ssh GONBA "..."`. Если алиас не настроен — используй полный адрес `valstan@831d0ce99bdf.vps.myjino.ru -p 22`.
+
+**Для нейросетей-разработчиков**: ты можешь подключаться к серверу по SSH и **выполнять `sudo` без пароля** (NOPASSWD настроен). Это полный root-доступ — пользуйся аккуратно, как на любом продакшене. Возможности:
 
 - Управлять сервисом (`sudo systemctl status/restart/stop gonba`)
-- Просматривать логи (`journalctl -u gonba -f`)
+- Управлять авто-импортом VK (`sudo systemctl status/start gonba-vk-sync.timer`, `sudo systemctl start gonba-vk-sync.service`)
+- Просматривать логи (`journalctl -u gonba -f`, `journalctl -u gonba-vk-sync -n 50`)
 - Обновлять код (`cd /home/valstan/GONBA && git pull`)
 - Собирать и деплоить новые версии
-- Выполнять любые команды на сервере
+- Делать `pg_dump` локальной production-БД (`pg_isready` подтверждает, что Postgres слушает 127.0.0.1:5432)
+- Прокидывать туннель к prod БД с локалки: `ssh -L 5432:127.0.0.1:5432 GONBA` (внимание: `push: true` в `payload.config.ts` будет менять схему прод-БД)
+- Выполнять любые другие команды на сервере
+
+Доступ верифицирован 18 мая 2026.
 
 Примеры команд:
 
 ```bash
 # Проверить статус сервиса
-ssh valstan@GONBA "sudo systemctl status gonba.service --no-pager -l"
+ssh GONBA "sudo systemctl status gonba.service --no-pager -l"
 
 # Перезапустить сервис
-ssh valstan@GONBA "sudo systemctl restart gonba"
+ssh GONBA "sudo systemctl restart gonba"
 
 # Посмотреть логи
-ssh valstan@GONBA "journalctl -u gonba -n 50 --no-pager"
+ssh GONBA "journalctl -u gonba -n 50 --no-pager"
 
-# Обновить код из репозитория
-ssh valstan@GONBA "cd /home/valstan/GONBA && git pull && npm run build && sudo systemctl restart gonba"
+# Обновить код из репозитория и пересобрать
+ssh GONBA "cd /home/valstan/GONBA && git pull && npm run build && sudo systemctl restart gonba"
+
+# Снять дамп БД prod в локальный файл
+ssh GONBA "sudo -u postgres pg_dump -Fc gonba" > prod-gonba.dump
+
+# Триггернуть VK auto-sync вручную (используй $CRON_SECRET из /home/valstan/GONBA/web/.env)
+ssh GONBA "sudo systemctl start gonba-vk-sync.service && journalctl -u gonba-vk-sync -n 20 --no-pager"
 ```
 
 ### Systemd (production)

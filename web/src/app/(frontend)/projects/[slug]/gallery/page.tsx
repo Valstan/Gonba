@@ -4,8 +4,12 @@ import { notFound } from 'next/navigation'
 
 import { Breadcrumbs } from '@/components/Breadcrumbs'
 import { Media } from '@/components/Media'
+import { YandexGallerySection } from '@/components/Gallery/YandexGallerySection'
+import { listYandexGalleryFolder, type YandexGalleryItem } from '@/server/integrations/yandex-disk-gallery'
 import { queryProjectBySlug } from '../../queries'
 import type { Media as MediaType } from '@/payload-types'
+
+const YANDEX_PREFIX = (process.env.YANDEX_PUBLIC_GALLERY_PREFIX || '/public-galleries/').toLowerCase()
 
 export const dynamic = 'force-static'
 export const revalidate = 600
@@ -124,6 +128,17 @@ export default async function ProjectGalleryPage({ params: paramsPromise }: Args
     return all.findIndex((candidate, candidateIndex) => getMediaKey(candidate, candidateIndex) === key) === index
   })
 
+  // Подгрузка из Яндекс-папки (если задана и проходит whitelist).
+  let yandexItems: YandexGalleryItem[] = []
+  const yandexFolder = (project.galleryYandexFolder || '').trim()
+  if (yandexFolder && yandexFolder.toLowerCase().startsWith(YANDEX_PREFIX)) {
+    try {
+      yandexItems = await listYandexGalleryFolder(yandexFolder, 48)
+    } catch (err) {
+      console.warn(`[gallery] yandex listing failed for ${project.slug}: ${(err as Error).message}`)
+    }
+  }
+
   return (
     <main className="pb-20 pt-24">
       <section className="container">
@@ -154,6 +169,8 @@ export default async function ProjectGalleryPage({ params: paramsPromise }: Args
         </div>
 
         {deduped.length === 0 ? <p className="mt-4 text-sm text-muted-foreground">Фото в галерее пока не добавлены.</p> : null}
+
+        <YandexGallerySection items={yandexItems} />
       </section>
     </main>
   )

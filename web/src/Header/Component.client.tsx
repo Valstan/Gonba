@@ -8,7 +8,7 @@ import type { Header } from '@/payload-types'
 
 import { Logo } from '@/components/Logo/Logo'
 import { HeaderNav } from './Nav'
-import { Menu, X } from 'lucide-react'
+import { MobileNavSheet } from './MobileNavSheet'
 
 interface HeaderClientProps {
   data: Header
@@ -17,7 +17,7 @@ interface HeaderClientProps {
 export const HeaderClient: React.FC<HeaderClientProps> = ({ data }) => {
   /* Storing the value in a useState to avoid hydration errors */
   const [theme, setTheme] = useState<string | null>(null)
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
   const { headerTheme, setHeaderTheme } = useHeaderTheme()
   const pathname = usePathname()
 
@@ -31,28 +31,27 @@ export const HeaderClient: React.FC<HeaderClientProps> = ({ data }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [headerTheme])
 
+  // Компактный режим хедера при скролле.
   useEffect(() => {
-    setMenuOpen(false)
-  }, [pathname])
+    const onScroll = () => setScrolled(window.scrollY > 40)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   return (
-    <header className="container relative z-20   " {...(theme ? { 'data-theme': theme } : {})}>
-      <div className="py-8 flex justify-between">
-        <Link href="/">
+    <header
+      className="container relative z-20 transition-[padding] duration-200"
+      data-scrolled={scrolled ? 'true' : 'false'}
+      {...(theme ? { 'data-theme': theme } : {})}
+    >
+      <div className={scrolled ? 'flex items-center justify-between py-3 transition-[padding]' : 'flex items-center justify-between py-8 transition-[padding]'}>
+        <Link href="/" aria-label="На главную">
           <Logo loading="eager" className="invert dark:invert-0" />
         </Link>
-        <button
-          type="button"
-          aria-label={menuOpen ? 'Закрыть меню' : 'Открыть меню'}
-          aria-expanded={menuOpen}
-          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-muted-foreground text-muted-foreground md:hidden"
-          onClick={() => setMenuOpen((value) => !value)}
-        >
-          {menuOpen ? <X className="w-5" /> : <Menu className="w-5" />}
-        </button>
-        <HeaderNav data={data} isOpen={menuOpen} onNavigate={() => setMenuOpen(false)} />
+        <HeaderNav data={data} />
+        <MobileNavSheet data={data} />
       </div>
-      {menuOpen && <div className="fixed inset-0 z-30 bg-black/35 md:hidden" onClick={() => setMenuOpen(false)} />}
     </header>
   )
 }
