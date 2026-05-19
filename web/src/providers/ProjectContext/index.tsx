@@ -16,10 +16,23 @@ const defaultValue: ProjectContextValue = {
 
 const ProjectContext = createContext<ProjectContextValue>(defaultValue)
 
-export const ProjectProvider: React.FC<{ project: ProjectRecord; children: React.ReactNode }> = ({ project, children }) => {
-  const enabledSections = Array.isArray(project.enabledSections) ? project.enabledSections.filter(Boolean) : []
+type ProjectProviderProps = {
+  project: ProjectRecord
+  enabledSections?: ProjectSectionKey[]
+  children: React.ReactNode
+}
 
-  return <ProjectContext value={{ project, enabledSections }}>{children}</ProjectContext>
+export const ProjectProvider: React.FC<ProjectProviderProps> = ({ project, enabledSections, children }) => {
+  // Если явно передан нормализованный список — используем его.
+  // Иначе фильтруем raw-значение (с потерей legacy ключей, но это деградация).
+  const finalSections: ProjectSectionKey[] = enabledSections ??
+    (Array.isArray(project.enabledSections)
+      ? (project.enabledSections.filter((item): item is ProjectSectionKey =>
+          typeof item === 'string' && ['feed', 'lavka', 'gallery', 'contacts', 'chat'].includes(item),
+        ) as ProjectSectionKey[])
+      : [])
+
+  return <ProjectContext value={{ project, enabledSections: finalSections }}>{children}</ProjectContext>
 }
 
 export const useProjectContext = (): ProjectContextValue => {

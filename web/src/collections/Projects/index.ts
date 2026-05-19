@@ -56,10 +56,11 @@ export const Projects: CollectionConfig<'projects'> = {
       name: 'enabledSections',
       type: 'select',
       hasMany: true,
-      defaultValue: ['posts', 'events', 'services', 'shop', 'contacts'],
-      options: ['posts', 'events', 'services', 'shop', 'gallery', 'contacts'],
+      defaultValue: ['feed', 'lavka', 'gallery', 'contacts', 'chat'],
+      options: ['posts', 'events', 'services', 'shop', 'feed', 'lavka', 'gallery', 'contacts', 'chat'],
       admin: {
-        description: 'Какие подразделы будут доступны в этом проектном “дворике”.',
+        description:
+          'Подразделы проекта. Используйте feed (Жизнь проекта), lavka (Лавка), gallery, contacts, chat. Старые ключи posts/events/services/shop поддерживаются как legacy и автоматически мапятся.',
       },
     },
     {
@@ -103,6 +104,36 @@ export const Projects: CollectionConfig<'projects'> = {
         {
           name: 'caption',
           type: 'text',
+        },
+      ],
+    },
+    {
+      name: 'galleryYandexFolder',
+      type: 'text',
+      admin: {
+        description:
+          'Путь на Яндекс.Диске для подгрузки фотогалереи (например /public-galleries/vyatskaya-lepota/). Для безопасности папка должна начинаться с YANDEX_PUBLIC_GALLERY_PREFIX (по умолчанию /public-galleries/).',
+      },
+    },
+    {
+      name: 'chat',
+      type: 'group',
+      admin: {
+        description: 'Настройки чата проекта.',
+      },
+      fields: [
+        {
+          name: 'enabled',
+          type: 'checkbox',
+          defaultValue: false,
+          admin: {
+            description: 'Включить чат на странице проекта.',
+          },
+        },
+        {
+          name: 'placeholder',
+          type: 'text',
+          defaultValue: 'Напишите сообщение...',
         },
       ],
     },

@@ -9,12 +9,11 @@ import { DEFAULT_PROJECT_SECTIONS, type ProjectSectionKey } from '@/app/(fronten
 import { useProjectContext } from '@/providers/ProjectContext'
 
 const SECTION_TITLES: Record<ProjectSectionKey, string> = {
-  posts: 'Блог',
-  events: 'События',
-  services: 'Услуги',
-  shop: 'Магазин',
+  feed: 'Жизнь проекта',
+  lavka: 'Лавка',
   gallery: 'Галерея',
   contacts: 'Контакты',
+  chat: 'Чат',
 }
 
 const buildSectionHref = (projectSlug: string, section: ProjectSectionKey | 'home') =>
@@ -26,11 +25,12 @@ export const ProjectNav: React.FC = () => {
 
   if (!project) return null
 
-  const visibleSections = Array.isArray(enabledSections) && enabledSections.length > 0 ? enabledSections : DEFAULT_PROJECT_SECTIONS
+  const visibleSections =
+    Array.isArray(enabledSections) && enabledSections.length > 0 ? enabledSections : DEFAULT_PROJECT_SECTIONS
   const sections = visibleSections.filter((item): item is ProjectSectionKey => item in SECTION_TITLES)
 
   return (
-    <div className="border-b border-border bg-card/60 backdrop-blur">
+    <div className="hidden border-b border-border bg-card/60 backdrop-blur md:block">
       <div className="container flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between">
         <Link href={buildSectionHref(project.slug, 'home')} className="flex items-center gap-3 min-w-0">
           {project.logo ? (
@@ -47,9 +47,9 @@ export const ProjectNav: React.FC = () => {
             <li>
               <Link
                 href={buildSectionHref(project.slug, 'home')}
-                className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-sm ${
+                className={`min-h-11 inline-flex items-center whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
                   pathname === buildSectionHref(project.slug, 'home')
-                    ? 'border-[var(--project-accent)] bg-[color:var(--project-accent,transparent)]/10 text-[var(--project-accent)]'
+                    ? 'border-[var(--project-accent)] bg-[color:var(--project-accent-soft,transparent)] text-[var(--project-accent)]'
                     : 'border-border/90 hover:bg-accent/40'
                 }`}
               >
@@ -64,9 +64,9 @@ export const ProjectNav: React.FC = () => {
                 <li key={section}>
                   <Link
                     href={href}
-                    className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-sm ${
+                    className={`min-h-11 inline-flex items-center whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
                       active
-                        ? 'border-[var(--project-accent)] bg-[color:var(--project-accent,transparent)]/10 text-[var(--project-accent)]'
+                        ? 'border-[var(--project-accent)] bg-[color:var(--project-accent-soft,transparent)] text-[var(--project-accent)]'
                         : 'border-border/90 hover:bg-accent/40'
                     }`}
                   >

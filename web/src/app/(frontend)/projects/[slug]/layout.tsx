@@ -2,8 +2,10 @@ import { notFound } from 'next/navigation'
 import type { CSSProperties, ReactNode } from 'react'
 
 import { ProjectNav } from '@/components/ProjectNav'
+import { ProjectBottomTabs } from '@/components/ProjectNav/ProjectBottomTabs'
 import { ProjectProvider } from '@/providers/ProjectContext'
-import { queryProjectBySlug, DEFAULT_PROJECT_SECTIONS } from '../queries'
+import { normalizeSections } from '../shared'
+import { queryProjectBySlug } from '../queries'
 
 export const revalidate = 600
 
@@ -16,36 +18,32 @@ type LayoutProps = {
 
 const FALLBACK_ACCENT = '#2d7a4f'
 
-const normalizeSections = (sections?: Array<string | null> | null) => {
-  if (!Array.isArray(sections) || sections.length === 0) {
-    return DEFAULT_PROJECT_SECTIONS
-  }
-
-  return sections.filter((item): item is 'posts' | 'events' | 'services' | 'shop' | 'gallery' | 'contacts' => {
-    return item === 'posts' || item === 'events' || item === 'services' || item === 'shop' || item === 'gallery' || item === 'contacts'
-  })
-}
-
 export default async function ProjectLayout({ children, params }: LayoutProps) {
   const { slug } = await params
   const project = await queryProjectBySlug({ slug })
   if (!project) return notFound()
 
-  const accent = typeof project.accentColor === 'string' && project.accentColor.trim().length > 0 ? project.accentColor.trim() : FALLBACK_ACCENT
+  const accent =
+    typeof project.accentColor === 'string' && project.accentColor.trim().length > 0
+      ? project.accentColor.trim()
+      : FALLBACK_ACCENT
   const enabledSections = normalizeSections(project.enabledSections)
 
   return (
-    <ProjectProvider project={{ ...project, enabledSections }}>
+    <ProjectProvider project={project} enabledSections={enabledSections}>
       <div
         style={
           {
             '--project-accent': accent,
-            '--project-accent-light': accent,
+            '--project-accent-soft': `color-mix(in oklab, ${accent} 12%, transparent)`,
           } as CSSProperties
         }
       >
         <ProjectNav />
-        <div className="project-layout">{children}</div>
+        <div key={project.slug} className="project-layout animate-fade-in pb-24 md:pb-0">
+          {children}
+        </div>
+        <ProjectBottomTabs />
       </div>
     </ProjectProvider>
   )

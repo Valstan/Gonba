@@ -17,6 +17,10 @@ export async function POST(request: Request) {
     return undefined
   }
 
+  const productId = toNumber(body.productId)
+  const productPrefix = productId ? `Товар #${productId}\n` : ''
+  const userNotes = typeof body.notes === 'string' ? body.notes : ''
+
   const bookingInput = {
     customerName: body.customerName as string | undefined,
     phone: body.phone as string | undefined,
@@ -28,7 +32,7 @@ export async function POST(request: Request) {
     guests: toNumber(body.guests),
     startDate: body.startDate as string | undefined,
     endDate: body.endDate as string | undefined,
-    notes: body.notes as string | undefined,
+    notes: productPrefix ? `${productPrefix}${userNotes}`.trim() : userNotes || undefined,
     source: (body.source as string | undefined) || 'website',
   }
 

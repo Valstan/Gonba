@@ -90,9 +90,8 @@ export default async function ProjectPage({ params: paramsPromise }: Args) {
     }),
   ])
 
-  const hasPostsSection = !enabledSections || enabledSections.includes('posts')
-  const hasEventsSection = !enabledSections || enabledSections.includes('events')
-  const hasServicesSection = !enabledSections || enabledSections.includes('services')
+  const hasFeed = !enabledSections || enabledSections.includes('feed') || enabledSections.includes('posts') || enabledSections.includes('events')
+  const hasLavka = !enabledSections || enabledSections.includes('lavka') || enabledSections.includes('services') || enabledSections.includes('shop')
   const hasContactsSection = !enabledSections || enabledSections.includes('contacts')
   const hasGallerySection = !enabledSections || enabledSections.includes('gallery')
   return (
@@ -119,10 +118,13 @@ export default async function ProjectPage({ params: paramsPromise }: Args) {
         <p className="mt-4 max-w-2xl text-muted-foreground">{project.summary || 'Проектное пространство проекта и его активная программа.'}</p>
 
         <div className="mt-6 flex flex-wrap gap-3">
-          <Link href={`/projects/${project.slug}/posts`} className="rounded-full border border-border bg-background px-4 py-2 text-sm font-medium">
-            Перейти в проект
+          <Link href={`/projects/${project.slug}/feed`} className="min-h-11 inline-flex items-center rounded-full border border-border bg-background px-4 py-2 text-sm font-medium">
+            Жизнь проекта
           </Link>
-          <Link href={`/projects/${project.slug}/contacts`} className="rounded-full border border-border bg-background px-4 py-2 text-sm font-medium">
+          <Link href={`/projects/${project.slug}/lavka`} className="min-h-11 inline-flex items-center rounded-full border border-border bg-background px-4 py-2 text-sm font-medium">
+            Лавка
+          </Link>
+          <Link href={`/projects/${project.slug}/contacts`} className="min-h-11 inline-flex items-center rounded-full border border-border bg-background px-4 py-2 text-sm font-medium">
             Контакты
           </Link>
         </div>
@@ -142,48 +144,40 @@ export default async function ProjectPage({ params: paramsPromise }: Args) {
           ) : null}
 
           <div className="rounded-2xl border border-border/80 bg-card/80 p-5">
-            <h2 className="text-xl font-medium">Ближайшие события</h2>
-            {hasEventsSection ? (
-              upcomingEvents.docs.length > 0 ? (
-                <ul className="mt-4 space-y-3">
-                  {upcomingEvents.docs.map((event) => (
-                    <li key={event.id}>
-                      <Link href={`/projects/${project.slug}/events`} className="text-sm hover:text-[var(--project-accent)]">
-                        {event.title as string}
-                      </Link>
-                      {event.startDate ? (
-                        <p className="text-xs text-muted-foreground">{new Date(event.startDate).toLocaleString('ru-RU', { dateStyle: 'long' })}</p>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-4 text-sm text-muted-foreground">Скоро будут анонсы событий.</p>
-              )
-            ) : (
-              <p className="mt-4 text-sm text-muted-foreground">Подраздел событий отключен для этого проекта.</p>
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-border/80 bg-card/80 p-5">
-            <h2 className="text-xl font-medium">Последние посты</h2>
-            {hasPostsSection ? (
-              featuredPosts.docs.length > 0 ? (
+            <h2 className="text-xl font-medium">Жизнь проекта</h2>
+            {hasFeed ? (
+              upcomingEvents.docs.length > 0 || featuredPosts.docs.length > 0 ? (
                 <>
+                  {upcomingEvents.docs.length > 0 ? (
+                    <ul className="mt-4 space-y-3">
+                      {upcomingEvents.docs.map((event) => (
+                        <li key={event.id}>
+                          <Link href={`/projects/${project.slug}/feed?type=event`} className="text-sm hover:text-[var(--project-accent)]">
+                            🗓 {event.title as string}
+                          </Link>
+                          {event.startDate ? (
+                            <p className="text-xs text-muted-foreground">{new Date(event.startDate).toLocaleString('ru-RU', { dateStyle: 'long' })}</p>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {featuredPosts.docs.length > 0 ? (
+                    <div className="mt-4">
+                      <CollectionArchive posts={featuredPosts.docs} />
+                    </div>
+                  ) : null}
                   <div className="mt-4">
-                    <CollectionArchive posts={featuredPosts.docs} />
-                  </div>
-                  <div className="mt-4">
-                    <Link href={`/projects/${project.slug}/posts`} className="text-sm text-[var(--project-accent)] hover:underline">
-                      Все публикации
+                    <Link href={`/projects/${project.slug}/feed`} className="text-sm text-[var(--project-accent)] hover:underline">
+                      Открыть ленту
                     </Link>
                   </div>
                 </>
               ) : (
-                <p className="mt-4 text-sm text-muted-foreground">Пока публикаций нет.</p>
+                <p className="mt-4 text-sm text-muted-foreground">Лента проекта скоро наполнится.</p>
               )
             ) : (
-              <p className="mt-4 text-sm text-muted-foreground">Подраздел блога отключен для этого проекта.</p>
+              <p className="mt-4 text-sm text-muted-foreground">Лента отключена для этого проекта.</p>
             )}
           </div>
 
@@ -229,13 +223,13 @@ export default async function ProjectPage({ params: paramsPromise }: Args) {
           ) : null}
 
           <div className="rounded-2xl border border-border/80 bg-card/80 p-5">
-            <h2 className="text-xl font-medium">Услуги</h2>
-            {hasServicesSection ? (
+            <h2 className="text-xl font-medium">Лавка</h2>
+            {hasLavka ? (
               projectServices.docs.length > 0 ? (
                 <ul className="mt-4 space-y-3 text-sm">
                   {projectServices.docs.map((service) => (
                     <li key={service.id}>
-                      <Link href={`/projects/${project.slug}/services`} className="hover:text-[var(--project-accent)]">
+                      <Link href={`/projects/${project.slug}/lavka`} className="hover:text-[var(--project-accent)]">
                         {service.title || 'Услуга'}
                       </Link>
                       {service.summary ? <p className="mt-1 text-muted-foreground">{service.summary}</p> : null}
@@ -243,13 +237,13 @@ export default async function ProjectPage({ params: paramsPromise }: Args) {
                   ))}
                 </ul>
               ) : (
-                <p className="mt-4 text-sm text-muted-foreground">Пока услуги не добавлены.</p>
+                <p className="mt-4 text-sm text-muted-foreground">Скоро здесь появятся предложения.</p>
               )
             ) : (
-              <p className="mt-4 text-sm text-muted-foreground">Подраздел услуг отключен для этого проекта.</p>
+              <p className="mt-4 text-sm text-muted-foreground">Раздел «Лавка» отключен для этого проекта.</p>
             )}
-            <Link href={`/projects/${project.slug}/services`} className="mt-4 inline-block text-sm text-[var(--project-accent)] hover:underline">
-              Все услуги
+            <Link href={`/projects/${project.slug}/lavka`} className="mt-4 inline-block text-sm text-[var(--project-accent)] hover:underline">
+              Открыть Лавку →
             </Link>
           </div>
         </aside>

@@ -23,6 +23,8 @@ const getSelect = (): ProjectsSelect => ({
   logo: true,
   enabledSections: true,
   sortOrder: true,
+  galleryYandexFolder: true,
+  chat: true,
 })
 
 export const queryProjectBySlug = cache(async ({ slug }: { slug: string }) => {

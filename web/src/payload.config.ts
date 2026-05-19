@@ -17,6 +17,7 @@ import { Services } from './collections/Services'
 import { Users } from './collections/Users'
 import { VkImportQueue } from './collections/VkImportQueue'
 import { VkAutoSync } from './collections/VkAutoSync'
+import { Messages } from './collections/Messages'
 import { Footer } from './Footer/config'
 import { Header } from './Header/config'
 import { HomeCarousel } from './HomeCarousel/config'
@@ -123,6 +124,7 @@ export default buildConfig({
     Bookings,
     VkImportQueue,
     VkAutoSync,
+    Messages,
     Media,
     Categories,
     Users,

@@ -1,5 +1,9 @@
+# Claude Code working directory (worktrees, plans, settings, memory)
+.claude/
+
 # Dependencies
 node_modules/
+pnpm-lock.yaml
 
 # Build outputs
 build/

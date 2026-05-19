@@ -8,9 +8,32 @@ on:
 jobs:
   web-quality:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: gonba_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gonba_ci
+      PAYLOAD_SECRET: ci-secret-not-for-production
+      NEXT_PUBLIC_SERVER_URL: http://localhost:3000
+      PAYLOAD_PUBLIC_SERVER_URL: http://localhost:3000
+      CRON_SECRET: ci-cron-secret
+      PREVIEW_SECRET: ci-preview-secret
+      IP_HASH_SALT: ci-ip-hash-salt
     defaults:
       run:
         working-directory: web
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,12 +41,21 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
 
+      - name: Enable corepack
+        run: corepack enable
+
       - name: Install dependencies
         run: npm ci
+
+      - name: Generate Payload types
+        run: npm run generate:types
+
+      - name: Generate Payload import map
+        run: npm run generate:importmap
 
       - name: Lint
         run: npm run lint
