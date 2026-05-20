@@ -17,6 +17,7 @@ export type ProjectRecord = Pick<
   | 'location'
   | 'contacts'
   | 'accentColor'
+  | 'homeLink'
   | 'logo'
   | 'enabledSections'
   | 'sortOrder'

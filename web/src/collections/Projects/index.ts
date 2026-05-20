@@ -53,6 +53,13 @@ export const Projects: CollectionConfig<'projects'> = {
       },
     },
     {
+      name: 'homeLink',
+      type: 'text',
+      admin: {
+        description: 'Кастомная ссылка плашки на главной. По умолчанию /projects/{slug}. Можно указать внутреннюю ("/about") или внешнюю (https://…) ссылку.',
+      },
+    },
+    {
       name: 'enabledSections',
       type: 'select',
       hasMany: true,
