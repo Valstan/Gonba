@@ -373,27 +373,29 @@ export async function syncVkSource(
 
     // Находим или создаём категорию для секции
     let categoryId: number | undefined
-    const catRes = await payload.find({
-      collection: 'categories',
-      overrideAccess: true,
-      limit: 1,
-      where: {
-        slug: { equals: sectionSlug },
-      },
-    })
-
-    if (catRes.docs[0]) {
-      categoryId = typeof catRes.docs[0].id === 'number' ? catRes.docs[0].id : Number(catRes.docs[0].id)
-    } else {
-      const catDoc = await payload.create({
+    if (sectionSlug) {
+      const catRes = await payload.find({
         collection: 'categories',
         overrideAccess: true,
-        data: {
-          title: sectionSlug,
-          slug: sectionSlug,
+        limit: 1,
+        where: {
+          slug: { equals: sectionSlug },
         },
       })
-      categoryId = typeof catDoc.id === 'number' ? catDoc.id : Number(catDoc.id)
+
+      if (catRes.docs[0]) {
+        categoryId = typeof catRes.docs[0].id === 'number' ? catRes.docs[0].id : Number(catRes.docs[0].id)
+      } else {
+        const catDoc = await payload.create({
+          collection: 'categories',
+          overrideAccess: true,
+          data: {
+            title: sectionSlug,
+            slug: sectionSlug,
+          },
+        })
+        categoryId = typeof catDoc.id === 'number' ? catDoc.id : Number(catDoc.id)
+      }
     }
 
     // Скачиваем первое изображение (если есть)

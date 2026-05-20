@@ -97,24 +97,47 @@ export const VkAutoSync: CollectionConfig<'vk-auto-sync'> = {
     },
 
     // ===== Привязки к сайту =====
+    // UX: пользователь выбирает проект/категорию из списка (dropdown), а текстовые
+    // slug-поля заполняются автоматически из выбранной связи. Сами text-поля
+    // оставлены для backwards compatibility с server-функцией syncVkSource.
+    {
+      name: 'project',
+      label: 'Проект на сайте',
+      type: 'relationship',
+      relationTo: 'projects',
+      required: true,
+      admin: {
+        description: 'Выберите проект из списка. Slug заполнится автоматически из его поля slug.',
+      },
+    },
+    {
+      name: 'category',
+      label: 'Категория (раздел)',
+      type: 'relationship',
+      relationTo: 'categories',
+      required: true,
+      admin: {
+        description:
+          'Выберите категорию, в которую попадут импортированные посты. ' +
+          'Если нужной категории нет — создайте её в коллекции Categories.',
+      },
+    },
     {
       name: 'sectionSlug',
-      label: 'Slug секции',
+      label: 'Slug категории (служебное)',
       type: 'text',
-      required: true,
-      defaultValue: 'vyatskaya-lepota-malmyzh',
       admin: {
-        description: 'Slug секции на сайте, к которой привязываются импортированные посты.',
+        readOnly: true,
+        description: 'Заполняется автоматически из выбранной категории.',
       },
     },
     {
       name: 'projectSlug',
-      label: 'Slug проекта',
+      label: 'Slug проекта (служебное)',
       type: 'text',
-      required: true,
-      defaultValue: 'vyatskaya-lepota',
       admin: {
-        description: 'Slug проекта в CMS, к которому привязываются посты.',
+        readOnly: true,
+        description: 'Заполняется автоматически из выбранного проекта.',
       },
     },
 
@@ -252,13 +275,55 @@ export const VkAutoSync: CollectionConfig<'vk-auto-sync'> = {
     },
   ],
   hooks: {
-    // Автозаполнение метаданных группы при создании/правке.
+    // Автозаполнение метаданных группы и slug'ов привязок при создании/правке.
     // Срабатывает на beforeValidate, чтобы required-проверки уже видели заполненный groupId.
     beforeValidate: [
       async ({ data, operation, req }) => {
         if (!data) return data
         if (operation !== 'create' && operation !== 'update') return data
 
+        // ---- Slug'и привязок: project → projectSlug, category → sectionSlug ----
+        const projectRef = (data as { project?: unknown }).project
+        if (projectRef != null) {
+          const projectId = typeof projectRef === 'object' ? (projectRef as { id?: number | string }).id : projectRef
+          if (projectId != null) {
+            try {
+              const proj = await req.payload.findByID({
+                collection: 'projects',
+                id: projectId as number | string,
+                depth: 0,
+                overrideAccess: true,
+              })
+              if (proj && typeof (proj as { slug?: string }).slug === 'string') {
+                ;(data as Record<string, unknown>).projectSlug = (proj as { slug: string }).slug
+              }
+            } catch (e) {
+              req.payload.logger.warn(`[vk-auto-sync] Не удалось получить slug проекта ${String(projectId)}: ${String(e)}`)
+            }
+          }
+        }
+
+        const categoryRef = (data as { category?: unknown }).category
+        if (categoryRef != null) {
+          const categoryId = typeof categoryRef === 'object' ? (categoryRef as { id?: number | string }).id : categoryRef
+          if (categoryId != null) {
+            try {
+              const cat = await req.payload.findByID({
+                collection: 'categories',
+                id: categoryId as number | string,
+                depth: 0,
+                overrideAccess: true,
+              })
+              if (cat && typeof (cat as { slug?: string }).slug === 'string') {
+                ;(data as Record<string, unknown>).sectionSlug = (cat as { slug: string }).slug
+              }
+            } catch (e) {
+              req.payload.logger.warn(`[vk-auto-sync] Не удалось получить slug категории ${String(categoryId)}: ${String(e)}`)
+            }
+          }
+        }
+
+        // ---- VK метаданные (как раньше) ----
         const url = typeof data.communityUrl === 'string' ? data.communityUrl : ''
         if (!url.trim()) return data
 

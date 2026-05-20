@@ -34,6 +34,27 @@ async function main() {
     process.exit(1)
   }
 
+  // С новой схемой project/category — relationship, обязательные. Находим их по slug.
+  const projectDoc = await payload.find({
+    collection: 'projects',
+    overrideAccess: true,
+    limit: 1,
+    where: { slug: { equals: 'vyatskaya-lepota' } },
+  })
+  const categoryDoc = await payload.find({
+    collection: 'categories',
+    overrideAccess: true,
+    limit: 1,
+    where: { slug: { equals: 'vyatskaya-lepota-malmyzh' } },
+  })
+  const projectId = projectDoc.docs[0]?.id
+  const categoryId = categoryDoc.docs[0]?.id
+
+  if (!projectId || !categoryId) {
+    console.error('❌ Не найден проект "vyatskaya-lepota" или категория "vyatskaya-lepota-malmyzh" в CMS.')
+    process.exit(1)
+  }
+
   // Создаём источник для Вятской лепоты
   const source = await payload.create({
     collection: 'vk-auto-sync',
@@ -42,6 +63,8 @@ async function main() {
       communityUrl: 'https://vk.com/club229392127',
       groupId: 229392127,
       accessToken: token,
+      project: projectId,
+      category: categoryId,
       sectionSlug: 'vyatskaya-lepota-malmyzh',
       projectSlug: 'vyatskaya-lepota',
       syncIntervalHours: 3,

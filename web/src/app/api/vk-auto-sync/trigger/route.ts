@@ -43,6 +43,32 @@ export async function POST(request: Request) {
         })
       }
 
+      // С новой схемой project/category — relationship, обязательные.
+      // Находим их по slug, чтобы seed работал на любом env.
+      const projectDoc = await payload.find({
+        collection: 'projects',
+        overrideAccess: true,
+        limit: 1,
+        where: { slug: { equals: 'vyatskaya-lepota' } },
+      })
+      const categoryDoc = await payload.find({
+        collection: 'categories',
+        overrideAccess: true,
+        limit: 1,
+        where: { slug: { equals: 'vyatskaya-lepota-malmyzh' } },
+      })
+      const projectId = projectDoc.docs[0]?.id
+      const categoryId = categoryDoc.docs[0]?.id
+
+      if (!projectId || !categoryId) {
+        return Response.json(
+          {
+            error: 'Seed: не найдены проект "vyatskaya-lepota" или категория "vyatskaya-lepota-malmyzh" в CMS.',
+          },
+          { status: 400 },
+        )
+      }
+
       const source = await payload.create({
         collection: 'vk-auto-sync',
         overrideAccess: true,
@@ -50,6 +76,8 @@ export async function POST(request: Request) {
           communityUrl: 'https://vk.com/club229392127',
           groupId: 229392127,
           accessToken: vkToken,
+          project: projectId,
+          category: categoryId,
           sectionSlug: 'vyatskaya-lepota-malmyzh',
           projectSlug: 'vyatskaya-lepota',
           syncIntervalHours: 3,
