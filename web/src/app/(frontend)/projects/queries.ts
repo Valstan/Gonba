@@ -20,6 +20,7 @@ const getSelect = (): ProjectsSelect => ({
   location: true,
   contacts: true,
   accentColor: true,
+  homeLink: true,
   logo: true,
   enabledSections: true,
   sortOrder: true,
