@@ -292,6 +292,24 @@ export async function syncVkSource(
 
     const { groupId, sectionSlug, projectSlug, postType, lastSyncedPostId, syncIntervalHours } = sourceDoc
 
+    // groupId теперь опциональный — пока его не подтянули из VK API (например, токен не задан),
+    // синхронизация постов невозможна. Не падаем — просто помечаем и ждём токен/новой записи.
+    if (!groupId) {
+      const message = 'Не указан ID группы VK. Добавьте токен и сохраните источник, чтобы система подтянула ID автоматически.'
+      await payload.update({
+        collection: 'vk-auto-sync',
+        id: sourceId,
+        overrideAccess: true,
+        data: {
+          lastSyncStatus: 'pending',
+          lastError: message,
+          lastSyncAt: new Date().toISOString(),
+          syncLog: [logEntry('skipped', message), ...(sourceDoc.syncLog || [])].slice(0, 50),
+        },
+      })
+      return { success: false, message }
+    }
+
     // Проверяем, прошло ли достаточно времени с последней синхронизации
     if (sourceDoc.lastSyncAt) {
       const lastSync = new Date(sourceDoc.lastSyncAt).getTime()

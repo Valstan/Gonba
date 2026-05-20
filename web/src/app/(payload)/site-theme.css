@@ -1,0 +1,36 @@
+/*
+  Site CSS-переменные для Payload admin-маршрутов.
+  Используются нашими кастомными компонентами (например YandexDiskManager),
+  чтобы их стили совпадали с дизайн-системой сайта.
+
+  Здесь только :root vars — без Tailwind utilities и без классов,
+  чтобы не задеть UI Payload-админки.
+*/
+:root {
+  --brand-forest: oklch(32% 0.08 156deg);
+  --brand-amber: oklch(78% 0.12 80deg);
+  --brand-clay: oklch(55% 0.12 40deg);
+  --brand-sand: oklch(96% 0.02 85deg);
+  --brand-olive: oklch(55% 0.08 130deg);
+
+  --background: oklch(96% 0.03 85deg);
+  --foreground: oklch(12% 0.02 50deg);
+  --card: oklch(94% 0.03 85deg);
+  --card-foreground: oklch(12% 0.02 50deg);
+  --popover: oklch(96% 0.02 85deg);
+  --popover-foreground: oklch(14.5% 0 0deg);
+  --primary: var(--brand-forest);
+  --primary-foreground: oklch(98.5% 0 0deg);
+  --secondary: oklch(92% 0.04 85deg);
+  --secondary-foreground: oklch(20.5% 0.02 50deg);
+  --muted: oklch(92% 0.03 90deg);
+  --muted-foreground: oklch(30% 0.03 60deg);
+  --accent: var(--brand-amber);
+  --accent-foreground: oklch(20.5% 0 0deg);
+  --destructive: oklch(57.7% 0.245 27.325deg);
+  --destructive-foreground: oklch(57.7% 0.245 27.325deg);
+  --border: oklch(85% 0.04 90deg);
+  --input: oklch(85% 0.04 90deg);
+  --ring: oklch(70.8% 0 0deg);
+  --radius: 0.625rem;
+}
