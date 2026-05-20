@@ -1,0 +1,82 @@
+---
+description: Открыть новую сессию разработки GONBA — git pull, прочитать source-of-truth доки, отчёт о состоянии.
+argument-hint: (без аргументов)
+allowed-tools: Read, Bash, Glob, Grep, mcp__ccd_session__mark_chapter
+---
+
+# /start — открыть новую сессию разработки GONBA
+
+Задача: за один заход войти в полный контекст проекта и доложить пользователю что нового, какие хвосты и чем заняться.
+
+**Никаких изменений** — только чтение и git-fetch.
+
+## Шаг 1. Глава сессии
+
+Вызови `mcp__ccd_session__mark_chapter` с заголовком `ГОНЬБА <дата>` (используй сегодняшнюю дату из `# currentDate` системного контекста; формат: `ГОНЬБА 20 мая 2026`). В `summary` — кратко: «Открытие сессии разработки.»
+
+## Шаг 2. Source of truth (читать параллельно)
+
+Прочитай **полностью** в одном параллельном блоке:
+
+1. [`CLAUDE.md`](../../CLAUDE.md) — entry point, правила работы и уроки прошлых сессий
+2. [`docs/PROJECT_STATE.md`](../../docs/PROJECT_STATE.md) — архитектурная картина
+3. [`docs/DEVELOPMENT_LOG.md`](../../docs/DEVELOPMENT_LOG.md) — что сделано в последних сессиях
+4. [`docs/PENDING_FOLLOWUPS.md`](../../docs/PENDING_FOLLOWUPS.md) — открытые задачи и техдолги
+
+Memory-файлы автоматически подгружены через `MEMORY.md` — учитывай их в рекомендациях (особенно `windows_pnpm_setup`, `dev_schema_push_prompt`, `prod_server_access`).
+
+## Шаг 3. Git sync (параллельно)
+
+В одном блоке Bash:
+
+- `git status --short --branch`
+- `git fetch --all --tags --prune`
+- `git log --oneline -10`
+
+Затем последовательно (зависит от fetch):
+
+- `git status --short --branch` ещё раз — оценить ahead/behind
+- `gh pr list --state open --limit 20` — открытые PR
+- `gh pr list --author @me --state open --limit 20` — мои
+
+**`git pull` без подтверждения** только если: мы на `main`, есть `behind` без `ahead`, рабочее дерево чистое. Иначе — отчитаться и подождать решения.
+
+## Шаг 4. Sanity-check окружения (параллельно)
+
+Только чтения:
+
+- `web/.env` существует? (`Glob` или `Read` краткий)
+- `web/node_modules/.modules.yaml` существует? (если нет — `pnpm install` нужен)
+- `web/src/payload-types.ts` свежее чем последний коммит в `web/src/collections/` или `web/src/globals/`? (через `git log -1 --format='%ct' -- <path>`)
+- На Windows: `corepack pnpm config get script-shell` показывает git-bash?
+
+## Шаг 5. Прод (опционально — если SSH доступен)
+
+Параллельный безопасный probe:
+
+```bash
+curl -s -o /dev/null -w 'prod: %{http_code} in %{time_total}s\n' --max-time 10 https://гоньба.рф/api/health
+```
+
+Если 200 — продакшен жив. Если что-то другое — отметить в отчёте, **но не диагностировать без запроса пользователя**.
+
+## Шаг 6. Отчёт пользователю
+
+Структура:
+
+1. **Сессия:** `ГОНЬБА <дата>` — отмечена.
+2. **Что нового** (из `DEVELOPMENT_LOG.md`, последний блок): 1-2 строки о последней сессии.
+3. **Git:** ветка, ahead/behind, результат pull (если был), uncommitted-файлы (если есть).
+4. **Открытые PR:** мои и всего.
+5. **Окружение:** `.env` / `node_modules` / `payload-types.ts` / прод-health.
+6. **🔴 Блокеры и ⏳ в процессе** из `PENDING_FOLLOWUPS.md` (если есть).
+7. **Самые свежие 🟡 техдолги** (топ-3) и 🟢 идеи (топ-3) — кратко, для контекста.
+8. **Чем займёмся?** — открытый вопрос пользователю.
+
+Если есть блокеры — подсветить отдельно. Если на проде уже всё хорошо и хвостов нет — так и сказать.
+
+## Шаг 7. Напоминание для закрытия сессии
+
+В конце ответа добавь сноску:
+
+> Когда сделаешь значимые правки — перед последним коммитом обнови `docs/DEVELOPMENT_LOG.md` (новый блок сверху, в дату сегодняшней сессии) и закрой/перенеси задачи в `docs/PENDING_FOLLOWUPS.md`. Команда `/reliz` сделает релиз правильно (через `safe-build.sh`).

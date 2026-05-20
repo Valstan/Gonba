@@ -1,5 +1,11 @@
-# Claude Code working directory (worktrees, plans, settings, memory)
-.claude/
+# Claude Code working directory
+# Игнорируем всё, кроме того что должно жить в репо вместе с проектом:
+# - .claude/commands/    — slash-команды (/start, /reliz, /check, ...)
+# - .claude/agents/      — кастомные субагенты
+# Остальное (worktrees, локальная сессия, launch.json конкретного компа) — локально.
+.claude/*
+!.claude/commands/
+!.claude/agents/
 
 # Dependencies
 node_modules/
