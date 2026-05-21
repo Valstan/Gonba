@@ -50,27 +50,20 @@ _Сейчас нет — все начатые задачи в текущей с
 
 ### Удобство разработки
 
+- **CI deploy step** (приоритет): автоматический deploy на прод после merge в `main` через GitHub Action, который SSH'ит на сервер и запускает `scripts/safe-build.sh` + `systemctl restart`. Открытые вопросы перед реализацией: (a) форма триггера — `on: push to main` vs `workflow_dispatch` (ручная кнопка)? (b) SSH private key как GitHub secret — какой ключ (новый отдельно или существующий `id_ed25519`)? (c) rollback на предыдущий BUILD_ID если health-check после restart не 200? (d) что делать с миграциями — `payload migrate` в CI или оставить ручным шагом перед merge?
 - **Hook на `git commit`**, который автоматически напоминает обновить `DEVELOPMENT_LOG.md` если коммит — `feat`/`fix`/`refactor`. Реализуется через `.husky/` или `.git/hooks/prepare-commit-msg`.
 - **Команда `/check`** — одной кнопкой `health-check`: dev local up? Prod /api/health? Git состояние? TypeScript? Lint? (Сделано — см. `.claude/commands/check.md`.)
 - **Команда `/sql`** для безопасного выполнения SQL на проде через SSH с диалогом-подтверждением (учитывая что Auto-mode classifier режет direct ALTER без warning). (Сделано — см. `.claude/commands/sql.md`.)
-- **Скрипт `scripts/dev-doctor.sh`** проверяет:
-  - Postgres up + БД `gonba` существует
-  - `web/.env` существует
-  - `web/node_modules` существует
-  - `payload-types.ts` свежее изменений в коллекциях
-  - `importMap.js` свежее изменений в admin-компонентах
-  - SSH key existence + ssh-config alias `GONBA`
+- **Скрипт `scripts/dev-doctor.sh`** проверяет окружение (Postgres, .env, node_modules, payload-types, importMap, SSH alias `GONBA`). (Сделано — `bash scripts/dev-doctor.sh`.)
 - **ADR (Architectural Decision Records)** в `docs/adr/` для важных решений (почему orbit + grid; почему push:true в dev и migrations на проде; почему prefer relationship + slug-mirror vs pure relationship; почему Yandex.Disk вместо S3).
 - **Smoke tests E2E через Playwright** для критичных user flow:
   - Открытие главной → видна orbit-карусель
   - Открытие /projects → видна сетка плашек
   - Логин в /admin → доступ к /admin/yadisk
   - Создание VK-источника только по URL → подтянулись метаданные
-- **CI deploy step**: автоматический deploy на прод после merge в `main` через GitHub Action, который SSH'ит на сервер и запускает `scripts/safe-deploy.sh`. Сейчас deploy ручной — каждый раз я повторяю одну и ту же последовательность.
 
 ### Продукт
 
-- **Auto-fill `title` из `shortLabel`** в `Projects` коллекции, чтобы не получалось `title === slug` для новых проектов.
 - **На `/projects` админский режим показывать предпросмотр изменений** перед сохранением (live preview).
 - **Yandex Disk UI**: после миграции на site-vars (PR #6) может остаться визуальный mismatch. Стоит пройтись по `index.scss` второй раз с реальными скриншотами после Ctrl+F5.
 - **VK auto-sync «как опрос»**: после первого сохранения с URL — открыть пошаговую модалку «Выбери проект → Категорию → Токен (можно позже)». Сейчас это просто форма с подсказками — функционально, но не «опрос».
