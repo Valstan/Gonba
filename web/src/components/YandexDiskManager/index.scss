@@ -63,7 +63,7 @@
 
 .yadisk__back-link:hover {
   background: var(--yadisk-card-soft);
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--yadisk-text) 8%, transparent);
 }
 
 .yadisk__panel {
@@ -194,7 +194,7 @@
 .yadisk__modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.4);
+  background: color-mix(in srgb, var(--yadisk-text) 40%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -422,7 +422,7 @@
 
 .yadisk__button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--yadisk-text) 8%, transparent);
 }
 
 .yadisk__button--primary {
@@ -824,12 +824,12 @@
 
 .yadisk__card:hover {
   border-color: var(--yadisk-primary);
-  box-shadow: 0 10px 18px rgba(37, 99, 235, 0.1);
+  box-shadow: 0 10px 18px color-mix(in srgb, var(--yadisk-primary) 10%, transparent);
 }
 
 .yadisk__card--selected {
   border-color: var(--yadisk-primary);
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--yadisk-primary) 20%, transparent);
 }
 
 .yadisk__selection-box {
