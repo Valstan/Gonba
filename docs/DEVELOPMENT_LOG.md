@@ -98,6 +98,20 @@ gh secret set SSH_PRIVATE_KEY --repo Valstan/Gonba < ~/.ssh/id_ed25519
 - ✅ `workflow_dispatch` (ручной trigger) — **успех** за 10м44с. Прод жив, CDN /api/health = 200.
 - ❌ `workflow_run` (auto после CI) — **не сработал**, потому что CI workflow на main падает (см. раунд 4).
 
+### Раунд 8 — Фаза D: Yadisk UI polish (статический) — PR #16
+
+**Static-улучшения** `web/src/components/YandexDiskManager/index.scss` — то что можно сделать без живого тестирования в браузере:
+
+- Все hardcoded `rgba(15, 23, 42, X)` shadows и backdrop'ы заменены на `color-mix(in srgb, var(--yadisk-text) X%, transparent)`. Теперь правильно реагируют на тёмную тему сайта (если когда-нибудь добавим — сейчас тема светлая, эффект тот же, но семантика правильная).
+- `rgba(37, 99, 235, X)` (захардкоженный primary blue) в `.yadisk__card:hover` и `.yadisk__card--selected` → `color-mix(... var(--yadisk-primary) ...)`. Теперь карточки правильно подсвечиваются в primary-цвет сайта, а не фиксированно синим.
+
+**Что НЕ сделано (требует ручной работы со скриншотами в браузере):**
+- Полный визуальный обход `/admin/yadisk` с поиском mismatch (выравнивание кнопок, размеры бейджей, тени, hover-эффекты)
+- Сравнение с дизайн-системой `(frontend)`
+- Адаптация под mobile-view
+
+После PR #5/#6 файл уже хорошо привязан к токенам сайта — основная работа уже сделана. Эта фаза — финальная чистка hardcoded значений, доступная без браузера.
+
 ### Раунд 7 — Фаза C: Live preview плашек /projects + fix E2E — PR #15
 
 **Live preview** для редактора плашек на `/projects` (админский режим):
