@@ -28,16 +28,12 @@ _Сейчас нет — все начатые задачи в текущей с
 
 ### Build / Deploy
 
-- **`web/package.json` script `build` использует `run-with-watchdog --idle-ms=180000`** — это слишком короткий timeout для Next.js 15 production build (он молчит до 5-6 минут на этапе компиляции и попадает в idle-kill). Workaround: использовать `build:raw` напрямую через `scripts/safe-build.sh`. Постоянное решение — поднять `idle-ms` до 600000 или вообще убрать watchdog.
-- **Прямой `ALTER TABLE` на проде вместо миграций.** Сегодня вручную добавлены 7 колонок: `projects.home_link`, `vk_auto_sync.community_name/description/avatar/screen_name`, `vk_auto_sync.project_id`, `vk_auto_sync.category_id`. Эти изменения не закоммичены как Payload migrations — при поднятии нового окружения с нуля схема НЕ применится. Нужно сгенерить proper миграции через `pnpm payload migrate:create` и закоммитить в `web/src/migrations/`. (На текущем единственном проде проблема не видна, но для будущих окружений критично.)
+- **`payload migrate` интерактивный (drizzle `push:true` y/N prompt).** В сессии 2026-05-21 `pnpm payload migrate` без TTY завис на 40+ минут (молча) — судя по всему попал на drizzle push-prompt для расхождения схема ↔ коллекции. Workaround сейчас — применять миграции через прямой `psql -f web/src/migrations/<name>.sql` (зеркало) и руками `INSERT INTO payload_migrations`. Постоянное решение: либо `push: false` на dev (но тогда сломается текущий «свободный» dev-flow), либо `yes y | corepack pnpm payload migrate` обёртка-скрипт.
 - **Direct UPDATE/INSERT в БД минует Payload `afterChange`-хуки.** В частности `revalidateTag('global_header')` не вызывается. Лечится `systemctl restart gonba`, но «знание» нигде не задокументировано в коде. Стоит добавить wrapper-скрипт или хотя бы заметку в `CLAUDE.md`.
 
 ### Конфиг / окружение
 
 - **`web/.env` шаблон в `web/.env.example`** содержит `DATABASE_URL=postgresql://127.0.0.1:5432/gonba` без user/password. На локальной Windows-машине это не работает без `postgres:postgres@` префикса. → Обновить пример.
-- **`docs/PROJECT.md:5`** содержит захардкоженный шаблон даты сессии `«ГОНЬБА 18 мая 2026»`. Это явно устарело и не самообновляется. → Либо убрать конкретную дату, либо превратить в инструкцию «подставьте сегодняшнюю».
-- **`docs/PROJECT.md:41`** в списке коллекций нет `Messages` (добавлена в мердже от 2026-05-19).
-- **`docs/PROJECT.md:176`** — память [[prod_server_access]] упоминала `~/.ssh/id_rsa`, теперь актуальный ключ `id_ed25519`. Memory обновлять или не использовать вовсе.
 
 ### Documentation drift
 
