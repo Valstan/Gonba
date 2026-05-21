@@ -6,7 +6,7 @@ export default function AdminIcon() {
   return (
     /* eslint-disable @next/next/no-img-element */
     <img
-      alt="Жемчужина Вятки"
+      alt="Гоньба — жемчужина Вятки"
       src="/branding/zhemchuzhina-vyatki.svg"
       width={120}
       height={24}

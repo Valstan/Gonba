@@ -1584,7 +1584,7 @@ export const YandexDiskManager: React.FC = () => {
 
   return (
     <div
-      className="yadisk yadisk__container mt-6 space-y-6"
+      className="yadisk yadisk__container"
       onClick={() => {
         setContextMenu(null)
         setDropMenu(null)
@@ -1644,10 +1644,10 @@ export const YandexDiskManager: React.FC = () => {
             </div>
           )}
 
-          {loading && <div className="yadisk__loading text-sm text-muted-foreground">Загрузка...</div>}
+          {loading && <div className="yadisk__loading">Загрузка...</div>}
 
           {!loading && items.length === 0 && (
-            <div className="yadisk__empty rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+            <div className="yadisk__empty">
               Здесь пока пусто. Создайте папку или загрузите файлы.
             </div>
           )}
@@ -1827,9 +1827,7 @@ export const YandexDiskManager: React.FC = () => {
                   <div
                     key={item.path}
                     data-item-path={item.path}
-                    className={`yadisk__card rounded-2xl border bg-card p-4 shadow-sm transition ${
-                      isSelected ? 'yadisk__card--selected' : ''
-                    }`}
+                    className={`yadisk__card ${isSelected ? 'yadisk__card--selected' : ''}`}
                     draggable
                     onDragStart={(event) => startDrag(event, item)}
                     onDoubleClick={() => void openFileInBrowser(item)}
@@ -1894,9 +1892,11 @@ export const YandexDiskManager: React.FC = () => {
                     </button>
 
                     {!isFolder && <div className="yadisk__preview-caption">{item.name}</div>}
-                    <div className="yadisk__preview-meta">
-                      {isFolder ? 'Каталог' : extension ? extension.toUpperCase() : 'ФАЙЛ'}
-                    </div>
+                    {!isFolder && (
+                      <div className="yadisk__preview-meta">
+                        {extension ? extension.toUpperCase() : 'ФАЙЛ'}
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -1920,26 +1920,26 @@ export const YandexDiskManager: React.FC = () => {
           {tasks.slice(-3).map((task) => {
             const percent = getTaskProgress(task)
             return (
-              <div key={task.id} className="yadisk__task rounded-xl border bg-card p-3">
-                <div className="yadisk__task-header flex items-center justify-between gap-2 text-sm">
-                  <div className="font-semibold">{taskTypeLabel[task.type]}</div>
+              <div key={task.id} className="yadisk__task">
+                <div className="yadisk__task-header">
+                  <div className="yadisk__task-title">{taskTypeLabel[task.type]}</div>
                   <span className={`yadisk__task-status yadisk__task-status--${task.status}`}>
                     {getTaskStatusLabel(task.status)}
                   </span>
                 </div>
-                <div className="yadisk__task-meta mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                <div className="yadisk__task-meta">
                   <span>
                     Файлы: {task.processedFiles}/{task.totalFiles}
                   </span>
                   {task.currentFile && <span>Текущий: {task.currentFile}</span>}
                 </div>
                 {task.errors && task.errors.length > 0 && (
-                  <div className="mt-2 text-xs text-red-600">
+                  <div className="yadisk__task-errors">
                     Ошибки: {task.errors.slice(0, 2).join(' | ')}
                     {task.errors.length > 2 ? ` (+${task.errors.length - 2})` : ''}
                   </div>
                 )}
-                <div className="yadisk__progress mt-2">
+                <div className="yadisk__progress">
                   <div className="yadisk__progress-bar" style={{ width: `${percent}%` }} />
                 </div>
               </div>
@@ -1955,13 +1955,13 @@ export const YandexDiskManager: React.FC = () => {
           onClick={(event) => event.stopPropagation()}
         >
           <button
-            className="block w-full px-3 py-2 text-left hover:bg-muted"
+            className="yadisk__popup-menu-item"
             onClick={() => handleDropMenuAction('copy')}
           >
             Копировать
           </button>
           <button
-            className="block w-full px-3 py-2 text-left hover:bg-muted"
+            className="yadisk__popup-menu-item"
             onClick={() => handleDropMenuAction('move')}
           >
             Переместить
@@ -1976,20 +1976,20 @@ export const YandexDiskManager: React.FC = () => {
           onClick={(event) => event.stopPropagation()}
         >
           <button
-            className="block w-full px-3 py-2 text-left hover:bg-muted"
+            className="yadisk__popup-menu-item"
             onClick={() => handleContextAction('open')}
           >
             Открыть
           </button>
           <button
-            className="block w-full px-3 py-2 text-left hover:bg-muted"
+            className="yadisk__popup-menu-item"
             onClick={() => handleContextAction('rename')}
           >
             Переименовать
           </button>
           {contextMenu.item?.type === 'file' && (
             <button
-              className="block w-full px-3 py-2 text-left hover:bg-muted"
+              className="yadisk__popup-menu-item"
               onClick={() => handleContextAction('download')}
             >
               Скачать
@@ -1997,26 +1997,26 @@ export const YandexDiskManager: React.FC = () => {
           )}
           {contextMenu.item?.type === 'file' && (
             <button
-              className="block w-full px-3 py-2 text-left hover:bg-muted"
+              className="yadisk__popup-menu-item"
               onClick={() => handleContextAction('copy-link')}
             >
               Скопировать ссылку
             </button>
           )}
           <button
-            className="block w-full px-3 py-2 text-left hover:bg-muted"
+            className="yadisk__popup-menu-item"
             onClick={() => handleContextAction('move')}
           >
             Переместить
           </button>
           <button
-            className="block w-full px-3 py-2 text-left hover:bg-muted"
+            className="yadisk__popup-menu-item"
             onClick={() => handleContextAction('copy')}
           >
             Копировать
           </button>
           <button
-            className="block w-full px-3 py-2 text-left hover:bg-muted text-red-600"
+            className="yadisk__popup-menu-item is-danger"
             onClick={() => handleContextAction('delete')}
           >
             Удалить

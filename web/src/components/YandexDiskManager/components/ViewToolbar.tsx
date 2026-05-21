@@ -79,52 +79,56 @@ export const ViewToolbar: React.FC<Props> = ({
         </>
       )}
 
-      <span className="yadisk__toolbar-label">Сортировка:</span>
-      <div className="yadisk__view-toggle">
-        <button
-          className={`yadisk__view-button ${sortField === 'created' ? 'is-active' : ''}`}
-          onClick={() => onSortFieldChange('created')}
-          type="button"
-        >
-          По дате
-        </button>
-        <button
-          className={`yadisk__view-button ${sortField === 'size' ? 'is-active' : ''}`}
-          onClick={() => onSortFieldChange('size')}
-          type="button"
-        >
-          По размеру
-        </button>
-        <button
-          className={`yadisk__view-button ${sortField === 'name' ? 'is-active' : ''}`}
-          onClick={() => onSortFieldChange('name')}
-          type="button"
-        >
-          По имени
-        </button>
-        <button
-          className={`yadisk__view-button ${sortField === 'type' ? 'is-active' : ''}`}
-          onClick={() => onSortFieldChange('type')}
-          type="button"
-        >
-          По типу
-        </button>
-      </div>
-      <div className="yadisk__view-toggle">
-        <button
-          className={`yadisk__view-button ${sortDirection === 'asc' ? 'is-active' : ''}`}
-          onClick={() => onSortDirectionChange('asc')}
-          type="button"
-        >
-          ↑
-        </button>
-        <button
-          className={`yadisk__view-button ${sortDirection === 'desc' ? 'is-active' : ''}`}
-          onClick={() => onSortDirectionChange('desc')}
-          type="button"
-        >
-          ↓
-        </button>
+      <div className="yadisk__sort-group">
+        <span className="yadisk__toolbar-label">Сортировка:</span>
+        <div className="yadisk__view-toggle">
+          <button
+            className={`yadisk__view-button ${sortField === 'created' ? 'is-active' : ''}`}
+            onClick={() => onSortFieldChange('created')}
+            type="button"
+          >
+            По дате
+          </button>
+          <button
+            className={`yadisk__view-button ${sortField === 'size' ? 'is-active' : ''}`}
+            onClick={() => onSortFieldChange('size')}
+            type="button"
+          >
+            По размеру
+          </button>
+          <button
+            className={`yadisk__view-button ${sortField === 'name' ? 'is-active' : ''}`}
+            onClick={() => onSortFieldChange('name')}
+            type="button"
+          >
+            По имени
+          </button>
+          <button
+            className={`yadisk__view-button ${sortField === 'type' ? 'is-active' : ''}`}
+            onClick={() => onSortFieldChange('type')}
+            type="button"
+          >
+            По типу
+          </button>
+        </div>
+        <div className="yadisk__view-toggle">
+          <button
+            className={`yadisk__view-button ${sortDirection === 'asc' ? 'is-active' : ''}`}
+            onClick={() => onSortDirectionChange('asc')}
+            type="button"
+            aria-label="По возрастанию"
+          >
+            ↑
+          </button>
+          <button
+            className={`yadisk__view-button ${sortDirection === 'desc' ? 'is-active' : ''}`}
+            onClick={() => onSortDirectionChange('desc')}
+            type="button"
+            aria-label="По убыванию"
+          >
+            ↓
+          </button>
+        </div>
       </div>
     </div>
   )

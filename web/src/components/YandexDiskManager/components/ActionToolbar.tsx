@@ -26,10 +26,10 @@ export const ActionToolbar: React.FC<Props> = ({
   return (
     <div className="yadisk__actions">
       <button className="yadisk__button yadisk__button--primary" type="button" onClick={onUploadFiles}>
-        Загрузить файлы
+        <span aria-hidden="true">📁</span> Загрузить файлы
       </button>
-      <button className="yadisk__button yadisk__button--success" type="button" onClick={onUploadImages}>
-        Загрузить изображения
+      <button className="yadisk__button yadisk__button--primary" type="button" onClick={onUploadImages}>
+        <span aria-hidden="true">🖼️</span> Загрузить изображения
       </button>
       <div className="yadisk__upload-mode">
         <span>При совпадении имени:</span>
