@@ -98,6 +98,25 @@ gh secret set SSH_PRIVATE_KEY --repo Valstan/Gonba < ~/.ssh/id_ed25519
 - ✅ `workflow_dispatch` (ручной trigger) — **успех** за 10м44с. Прод жив, CDN /api/health = 200.
 - ❌ `workflow_run` (auto после CI) — **не сработал**, потому что CI workflow на main падает (см. раунд 4).
 
+### Раунд 9 — Фаза E: VK auto-sync «wizard»-табы — PR #17
+
+**Реструктуризация коллекции `vk-auto-sync`** через встроенный Payload `tabs` field — визуальная разбивка длинной формы на 4 шага:
+
+1. **«1. Источник VK»** — URL (required), название, описание, аватар, ID группы, screen_name. Метаданные подтягиваются `beforeValidate`-hook'ом (PR #6).
+2. **«2. Привязка к сайту»** — project, category (relationship, required), projectSlug/sectionSlug (read-only mirror).
+3. **«3. Параметры импорта»** — accessToken, syncIntervalHours, isEnabled, postType.
+4. **«4. Журнал и статус»** — lastSyncedPostId, lastError, syncLog.
+
+Sidebar (lastSyncStatus, lastSyncAt, totalImported) **вынесен на верхний уровень коллекции** и виден на любом табе — редактор сразу понимает «работает ли синхронизация» без переключений между шагами.
+
+**Почему именно `tabs`, а не custom React-wizard:**
+- Никакого нового кода (importMap, RSC/Client типизация, intersections с afterChange-хуками — всё это риски в Payload custom views).
+- Edit existing работает out-of-the-box.
+- Описание у каждого таба объясняет «зачем этот шаг».
+- Если позднее захочется именно step-by-step с прогресс-баром — это вторая фаза с кастомным компонентом, но 80% UX-выгоды уже получены.
+
+**Изменений в БД нет** — поля те же по имени, просто визуально сгруппированы. Никакой миграции.
+
 ### Раунд 8 — Фаза D: Yadisk UI polish (статический) — PR #16
 
 **Static-улучшения** `web/src/components/YandexDiskManager/index.scss` — то что можно сделать без живого тестирования в браузере:
