@@ -249,6 +249,33 @@ ssh GONBA "sudo systemctl start gonba-vk-sync.service && journalctl -u gonba-vk-
 - Прямой `corepack pnpm run build:raw` через одну SSH-сессию умирает посередине prerender'а при SSH-disconnect → артефакт `.next` остаётся неполным → сервис в crash-loop. Поэтому `systemd-run`.
 - Прод НЕ применяет миграции автоматически (`push: true` не успевает из-за timeout прерывания первого запроса). После добавления полей в коллекциях запускать `pnpm payload migrate:up` или вручную `ALTER TABLE`.
 
+### CI / автоматический деплой
+
+После merge в `main` запускается GitHub Action `.github/workflows/deploy-prod.yml`:
+
+1. Workflow `CI` (`.github/workflows/ci.yml`) — typecheck, lint, test:int, build, E2E smoke.
+2. Если зелёный — триггерится `Deploy to production`:
+   - safety net: если в коммите новые `web/src/migrations/*.ts` — фейлит ДО билда (миграции применяются вручную через `/sql` ДО merge);
+   - SSH-логин на прод по ключу из secret `SSH_PRIVATE_KEY`;
+   - `git pull` → `scripts/safe-build.sh` → `scripts/wait-build.sh` → `systemctl restart gonba`;
+   - smoke-проверки на 127.0.0.1:3000 и публичный CDN.
+3. **На падении** — выгружает `journalctl -u gonba` и `gonba-build` в output, **НЕ откатывается**. Разработчик заходит руками и чинит, потом перезапускает workflow через UI Actions → Deploy to production → Run workflow.
+
+**Один раз настроить secret:**
+
+```bash
+# из локалки (где лежит ~/.ssh/id_ed25519)
+gh secret set SSH_PRIVATE_KEY --repo Valstan/Gonba < ~/.ssh/id_ed25519
+```
+
+Используется тот же ed25519-ключ, которым разработчик ходит на прод вручную. **Внимание:** этот ключ также авторизован на `matricarmz` — если GitHub secret утечёт, оба сервера в риске. Если бюджет на это есть — лучше сгенерить отдельный deploy-ключ (`ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_gonba_deploy -C 'github-deploy@gonba'`), залить публичную часть в `valstan@GONBA:~/.ssh/authorized_keys`, а приватную — в secret.
+
+**Ручной trigger** (когда workflow_dispatch):
+- Actions → Deploy to production → Run workflow → branch `main`.
+- Используй после ручного фикса failure: пофиксил → push в main → CI прошёл → второй раз CI не нужен, дёрни deploy руками.
+
+**Slash-команда `/reliz`** остаётся актуальной для случаев, когда нужен ручной контроль (миграции, сложные релизы, hot-fix без прохождения CI). Workflow и `/reliz` идемпотентно совместимы — оба идут через `safe-build.sh`.
+
 ### Docker (локально)
 
 `web/docker-compose.yml` поднимает:

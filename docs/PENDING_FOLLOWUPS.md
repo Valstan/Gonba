@@ -50,7 +50,7 @@ _Сейчас нет — все начатые задачи в текущей с
 
 ### Удобство разработки
 
-- **CI deploy step** (приоритет): автоматический deploy на прод после merge в `main` через GitHub Action, который SSH'ит на сервер и запускает `scripts/safe-build.sh` + `systemctl restart`. Открытые вопросы перед реализацией: (a) форма триггера — `on: push to main` vs `workflow_dispatch` (ручная кнопка)? (b) SSH private key как GitHub secret — какой ключ (новый отдельно или существующий `id_ed25519`)? (c) rollback на предыдущий BUILD_ID если health-check после restart не 200? (d) что делать с миграциями — `payload migrate` в CI или оставить ручным шагом перед merge?
+- **CI deploy step** — `.github/workflows/deploy-prod.yml` через `workflow_run` после успешного CI на `main`. SSH-ключ — общий `id_ed25519`. На failure — НЕ роллим, выгружаем `journalctl` и фейлим. Миграции остаются ручным шагом ДО merge (safety net в workflow проверяет наличие новых `web/src/migrations/*.ts`). (Сделано — см. `docs/PROJECT.md → CI / автоматический деплой`.)
 - **Hook на `git commit`**, который автоматически напоминает обновить `DEVELOPMENT_LOG.md` если коммит — `feat`/`fix`/`refactor`. Реализуется через `.husky/` или `.git/hooks/prepare-commit-msg`.
 - **Команда `/check`** — одной кнопкой `health-check`: dev local up? Prod /api/health? Git состояние? TypeScript? Lint? (Сделано — см. `.claude/commands/check.md`.)
 - **Команда `/sql`** для безопасного выполнения SQL на проде через SSH с диалогом-подтверждением (учитывая что Auto-mode classifier режет direct ALTER без warning). (Сделано — см. `.claude/commands/sql.md`.)
