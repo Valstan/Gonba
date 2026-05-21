@@ -24,172 +24,247 @@ export const VkAutoSync: CollectionConfig<'vk-auto-sync'> = {
     defaultColumns: ['communityUrl', 'communityName', 'isEnabled', 'syncIntervalHours', 'lastSyncStatus', 'updatedAt'],
     useAsTitle: 'communityName',
     description:
-      'Достаточно ввести URL VK-сообщества — система сама подтянет название, описание, аватарку и ID группы. ' +
-      'Токен можно вставить позже, без него синхронизация постов не запустится, но всё остальное сохранится.',
+      'Заполняйте по шагам: «Источник VK» (только URL обязателен — остальное подтянется) → ' +
+      '«Привязка к сайту» → «Параметры импорта». Журнал синхронизации — на последней вкладке.',
   },
   fields: [
+    // Wizard-style: поля разнесены по табам, чтобы редактор шёл шаг за шагом
+    // вместо длинной полотна-формы. Это улучшает онбординг новых редакторов:
+    // первый шаг — только URL, метаданные подтягиваются hook'ом beforeValidate.
     {
-      name: 'communityUrl',
-      label: 'URL VK-сообщества',
-      type: 'text',
-      required: true,
-      admin: {
-        description:
-          'Полная ссылка на сообщество, например https://vk.com/club229392127 или https://vk.com/vyatskaya_lepota. ' +
-          'После сохранения остальные поля заполнятся автоматически.',
-      },
-    },
-
-    // ===== Автоматически подтягиваемые поля (можно отредактировать вручную) =====
-    {
-      name: 'communityName',
-      label: 'Название сообщества',
-      type: 'text',
-      admin: {
-        description: 'Заполняется автоматически из VK после сохранения. Можно отредактировать вручную.',
-      },
-    },
-    {
-      name: 'communityDescription',
-      label: 'Описание сообщества',
-      type: 'textarea',
-      admin: {
-        description: 'Берётся из VK. Используется как краткое описание источника в админке.',
-      },
-    },
-    {
-      name: 'communityAvatar',
-      label: 'Аватарка сообщества (URL)',
-      type: 'text',
-      admin: {
-        description: 'Прямая ссылка на аватарку группы VK. Подтягивается автоматически.',
-      },
-    },
-    {
-      name: 'groupId',
-      label: 'ID группы VK',
-      type: 'number',
-      admin: {
-        description:
-          'Числовой ID группы (для club229392127 это 229392127). Извлекается из URL автоматически — заполнять руками не нужно.',
-      },
-    },
-    {
-      name: 'screenName',
-      label: 'Короткое имя (screen_name)',
-      type: 'text',
-      admin: {
-        description: 'Короткое имя сообщества из VK (если есть). Подтягивается автоматически.',
-      },
-    },
-
-    // ===== Токен — можно отложить =====
-    {
-      name: 'accessToken',
-      label: 'Токен доступа VK',
-      type: 'text',
-      admin: {
-        description:
-          'Сервисный токен VK для доступа к API сообщества. ' +
-          'Можно оставить пустым на этапе создания и заполнить позже — без токена авто-импорт не пойдёт. ' +
-          'Если оставить пустым, для получения публичных метаданных используется общий токен из переменных окружения.',
-      },
-    },
-
-    // ===== Привязки к сайту =====
-    // UX: пользователь выбирает проект/категорию из списка (dropdown), а текстовые
-    // slug-поля заполняются автоматически из выбранной связи. Сами text-поля
-    // оставлены для backwards compatibility с server-функцией syncVkSource.
-    {
-      name: 'project',
-      label: 'Проект на сайте',
-      type: 'relationship',
-      relationTo: 'projects',
-      required: true,
-      admin: {
-        description: 'Выберите проект из списка. Slug заполнится автоматически из его поля slug.',
-      },
-    },
-    {
-      name: 'category',
-      label: 'Категория (раздел)',
-      type: 'relationship',
-      relationTo: 'categories',
-      required: true,
-      admin: {
-        description:
-          'Выберите категорию, в которую попадут импортированные посты. ' +
-          'Если нужной категории нет — создайте её в коллекции Categories.',
-      },
-    },
-    {
-      name: 'sectionSlug',
-      label: 'Slug категории (служебное)',
-      type: 'text',
-      admin: {
-        readOnly: true,
-        description: 'Заполняется автоматически из выбранной категории.',
-      },
-    },
-    {
-      name: 'projectSlug',
-      label: 'Slug проекта (служебное)',
-      type: 'text',
-      admin: {
-        readOnly: true,
-        description: 'Заполняется автоматически из выбранного проекта.',
-      },
-    },
-
-    // ===== Параметры синхронизации =====
-    {
-      name: 'syncIntervalHours',
-      label: 'Интервал синхронизации (часы)',
-      type: 'number',
-      required: true,
-      defaultValue: 3,
-      min: 1,
-      max: 24,
-      admin: {
-        description: 'Как часто проверять новые посты, в часах (1–24).',
-      },
-    },
-    {
-      name: 'isEnabled',
-      label: 'Включено',
-      type: 'checkbox',
-      defaultValue: true,
-      admin: {
-        description: 'Если выключить — синхронизация для этого источника не выполняется.',
-      },
-    },
-    {
-      name: 'postType',
-      label: 'Тип постов',
-      type: 'select',
-      required: true,
-      defaultValue: 'news',
-      options: [
-        { label: 'Новости', value: 'news' },
-        { label: 'Блог', value: 'blog' },
-        { label: 'Анонсы', value: 'announcement' },
-        { label: 'Истории', value: 'story' },
+      type: 'tabs',
+      tabs: [
+        {
+          label: '1. Источник VK',
+          description:
+            'Введите URL сообщества — название, описание, аватар и ID группы заполнятся автоматически. ' +
+            'Если что-то подтянулось не так — поправьте вручную.',
+          fields: [
+            {
+              name: 'communityUrl',
+              label: 'URL VK-сообщества',
+              type: 'text',
+              required: true,
+              admin: {
+                description:
+                  'Полная ссылка, например https://vk.com/club229392127 или https://vk.com/vyatskaya_lepota.',
+              },
+            },
+            {
+              name: 'communityName',
+              label: 'Название сообщества',
+              type: 'text',
+              admin: {
+                description: 'Заполняется автоматически из VK после сохранения. Можно отредактировать вручную.',
+              },
+            },
+            {
+              name: 'communityDescription',
+              label: 'Описание сообщества',
+              type: 'textarea',
+              admin: {
+                description: 'Берётся из VK. Используется как краткое описание источника в админке.',
+              },
+            },
+            {
+              name: 'communityAvatar',
+              label: 'Аватарка сообщества (URL)',
+              type: 'text',
+              admin: {
+                description: 'Прямая ссылка на аватарку группы VK. Подтягивается автоматически.',
+              },
+            },
+            {
+              name: 'groupId',
+              label: 'ID группы VK',
+              type: 'number',
+              admin: {
+                description:
+                  'Числовой ID группы (для club229392127 это 229392127). Извлекается из URL — заполнять руками не нужно.',
+              },
+            },
+            {
+              name: 'screenName',
+              label: 'Короткое имя (screen_name)',
+              type: 'text',
+              admin: {
+                description: 'Короткое имя сообщества из VK (если есть). Подтягивается автоматически.',
+              },
+            },
+          ],
+        },
+        {
+          label: '2. Привязка к сайту',
+          description: 'Куда импортировать посты? Выберите проект и категорию из списка.',
+          fields: [
+            // UX: пользователь выбирает проект/категорию из списка (dropdown), а текстовые
+            // slug-поля заполняются автоматически из выбранной связи. Сами text-поля
+            // оставлены для backwards compatibility с server-функцией syncVkSource.
+            {
+              name: 'project',
+              label: 'Проект на сайте',
+              type: 'relationship',
+              relationTo: 'projects',
+              required: true,
+              admin: {
+                description: 'Выберите проект из списка. Slug заполнится автоматически.',
+              },
+            },
+            {
+              name: 'category',
+              label: 'Категория (раздел)',
+              type: 'relationship',
+              relationTo: 'categories',
+              required: true,
+              admin: {
+                description:
+                  'Категория, в которую попадут импортированные посты. ' +
+                  'Если нужной нет — создайте её в коллекции Categories.',
+              },
+            },
+            {
+              name: 'projectSlug',
+              label: 'Slug проекта (служебное)',
+              type: 'text',
+              admin: {
+                readOnly: true,
+                description: 'Заполняется автоматически из выбранного проекта.',
+              },
+            },
+            {
+              name: 'sectionSlug',
+              label: 'Slug категории (служебное)',
+              type: 'text',
+              admin: {
+                readOnly: true,
+                description: 'Заполняется автоматически из выбранной категории.',
+              },
+            },
+          ],
+        },
+        {
+          label: '3. Параметры импорта',
+          description:
+            'Токен и расписание. Без токена импорт постов не запустится, но всё остальное сохранится — ' +
+            'можно добавить токен позже.',
+          fields: [
+            {
+              name: 'accessToken',
+              label: 'Токен доступа VK',
+              type: 'text',
+              admin: {
+                description:
+                  'Сервисный токен VK для доступа к API сообщества. Можно оставить пустым на этапе создания ' +
+                  'и заполнить позже. Без токена авто-импорт постов не пойдёт. Если оставить пустым, ' +
+                  'для публичных метаданных используется общий токен из env (VK_TOKEN_VALSTAN/VITA/SERVICE/TOKEN).',
+              },
+            },
+            {
+              name: 'syncIntervalHours',
+              label: 'Интервал синхронизации (часы)',
+              type: 'number',
+              required: true,
+              defaultValue: 3,
+              min: 1,
+              max: 24,
+              admin: {
+                description: 'Как часто проверять новые посты, в часах (1–24).',
+              },
+            },
+            {
+              name: 'isEnabled',
+              label: 'Включено',
+              type: 'checkbox',
+              defaultValue: true,
+              admin: {
+                description: 'Если выключить — синхронизация для этого источника не выполняется.',
+              },
+            },
+            {
+              name: 'postType',
+              label: 'Тип постов',
+              type: 'select',
+              required: true,
+              defaultValue: 'news',
+              options: [
+                { label: 'Новости', value: 'news' },
+                { label: 'Блог', value: 'blog' },
+                { label: 'Анонсы', value: 'announcement' },
+                { label: 'Истории', value: 'story' },
+              ],
+              admin: {
+                description: 'Какой тип создаваемых постов на сайте.',
+              },
+            },
+          ],
+        },
+        {
+          label: '4. Журнал и статус',
+          description: 'Здесь только для чтения — что и когда импортировалось, последняя ошибка.',
+          fields: [
+            {
+              name: 'lastSyncedPostId',
+              label: 'ID последнего импортированного поста',
+              type: 'number',
+              admin: {
+                readOnly: true,
+                description: 'Для отслеживания дубликатов.',
+              },
+            },
+            {
+              name: 'lastError',
+              label: 'Последняя ошибка',
+              type: 'textarea',
+              admin: {
+                readOnly: true,
+              },
+            },
+            {
+              name: 'syncLog',
+              label: 'Журнал синхронизации',
+              type: 'array',
+              maxRows: 50,
+              admin: {
+                description: 'Последние 50 записей лога синхронизации.',
+              },
+              fields: [
+                {
+                  name: 'timestamp',
+                  label: 'Время',
+                  type: 'date',
+                  required: true,
+                },
+                {
+                  name: 'status',
+                  label: 'Статус',
+                  type: 'select',
+                  options: [
+                    { label: 'Успех', value: 'success' },
+                    { label: 'Ошибка', value: 'error' },
+                    { label: 'Нет новых постов', value: 'no-new-posts' },
+                    { label: 'Пропущено', value: 'skipped' },
+                  ],
+                  required: true,
+                },
+                {
+                  name: 'message',
+                  label: 'Сообщение',
+                  type: 'text',
+                },
+                {
+                  name: 'postId',
+                  label: 'ID поста',
+                  type: 'number',
+                },
+              ],
+            },
+          ],
+        },
       ],
-      admin: {
-        description: 'Какой тип создаваемых постов на сайте.',
-      },
     },
 
-    // ===== Служебные поля (read-only) =====
-    {
-      name: 'lastSyncedPostId',
-      label: 'ID последнего импортированного поста',
-      type: 'number',
-      admin: {
-        readOnly: true,
-        description: 'ID последнего импортированного поста из VK (для отслеживания дубликатов).',
-      },
-    },
+    // Sidebar — статус и счётчик. Видны на любом табе, чтобы редактор сразу
+    // понимал «работает ли синхронизация» не переключаясь между шагами.
     {
       name: 'lastSyncStatus',
       label: 'Статус последней синхронизации',
@@ -216,14 +291,6 @@ export const VkAutoSync: CollectionConfig<'vk-auto-sync'> = {
       },
     },
     {
-      name: 'lastError',
-      label: 'Последняя ошибка',
-      type: 'textarea',
-      admin: {
-        readOnly: true,
-      },
-    },
-    {
       name: 'totalImported',
       label: 'Всего импортировано',
       type: 'number',
@@ -233,45 +300,6 @@ export const VkAutoSync: CollectionConfig<'vk-auto-sync'> = {
         position: 'sidebar',
         description: 'Общее количество импортированных постов.',
       },
-    },
-    {
-      name: 'syncLog',
-      label: 'Журнал синхронизации',
-      type: 'array',
-      maxRows: 50,
-      admin: {
-        description: 'Последние 50 записей лога синхронизации.',
-      },
-      fields: [
-        {
-          name: 'timestamp',
-          label: 'Время',
-          type: 'date',
-          required: true,
-        },
-        {
-          name: 'status',
-          label: 'Статус',
-          type: 'select',
-          options: [
-            { label: 'Успех', value: 'success' },
-            { label: 'Ошибка', value: 'error' },
-            { label: 'Нет новых постов', value: 'no-new-posts' },
-            { label: 'Пропущено', value: 'skipped' },
-          ],
-          required: true,
-        },
-        {
-          name: 'message',
-          label: 'Сообщение',
-          type: 'text',
-        },
-        {
-          name: 'postId',
-          label: 'ID поста',
-          type: 'number',
-        },
-      ],
     },
   ],
   hooks: {
