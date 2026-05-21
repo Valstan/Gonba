@@ -48,6 +48,26 @@
 - 🟡 у некоторых проектов `title === slug` — не задето
 - 🟡 (новый) `payload migrate` интерактивный — workaround через прямой psql задокументирован
 
+### Раунд 2 — DX-улучшения (dev-doctor + auto-fill title) — PR #10
+
+**Бонусом после техдолг-чистки взялся за две идеи из 🟢-секции `PENDING_FOLLOWUPS.md`.**
+
+- **`scripts/dev-doctor.sh`** — оказался **уже сделан** в репо (видимо в одну из прошлых сессий), просто не зафиксирован в логе. Прогон показал все 11 проверок зелёными:
+  - Tools: node 24.15, corepack 0.34.6, pnpm 10.15 (через corepack), pnpm script-shell = git-bash.exe
+  - Project files: `web/.env`, `web/node_modules`, `web/src/payload-types.ts`, `admin/importMap.js`
+  - Database: psql найден, Postgres отвечает, БД `gonba` существует
+  - SSH: ed25519 ключ есть, alias `GONBA` настроен (добавили в этой сессии)
+- **Hook `populateProjectTitle`** — новый `web/src/hooks/populateProjectTitle.ts` + подключение через `beforeValidate` в `Projects`. Заполняет `title` из `shortLabel` если `title` пустой (никогда не перезаписывает явный ввод). Решает корневую причину прошлой проблемы «у трёх проектов title === slug»: раньше пользователь не мог сохранить документ без title (Payload required-валидация) и обходил это, копируя slug в title; теперь `title` сам подставится из `shortLabel` (`defaultValue: 'Проект'` или то, что ввёл пользователь). Старые три проекта (`eco-hotel-booking`, `about-project`, `vyatskiy-sbor`) hook не починит — их нужно править вручную через `/admin/collections/projects`.
+
+**SSH alias `GONBA`** в `~/.ssh/config` добавлен (по образцу `matricarmz`, с `accept-new` для headless-сценариев). Файл локальный, не идёт в git — рецепт описан в `docs/PROJECT.md` для других машин разработки.
+
+**CI deploy через GitHub Action** — третья идея из той же серии — **отложена**: требует решений про GitHub secrets (SSH private key), форму триггера (push to main vs `workflow_dispatch`), rollback-стратегию. Обсудить отдельно.
+
+### Хвосты раунда 2 → в `PENDING_FOLLOWUPS.md`
+
+- 🟢 CI deploy через GitHub Action — оставлена в идеях, перевернута в самый верх для приоритета
+- 🟡 У трёх старых проектов `title === slug` — оставлена (hook не помогает существующим записям, нужна ручная чистка)
+
 ---
 
 ## 2026-05-20 — ГОНЬБА 20 мая 2026 (Claude session)

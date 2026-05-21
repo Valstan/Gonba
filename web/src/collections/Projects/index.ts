@@ -4,6 +4,7 @@ import { slugField } from 'payload'
 import { adminOrEditor } from '../../access/adminOrEditor'
 import { anyone } from '../../access/anyone'
 import { populatePublishedAt } from '../../hooks/populatePublishedAt'
+import { populateProjectTitle } from '../../hooks/populateProjectTitle'
 import { defaultLexical } from '@/fields/defaultLexical'
 
 export const Projects: CollectionConfig<'projects'> = {
@@ -198,6 +199,7 @@ export const Projects: CollectionConfig<'projects'> = {
     slugField(),
   ],
   hooks: {
+    beforeValidate: [populateProjectTitle],
     beforeChange: [populatePublishedAt],
   },
   versions: {
