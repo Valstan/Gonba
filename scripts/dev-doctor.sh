@@ -127,6 +127,19 @@ else
 fi
 echo ""
 
+# --- Git hooks ---
+echo "[Git hooks]"
+if [ -d "${REPO_ROOT}/.git/hooks" ]; then
+  if [ -x "${REPO_ROOT}/.git/hooks/prepare-commit-msg" ]; then
+    ok "prepare-commit-msg установлен (напоминает про DEVELOPMENT_LOG)"
+  else
+    warn "prepare-commit-msg не установлен — запусти 'bash scripts/install-git-hooks.sh'"
+  fi
+else
+  warn "Это не git-репозиторий?"
+fi
+echo ""
+
 if [ $exit_code -eq 0 ]; then
   echo "✅ Окружение готово к разработке."
 else
