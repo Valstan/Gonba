@@ -30,6 +30,116 @@
   box-sizing: border-box;
 }
 
+/* Hero-блок над YandexDiskManager.
+   Используется в (payload)/admin/yadisk/page.tsx вместо Tailwind utility-классов,
+   потому что Tailwind не подключён к (payload)-маршрутам (а импортировать его
+   в payload-layout рискованно — может зацепить UI самой Payload-админки). */
+.yadisk__hero {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px 0;
+  box-sizing: border-box;
+}
+
+.yadisk__hero-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px;
+  border: 1px solid var(--yadisk-border);
+  border-radius: 18px;
+  background: var(--yadisk-card);
+  color: var(--yadisk-text);
+  box-sizing: border-box;
+}
+
+@media (min-width: 768px) {
+  .yadisk__hero-card {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 24px 28px;
+  }
+}
+
+.yadisk__hero-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--yadisk-text);
+}
+
+.yadisk__hero-subtitle {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--yadisk-muted);
+}
+
+.yadisk__hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.yadisk__pill-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--yadisk-border);
+  background: var(--yadisk-card);
+  color: var(--yadisk-text);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.yadisk__pill-link:hover {
+  background: color-mix(in srgb, var(--accent, var(--yadisk-primary)) 18%, var(--yadisk-card));
+  border-color: var(--accent, var(--yadisk-primary));
+}
+
+/* «Нет доступа» — fallback view, тоже без Tailwind. */
+.yadisk__noaccess {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 48px 24px;
+  box-sizing: border-box;
+}
+
+.yadisk__noaccess-card {
+  border: 1px solid var(--yadisk-border);
+  border-radius: 18px;
+  background: var(--yadisk-card);
+  padding: 28px 32px;
+  box-sizing: border-box;
+}
+
+.yadisk__noaccess-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--yadisk-text);
+}
+
+.yadisk__noaccess-text {
+  margin: 12px 0 24px;
+  font-size: 14px;
+  color: var(--yadisk-muted);
+  line-height: 1.5;
+}
+
+.yadisk__noaccess-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .yadisk__titlebar {
   display: flex;
   align-items: center;
@@ -86,8 +196,29 @@
 
 .yadisk__sidebar {
   border: 1px solid var(--yadisk-border);
+  border-radius: var(--yadisk-radius-lg);
   background: var(--yadisk-card);
+  padding: 14px;
   min-height: 240px;
+}
+
+.yadisk__sidebar-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--yadisk-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+
+.yadisk__sidebar-add {
+  margin-bottom: 14px;
+}
+
+.yadisk__main {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
 .yadisk__splitter {
@@ -138,10 +269,18 @@
   align-items: center;
   gap: 16px;
   border: 1px dashed var(--yadisk-border);
+  border-radius: var(--yadisk-radius-md);
+  padding: 12px;
   cursor: pointer;
   position: sticky;
   top: 16px;
   background: var(--yadisk-card);
+}
+
+.yadisk__trash-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .yadisk__sidebar-add {
@@ -163,11 +302,12 @@
   width: 48px;
   height: 48px;
   border-radius: 14px;
-  background: var(--yadisk-danger-soft);
+  background: var(--yadisk-card-soft);
   color: var(--yadisk-danger);
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .yadisk__trash-icon svg {
@@ -271,6 +411,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  margin-top: 6px;
 }
 
 .yadisk__tree-row {
@@ -371,7 +512,41 @@
 
 .yadisk__task {
   border: 1px solid var(--yadisk-border);
+  border-radius: var(--yadisk-radius-md);
   background: var(--yadisk-card);
+  padding: 12px;
+  font-size: 13px;
+}
+
+.yadisk__task-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.yadisk__task-title {
+  font-weight: 600;
+  color: var(--yadisk-text);
+}
+
+.yadisk__task-meta {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--yadisk-muted);
+}
+
+.yadisk__task-errors {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--yadisk-danger);
+}
+
+.yadisk__progress {
+  margin-top: 8px;
 }
 
 .yadisk__task-status {
@@ -411,6 +586,10 @@
 }
 
 .yadisk__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   border: 1px solid var(--yadisk-border);
   border-radius: 14px;
   padding: 12px 16px;
@@ -456,6 +635,11 @@
   transform: none;
 }
 
+.yadisk__button--outline:disabled,
+.yadisk__button--outline[disabled] {
+  border-style: dashed;
+}
+
 .yadisk__breadcrumbs {
   gap: 8px;
 }
@@ -466,6 +650,13 @@
   align-items: center;
   gap: 10px;
   font-size: 13px;
+}
+
+.yadisk__sort-group {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .yadisk__toolbar-label {
@@ -818,6 +1009,7 @@
   border: 1px solid var(--yadisk-border);
   border-radius: 18px;
   background: var(--yadisk-card);
+  padding: 12px;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
   position: relative;
 }
@@ -829,7 +1021,7 @@
 
 .yadisk__card--selected {
   border-color: var(--yadisk-primary);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--yadisk-primary) 20%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--yadisk-primary) 35%, transparent);
 }
 
 .yadisk__selection-box {
@@ -853,10 +1045,10 @@
   border-radius: 14px;
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--theme-warning-200, #fef08a) 70%, var(--yadisk-card) 30%) 0%,
-    color-mix(in srgb, var(--theme-warning-300, #fde047) 80%, var(--yadisk-card) 20%) 100%
+    color-mix(in srgb, var(--accent, var(--yadisk-primary)) 35%, var(--yadisk-card)) 0%,
+    color-mix(in srgb, var(--accent, var(--yadisk-primary)) 55%, var(--yadisk-card)) 100%
   );
-  border: 1px solid var(--theme-warning-400, #facc15);
+  border: 1px solid color-mix(in srgb, var(--accent, var(--yadisk-primary)) 65%, transparent);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -868,13 +1060,14 @@
 .yadisk__folder-icon {
   font-size: 52px;
   line-height: 1;
+  filter: drop-shadow(0 1px 1px color-mix(in srgb, var(--yadisk-text) 25%, transparent));
 }
 
 .yadisk__folder-name {
   max-width: 100%;
   font-size: 13px;
   font-weight: 700;
-  color: var(--theme-warning-900, #713f12);
+  color: var(--accent-foreground, var(--yadisk-text));
   text-align: center;
   line-height: 1.2;
   overflow: hidden;
@@ -888,9 +1081,12 @@
   font-size: 13px;
   font-weight: 600;
   color: var(--yadisk-text);
+  line-height: 1.3;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  word-break: break-all;
 }
 
 .yadisk__preview-meta {
@@ -900,13 +1096,20 @@
   text-transform: uppercase;
 }
 
-.yadisk__loading,
-.yadisk__empty {
+.yadisk__loading {
   color: var(--yadisk-muted);
+  font-size: 14px;
+  padding: 12px 0;
 }
 
 .yadisk__empty {
+  color: var(--yadisk-muted);
+  font-size: 14px;
+  text-align: center;
+  padding: 32px 24px;
+  border: 1px dashed var(--yadisk-border);
   border-radius: 18px;
+  background: var(--yadisk-card-soft);
 }
 
 .yadisk__viewer-backdrop {
@@ -1042,11 +1245,17 @@
   background: transparent;
   text-align: left;
   padding: 10px 12px;
+  font-size: 13px;
+  color: var(--yadisk-text);
   cursor: pointer;
 }
 
 .yadisk__popup-menu button:hover {
   background: var(--yadisk-card-soft);
+}
+
+.yadisk__popup-menu-item.is-danger {
+  color: var(--yadisk-danger);
 }
 
 @media (max-width: 640px) {

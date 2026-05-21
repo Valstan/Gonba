@@ -25,18 +25,18 @@ export const SidebarPanel: React.FC<Props> = ({
 
   return (
     <div className="yadisk__layout" style={layoutStyle}>
-      <aside className="yadisk__sidebar rounded-2xl border bg-card p-4 shadow-sm">
-        <div className="yadisk__sidebar-title text-sm font-semibold">Папки</div>
+      <aside className="yadisk__sidebar">
+        <div className="yadisk__sidebar-title">Папки</div>
         <button
-          className="yadisk__button yadisk__button--primary yadisk__sidebar-add mt-3"
+          className="yadisk__button yadisk__button--primary yadisk__sidebar-add"
           type="button"
           onClick={onCreateFolder}
         >
           Добавить папку
         </button>
-        <div className="yadisk__tree mt-3">{tree}</div>
+        <div className="yadisk__tree">{tree}</div>
         <div
-          className="yadisk__trash rounded-2xl border bg-card p-4 shadow-sm"
+          className="yadisk__trash"
           onDragOver={(event) => event.preventDefault()}
           onDrop={onTrashDrop}
           onClick={onOpenTrash}
@@ -76,7 +76,7 @@ export const SidebarPanel: React.FC<Props> = ({
         aria-label="Изменить ширину панели папок"
       />
 
-      <div className="yadisk__main space-y-6">{children}</div>
+      <div className="yadisk__main">{children}</div>
     </div>
   )
 }

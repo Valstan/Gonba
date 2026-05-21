@@ -6,7 +6,65 @@
 
 ---
 
-## 2026-05-21 — ГОНЬБА 21 мая 2026 (Claude session) — техдолг-чистка
+## 2026-05-21 — ГОНЬБА 21 мая 2026 (Claude session) — Yadisk visual QA + polish
+
+**Тема сессии (вторая часть дня):** полный визуальный QA `/admin/yadisk` со скриншотами в Chrome + закрытие 12 findings одним PR.
+
+### Findings (полный список в комментариях к PR)
+
+**🔴 Критичные:**
+- **F1: Tailwind не подключался к `(payload)`-маршрутам.** `(payload)/layout.tsx` импортирует только `@payloadcms/next/css`, пустой 0-байтовый `custom.scss` и `site-theme.css` (vars без utilities). Все Tailwind-классы в `(payload)/admin/yadisk/page.tsx`, `YandexDiskManager/index.tsx` и `SidebarPanel.tsx` игнорировались браузером: `max-w-6xl`, `px-4 py-8`, `rounded-2xl`, `border`, `bg-card`, `flex`, `gap-2`, `text-2xl`, `font-semibold`, `text-muted-foreground`, `mt-3`, `space-y-6` и т.д. Подтверждено инспекцией: `hasTailwind: false`, `cardBorderRadius: 0`, `linkPadding: 0`. Видимый результат — слиплые ссылки «Media в CMSДобавить в MediaРедактировать карусель», h1=32px (UA-default), прозрачная карточка-обёртка.
+- **F2: Битый SVG `branding/zhemchuzhina-vyatki.svg`.** Файл существовал (200 OK) но `naturalWidth: 0`. Внутри — cp1251-байты вместо UTF-8 + литеральный `<` внутри `<text>` → невалидный XML. Логотип не отображался на login и в admin top-bar.
+
+**🟡 Важные:**
+- F3: «Загрузить файлы» (primary forest) и «Загрузить изображения» (success → teal через Payload `--theme-success-500`) — разный цвет у однотипных кнопок.
+- F4: Папки используют hardcoded `--theme-warning-200/300/400/900` (оранжево-жёлтые Payload-токены), не вписываются в палитру сайта.
+- F5: `.yadisk__sidebar` без `border-radius` и `padding` — контент прилипает к рамке.
+- F6: Layout «Сортировка:» рваный (подпись отрывается от чипсов на следующую строку).
+- F7: Два h1 на одной странице («Общая медиабиблиотека» из `page.tsx` + «Файловое облако Жемчужины» из `CloudTitlebar`).
+- F8: Длинные UUID-имена файлов обрезаются однострочкой с ellipsis, невозможно прочесть.
+
+**🟢 Косметика:**
+- F9: «Каталог» подпись под папкой — old-school file manager стиль.
+- F10: `--yadisk-trash-icon` лососёвый (`--danger-soft`) на sand-фоне.
+- F11: Selected-state карточки даёт box-shadow ring 20% от primary — еле видимый.
+- F12: Кнопки `--outline` при disabled неотличимы от enabled (только `opacity: 0.5`).
+
+### Изменения
+
+- **`web/src/components/YandexDiskManager/index.scss`** — расширен:
+  - Новые блоки: `.yadisk__hero`, `.yadisk__hero-card/title/subtitle/actions`, `.yadisk__pill-link`, `.yadisk__noaccess*` — заменяют Tailwind-классы в `page.tsx`.
+  - `.yadisk__sidebar` — добавлены `border-radius: var(--yadisk-radius-lg)` и `padding: 14px` (F5).
+  - `.yadisk__sidebar-title` — новый блок (uppercase caption, muted).
+  - `.yadisk__main` — flex column gap (заменяет Tailwind `space-y-6`).
+  - `.yadisk__tree` — `margin-top: 6px`.
+  - `.yadisk__sidebar-add` — `margin-bottom: 14px` (заменяет `mt-3`).
+  - `.yadisk__loading`, `.yadisk__empty` — стили без Tailwind (border-dashed для empty).
+  - `.yadisk__card` — `padding: 12px` (F5).
+  - `.yadisk__card--selected` — box-shadow 35% (было 20%, F11).
+  - `.yadisk__folder-preview/icon/name` — gradient на `--accent` вместо `--theme-warning-*` (F4); цвет имени `--accent-foreground`; drop-shadow на иконке.
+  - `.yadisk__preview-caption` — line-clamp 2, word-break break-all (F8).
+  - `.yadisk__trash-icon` — bg на `--yadisk-card-soft` (F10), `flex-shrink: 0`.
+  - `.yadisk__trash` — `border-radius: var(--yadisk-radius-md)`, `padding: 12px`.
+  - `.yadisk__trash-content` — flex column для текста.
+  - `.yadisk__button` — `display: inline-flex; gap: 8px` (для иконок); `.yadisk__button--outline:disabled { border-style: dashed }` (F12).
+  - `.yadisk__sort-group` — wrapper для подписи + chipsы + направление (F6).
+  - `.yadisk__popup-menu-item.is-danger` — красный текст для «Удалить».
+  - `.yadisk__task/header/title/meta/errors`, `.yadisk__progress` — стили без Tailwind.
+- **`web/src/app/(payload)/admin/yadisk/page.tsx`** — переписан без Tailwind. Использует `yadisk__hero*` и `yadisk__noaccess*` классы из SCSS. Один root-`<div className="yadisk">` для доступности CSS-vars.
+- **`web/src/components/YandexDiskManager/index.tsx`** — удалены все Tailwind-классы (`mt-6 space-y-6`, `rounded-2xl border bg-card p-4 shadow-sm`, `flex items-center justify-between gap-2 text-sm`, `font-semibold`, `text-xs text-red-600`, `block w-full px-3 py-2 text-left hover:bg-muted` и т.д.). Заменены на SCSS-классы. «Каталог» metaстрока убрана для папок (F9).
+- **`web/src/components/YandexDiskManager/components/SidebarPanel.tsx`** — то же.
+- **`web/src/components/YandexDiskManager/components/ActionToolbar.tsx`** — обе upload-кнопки теперь `--primary` (F3). Добавлены эмодзи-иконки 📁 и 🖼️ для различения.
+- **`web/src/components/YandexDiskManager/components/ViewToolbar.tsx`** — sort-группа обёрнута в `.yadisk__sort-group` (F6).
+- **`web/src/components/YandexDiskManager/components/CloudTitlebar.tsx`** — h1 рендерится только в `pickerMode`. В обычном режиме — только back-link (F7). Placeholder `<span />` для flex-space-between.
+- **`web/public/branding/zhemchuzhina-vyatki.svg`** — перегенерирован в чистом UTF-8 без BOM. Два line-тэга: «Гоньба» (Georgia 22px) + «жемчужина Вятки» (Arial 11px opacity 0.7). Согласуется с frontend-hero «Гоньба — жемчужина Вятки».
+- **`web/src/components/AdminLogo/index.tsx`** и **`web/src/components/AdminIcon/index.tsx`** — `alt` обновлён на «Гоньба — жемчужина Вятки».
+
+### Уроки
+- **Tailwind v4 однозначно scoped по route-группе (`(frontend)`).** Подключение к `(payload)` через тот же `globals.css` рискованно — может зацепить Payload-admin селекторы. Безопаснее писать собственный SCSS с переменными из `site-theme.css`.
+- **QA: всегда проверять в браузере, что вычислённые стили совпадают с CSS-классами.** `hasTailwind: false` через JS-инспекцию — быстрый способ определить, что utility-классы не работают.
+- **SVG в кириллице должен быть UTF-8 без BOM**, а литеральный `<` внутри `<text>` ломает XML — всегда заменять на `&lt;` или избегать.
+
 
 **Тема сессии:** закрытие трёх 🟡-техдолгов из `PENDING_FOLLOWUPS.md`: watchdog в build-скрипте, отсутствие Payload-миграций для ручных `ALTER TABLE`, устаревший `docs/PROJECT.md`.
 

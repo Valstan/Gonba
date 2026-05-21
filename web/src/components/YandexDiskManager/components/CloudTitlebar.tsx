@@ -8,9 +8,11 @@ type Props = {
 export const CloudTitlebar: React.FC<Props> = ({ pickerMode }) => {
   return (
     <div className="yadisk__titlebar">
-      <h1 className="yadisk__title">
-        {pickerMode ? 'Выберите изображение из Облака' : 'Файловое облако Жемчужины'}
-      </h1>
+      {pickerMode ? (
+        <h1 className="yadisk__title">Выберите изображение из Облака</h1>
+      ) : (
+        <span />
+      )}
       <Link href="/" prefetch={false} className="yadisk__back-link">
         Вернуться на сайт
       </Link>
