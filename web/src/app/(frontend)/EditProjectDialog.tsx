@@ -1,9 +1,10 @@
 'use client'
 
 import Image from 'next/image'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { ProjectRecord } from './projects/shared'
+import { Plate } from './projects/PlateCard'
 import {
   Dialog,
   DialogContent,
@@ -77,7 +78,25 @@ export const EditProjectDialog: React.FC<Props> = ({ open, project, onClose, onS
     }
   }, [project])
 
-  if (!project) return null
+  // Live preview: merge базового project с локально редактируемыми полями.
+  // useMemo чтобы Plate не пересчитывался без необходимости.
+  // Должен идти ДО early-return, чтобы порядок хуков был стабильным между рендерами.
+  const previewProject = useMemo<ProjectRecord | null>(() => {
+    if (!project) return null
+    return {
+      ...project,
+      shortLabel: fields.shortLabel.trim() || project.shortLabel,
+      summary: fields.summary,
+      accentColor: fields.accentColor.trim() || project.accentColor,
+      homeLink: fields.homeLink.trim() || project.homeLink,
+      // подсовываем URL превью как доку медиа — Plate.pickImage достаёт .url
+      logo: fields.logoPreviewUrl
+        ? ({ url: fields.logoPreviewUrl } as unknown as ProjectRecord['logo'])
+        : null,
+    }
+  }, [project, fields])
+
+  if (!project || !previewProject) return null
 
   const handleUpload = async (file: File) => {
     setUploading(true)
@@ -146,11 +165,20 @@ export const EditProjectDialog: React.FC<Props> = ({ open, project, onClose, onS
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : null)}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Редактирование плашки</DialogTitle>
-          <DialogDescription>Эти данные показываются на главной странице.</DialogDescription>
+          <DialogDescription>
+            Эти данные показываются на странице «Проекты». Превью обновляется в реальном времени по мере правок.
+          </DialogDescription>
         </DialogHeader>
+
+        {/* Live preview — тот же компонент, что и на /projects */}
+        <div className="my-1 overflow-hidden rounded-2xl shadow-md ring-1 ring-black/10">
+          <div className="min-h-[160px]">
+            <Plate project={previewProject} size="normal" />
+          </div>
+        </div>
 
         <div className="grid gap-4 py-2">
           <div className="grid gap-1.5">
