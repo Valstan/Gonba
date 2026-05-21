@@ -2,7 +2,7 @@
 
 Цель этого документа — дать следующей сессии разработки с нейросетью быстрый и точный контекст: где что лежит, какие сервисы и функции уже есть, какие переменные окружения используются, и какие правила критичны для стабильной работы проекта.
 
-Сессию назови "ГОНЬБА 18 мая 2026" (актуальная дата сессии разработки)
+Сессию назови «ГОНЬБА <сегодняшняя дата>» (формат: `ГОНЬБА 21 мая 2026`). Slash-команда `/start` сама проставит правильную дату из системного контекста.
 
 ## Краткий обзор
 
@@ -38,12 +38,13 @@
 
 Коллекции (на уровне конфигурации):
 
-- `Pages`, `Posts`, `Projects`, `Events`, `Services`, `Products`, `Orders`, `Bookings`, `Media`, `Categories`, `Users`
+- `Pages`, `Posts`, `Projects`, `Events`, `Services`, `Products`, `Orders`, `Bookings`, `VkImportQueue`, `VkAutoSync`, `Messages`, `Media`, `Categories`, `Users`
   - см. `web/src/collections/*`
 
 Глобалы:
 
-- `Header`, `Footer` (см. `web/src/Header`, `web/src/Footer`)
+- `Header`, `Footer`, `HomeCarousel` (legacy), `VkAutoSyncSettings`
+  - см. `web/src/Header`, `web/src/Footer`, `web/src/HomeCarousel`, `web/src/globals/`
 
 ## Встроенные сервисы и интеграции
 
@@ -173,7 +174,7 @@ Payload:
 - Хост: `831d0ce99bdf.vps.myjino.ru`
 - Порт: `22`
 - Пользователь: `valstan`
-- Ключ: ed25519 (обычно `~/.ssh/id_ed25519`; раньше в документации фигурировал `~/.ssh/id_rsa` — это устарело)
+- Ключ: ed25519 (`~/.ssh/id_ed25519`)
 - ОС сервера: Ubuntu Linux 24.04 (ядро 6.8.x)
 
 **На локалке желательно завести алиас `GONBA` в `~/.ssh/config`:**
@@ -201,7 +202,7 @@ Host GONBA
 - Прокидывать туннель к prod БД с локалки: `ssh -L 5432:127.0.0.1:5432 GONBA` (внимание: `push: true` в `payload.config.ts` будет менять схему прод-БД)
 - Выполнять любые другие команды на сервере
 
-Доступ верифицирован 18 мая 2026.
+Доступ верифицирован (последняя проверка — см. `DEVELOPMENT_LOG.md`).
 
 Примеры команд:
 
@@ -215,8 +216,9 @@ ssh GONBA "sudo systemctl restart gonba"
 # Посмотреть логи
 ssh GONBA "journalctl -u gonba -n 50 --no-pager"
 
-# Обновить код из репозитория и пересобрать
-ssh GONBA "cd /home/valstan/GONBA && git pull && npm run build && sudo systemctl restart gonba"
+# Обновить код из репозитория и пересобрать (правильный способ — через safe-build.sh)
+ssh GONBA "cd /home/valstan/GONBA && git pull && /home/valstan/GONBA/scripts/safe-build.sh && sudo systemctl restart gonba"
+# (НЕ запускать `corepack pnpm run build:raw` напрямую через ssh — SSH-disconnect убивает prerender)
 
 # Снять дамп БД prod в локальный файл
 ssh GONBA "sudo -u postgres pg_dump -Fc gonba" > prod-gonba.dump
@@ -229,16 +231,23 @@ ssh GONBA "sudo systemctl start gonba-vk-sync.service && journalctl -u gonba-vk-
 
 Сервис в системе: `gonba.service`
 
-Основные шаги:
+Регулярный релизный flow — slash-команда `/reliz` (commit → push → PR → merge → safe-build → restart → проверки). Внутри `/reliz` build запускается через `scripts/safe-build.sh`, который оборачивает `next build` в `systemd-run --uid=valstan --gid=valstan`, чтобы переживать SSH-disconnect.
 
-1. `npm install`
-2. `npm run build`
+Первоначальная установка сервиса:
+
+1. `corepack pnpm install`
+2. `scripts/safe-build.sh` (или `systemd-run --uid=valstan --gid=valstan --working-directory=/home/valstan/GONBA/web -- /bin/bash -lc "corepack pnpm run build:raw"`)
 3. `sudo cp deploy/systemd/gonba-web.service /etc/systemd/system/gonba.service`
 4. `sudo systemctl daemon-reload`
 5. `sudo systemctl enable --now gonba`
 6. Перезапуск: `sudo systemctl restart gonba`
 7. Логи: `journalctl -u gonba -f`
 8. Переменные окружения на проде: `EnvironmentFile=-/home/valstan/GONBA/web/.env`
+
+**Важно:**
+- Не использовать `pnpm run build` (под watchdog) и тем более `npm run build` — задача про правильный watchdog есть в `PENDING_FOLLOWUPS.md`. Прямой путь — `build:raw` через safe-build.sh.
+- Прямой `corepack pnpm run build:raw` через одну SSH-сессию умирает посередине prerender'а при SSH-disconnect → артефакт `.next` остаётся неполным → сервис в crash-loop. Поэтому `systemd-run`.
+- Прод НЕ применяет миграции автоматически (`push: true` не успевает из-за timeout прерывания первого запроса). После добавления полей в коллекциях запускать `pnpm payload migrate:up` или вручную `ALTER TABLE`.
 
 ### Docker (локально)
 

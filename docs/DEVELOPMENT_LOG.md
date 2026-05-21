@@ -6,6 +6,50 @@
 
 ---
 
+## 2026-05-21 — ГОНЬБА 21 мая 2026 (Claude session) — техдолг-чистка
+
+**Тема сессии:** закрытие трёх 🟡-техдолгов из `PENDING_FOLLOWUPS.md`: watchdog в build-скрипте, отсутствие Payload-миграций для ручных `ALTER TABLE`, устаревший `docs/PROJECT.md`.
+
+### Изменения
+
+- **`web/package.json` → build watchdog поднят:** `--idle-ms` 180000 → 600000, `--stagnation-ms` 480000 → 900000 (`--max-ms` остался 1800000). Это позволит однажды отказаться от `build:raw` для большинства случаев — Next.js 15 укладывается в 10-минутный idle.
+- **`web/src/migrations/20260521_120000.ts` + `.sql`-зеркало** — новая идемпотентная миграция, покрывающая 7 ручных `ALTER TABLE` из прошлой сессии:
+  - `projects.home_link varchar`
+  - `vk_auto_sync.community_name/description/avatar/screen_name varchar`
+  - `vk_auto_sync.project_id integer` + FK `vk_auto_sync_project_id_projects_id_fk` (ON DELETE SET NULL) + индекс `vk_auto_sync_project_idx`
+  - `vk_auto_sync.category_id integer` + FK `vk_auto_sync_category_id_categories_id_fk` (ON DELETE SET NULL) + индекс `vk_auto_sync_category_idx`
+  - `vk_auto_sync.group_id` и `access_token` — `DROP NOT NULL`
+  - Все шаги через `IF NOT EXISTS` / `DROP CONSTRAINT IF EXISTS` / `pg_constraint` гард → миграция переживает повторный прогон.
+  - Зеркало `.sql` — на случай, когда `payload migrate` зависает на y/N-prompt drizzle'а (см. сноску ниже), можно применить через `psql -f`.
+  - Зарегистрирована в `web/src/migrations/index.ts`.
+- **`docs/PROJECT.md` — точечная чистка:**
+  - Убран захардкоженный шаблон даты «ГОНЬБА 18 мая 2026» (теперь явно «подставит /start»).
+  - Добавлены отсутствующие коллекции `VkImportQueue`, `VkAutoSync`, `Messages` и недостающие глобалы `HomeCarousel`, `VkAutoSyncSettings`.
+  - Убран блок про устаревший `~/.ssh/id_rsa` — только актуальный `id_ed25519`.
+  - В разделе «Деплой/Systemd» добавлен правильный путь через `/reliz` + `scripts/safe-build.sh`, добавлено предупреждение про `next build` через SSH и `push:true` на проде.
+  - Пример «обновить код и пересобрать» переписан под `safe-build.sh`.
+
+### Применение миграции
+
+- **Локально:** SQL-зеркало прогнано через `psql -f`, факт применения зафиксирован в `payload_migrations` (`INSERT ... WHERE NOT EXISTS`). Локальная схема `vk_auto_sync` теперь сматчена с продом (4 community-поля + FK + nullable group_id/access_token).
+- **На проде после деплоя:** прогнать `ssh GONBA "cd /home/valstan/GONBA/web && corepack pnpm payload migrate"`. Все колонки уже добавлены вручную → IF NOT EXISTS их пропустит. FK constraints на проде пока нет → их миграция добавит (что мы и хотим).
+
+### Уроки
+
+- **`pnpm payload migrate` подвис на 40+ минут локально.** Подозрение — drizzle `push:true` снова попал в интерактивный y/N про новые колонки (как memory `dev_schema_push_prompt`), но без TTY его никто не подтвердил. Workaround — применять миграцию через прямой `psql -f` SQL-зеркало. → 🟡 техдолг: или отключить `push:true` на dev (опасно, поломает текущий dev-flow), или сделать `payload migrate` неинтерактивным (`yes y | ...`).
+- **Локалка отставала от прода.** За прошлую сессию все ручные `ALTER TABLE` ушли на прод, но локальная БД (`push:true` без подтверждения через TTY) их не получила. Миграция привела обе среды в синхрон.
+
+### Хвосты, оставленные в `PENDING_FOLLOWUPS.md`
+
+- 🟡 `web/.env.example` без `postgres:postgres@` — не задето в этой сессии
+- 🟡 Direct UPDATE/INSERT минует afterChange-хуки — не задето
+- 🟡 `dev_env_requirements` memory — нужно обновить
+- 🟡 `docs/RELEASE_STABILITY_CHECKLIST.md` — не задето
+- 🟡 у некоторых проектов `title === slug` — не задето
+- 🟡 (новый) `payload migrate` интерактивный — workaround через прямой psql задокументирован
+
+---
+
 ## 2026-05-20 — ГОНЬБА 20 мая 2026 (Claude session)
 
 **Серия PR:** #4 → #5 → #6 → #7. Все смержены squash в `main`, задеплоено на прод.
