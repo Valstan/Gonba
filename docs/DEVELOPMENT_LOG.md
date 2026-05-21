@@ -65,8 +65,34 @@
 
 ### Хвосты раунда 2 → в `PENDING_FOLLOWUPS.md`
 
-- 🟢 CI deploy через GitHub Action — оставлена в идеях, перевернута в самый верх для приоритета
 - 🟡 У трёх старых проектов `title === slug` — оставлена (hook не помогает существующим записям, нужна ручная чистка)
+
+### Раунд 3 — CI deploy через GitHub Action — PR #11
+
+**Закрывает последнюю 🟢-идею сессии: автоматический деплой после merge в main.**
+
+- **`.github/workflows/deploy-prod.yml`** — новый workflow, триггерится через `workflow_run` после успешного `CI` workflow на `main` (то есть после merge зелёного PR). Также `workflow_dispatch` для ручного перезапуска.
+- **Шаги:**
+  1. Checkout с `fetch-depth: 2` — нужен diff с предыдущим коммитом.
+  2. **Safety net на миграции:** `git diff --diff-filter=A -- 'web/src/migrations/*.ts'` (без `index.ts`). Если есть новые файлы — фейлит с понятной ошибкой, не идёт в build. Миграции остаются ручным шагом ДО merge (через `/sql` или `psql -f`), потому что в headless CI `payload migrate` зависает на drizzle push:true y/N prompt (видели сегодня).
+  3. Setup SSH: secret `SSH_PRIVATE_KEY` → `~/.ssh/id_ed25519` (600), `~/.ssh/config` с алиасом `GONBA`, `ssh-keyscan` → `known_hosts`.
+  4. `ssh GONBA "cd /home/valstan/GONBA && git pull --ff-only origin main"`.
+  5. `ssh GONBA "/home/valstan/GONBA/scripts/safe-build.sh"` (фоновый билд через `systemd-run`).
+  6. `ssh GONBA "/home/valstan/GONBA/scripts/wait-build.sh"` (ждёт до 1200s, по нашему опыту билды укладываются в ~3-5 минут).
+  7. `sudo systemctl restart gonba && sleep 6 && systemctl is-active gonba`.
+  8. Smoke: local `/api/health`, CDN `/`, `/api/health`, `/projects`, `/admin` — все должны вернуть 200.
+- **На падении (per договорённости с пользователем — НЕ откатываемся, лечим ситуацию):** дамп `journalctl -u gonba -n 100` + `journalctl -u gonba-build -n 100` + `systemctl status gonba` в job output. Разработчик заходит руками, чинит, и при необходимости перезапускает через UI Actions → Deploy to production → Run workflow.
+- **Concurrency:** `group: deploy-prod`, `cancel-in-progress: false` — два push'а подряд идут последовательно, без отмен.
+
+**Setup secret (один раз):**
+```bash
+gh secret set SSH_PRIVATE_KEY --repo Valstan/Gonba < ~/.ssh/id_ed25519
+```
+Сделано в этой сессии. **Warning:** ключ `id_ed25519` авторизован также на `matricarmz` — если GitHub secret утечёт, оба сервера в риске. Дока в `docs/PROJECT.md` советует на будущее создать отдельный deploy-ключ `id_ed25519_gonba_deploy`.
+
+**Slash-команда `/reliz`** остаётся актуальной для ручного контроля (миграции, hot-fix без CI). Workflow и `/reliz` идемпотентно совместимы — оба идут через `safe-build.sh`.
+
+**Первый live-тест:** этот PR сам через себя задеплоится после merge. Если упадёт — будет видно журналы в Actions, попадём в режим «лечим вручную».
 
 ---
 

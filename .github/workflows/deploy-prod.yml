@@ -1,0 +1,134 @@
+name: Deploy to production
+
+# Триггерится автоматически после успешного завершения workflow CI на main
+# (то есть после merge PR в main и зелёного билда+тестов).
+# Также можно дёрнуть руками через UI Actions → Deploy to production → Run workflow.
+#
+# ВАЖНО: secret SSH_PRIVATE_KEY = содержимое локального ~/.ssh/id_ed25519
+# (тот же ключ, которым ходит разработчик). См. docs/PROJECT.md → «Деплой / CI».
+#
+# Стратегия на падение: НЕ откатываемся к предыдущему BUILD_ID — сразу
+# выгружаем логи `gonba` и `gonba-build` в job output и фейлим. Разработчик
+# заходит руками, чинит, и при необходимости перезапускает этот workflow
+# через workflow_dispatch.
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  # Не параллелим деплои; если уже идёт — новый ждёт, не cancel предыдущий
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # При workflow_run запускаемся только если CI прошёл успешно
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout (для diff на миграции)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Safety net — упасть если в коммите новые Payload-миграции
+        # Миграции — самая опасная часть, и `payload migrate` в CI зависает
+        # из-за drizzle push:true y/N prompt. Поэтому миграции применяет
+        # разработчик руками ДО merge (через /sql или psql -f), а CI
+        # просто проверяет что новых файлов нет — иначе фейл.
+        run: |
+          set -e
+          BEFORE_SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          NEW_MIGRATIONS=$(git diff --name-only --diff-filter=A "${BEFORE_SHA}~1" "${BEFORE_SHA}" -- 'web/src/migrations/*.ts' 2>/dev/null || true)
+          # Игнорируем index.ts — он обновляется каждый раз
+          NEW_MIGRATIONS=$(echo "${NEW_MIGRATIONS}" | grep -v '^web/src/migrations/index\.ts$' || true)
+          if [ -n "${NEW_MIGRATIONS}" ]; then
+            echo "::error::В коммите ${BEFORE_SHA} есть новые Payload-миграции, которые должны быть применены вручную ДО merge:"
+            echo "${NEW_MIGRATIONS}"
+            echo ""
+            echo "Шаги:"
+            echo "  1. ssh GONBA 'cat /home/valstan/GONBA/<файл>.sql | sudo -u postgres psql -d gonba -v ON_ERROR_STOP=1'"
+            echo "  2. ssh GONBA 'sudo -u postgres psql -d gonba -c \"INSERT INTO payload_migrations (name, batch) VALUES ('\''...'\'', N)\"'"
+            echo "  3. После этого перезапусти этот workflow через Actions → Deploy to production → Run workflow."
+            exit 1
+          fi
+          echo "Новых миграций нет — продолжаем."
+
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -e
+          if [ -z "${SSH_PRIVATE_KEY}" ]; then
+            echo "::error::Secret SSH_PRIVATE_KEY не задан. См. docs/PROJECT.md → «Деплой / CI»."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          # known_hosts через ssh-keyscan чтобы не ждать accept-new
+          ssh-keyscan -H 831d0ce99bdf.vps.myjino.ru >> ~/.ssh/known_hosts 2>/dev/null
+          cat > ~/.ssh/config <<'EOF'
+          Host GONBA
+            HostName 831d0ce99bdf.vps.myjino.ru
+            Port 22
+            User valstan
+            IdentityFile ~/.ssh/id_ed25519
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ServerAliveInterval 30
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Pull latest main on prod
+        run: |
+          ssh GONBA "cd /home/valstan/GONBA && git pull --ff-only origin main 2>&1 | tail -20"
+
+      - name: Run safe-build (в фоне через systemd-run)
+        run: |
+          ssh GONBA "/home/valstan/GONBA/scripts/safe-build.sh 2>&1 | tail -15"
+
+      - name: Wait for build to finish
+        # wait-build.sh внутри имеет свой timeout 1200s
+        run: |
+          ssh GONBA "/home/valstan/GONBA/scripts/wait-build.sh"
+
+      - name: Restart gonba
+        run: |
+          ssh GONBA "sudo systemctl restart gonba && sleep 6 && sudo systemctl is-active gonba"
+
+      - name: Smoke checks — local /api/health
+        run: |
+          set -e
+          STATUS=$(ssh GONBA "curl -s -o /dev/null -w '%{http_code}' --max-time 15 http://127.0.0.1:3000/api/health")
+          echo "local /api/health: ${STATUS}"
+          [ "${STATUS}" = "200" ] || { echo "::error::local /api/health = ${STATUS}, ожидался 200"; exit 1; }
+
+      - name: Smoke checks — public CDN
+        run: |
+          set -e
+          BASE='https://xn--80abf4be9f.xn--p1ai'
+          for path in / /api/health /projects /admin; do
+            STATUS=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${BASE}${path}")
+            echo "CDN ${path}: ${STATUS}"
+            [ "${STATUS}" = "200" ] || { echo "::error::CDN ${path} = ${STATUS}, ожидался 200"; exit 1; }
+          done
+
+      - name: On failure — дамп журналов прода
+        if: failure()
+        run: |
+          echo "=== journalctl -u gonba (последние 100 строк) ==="
+          ssh GONBA "sudo journalctl -u gonba -n 100 --no-pager" 2>&1 || true
+          echo ""
+          echo "=== journalctl -u gonba-build (последние 100 строк) ==="
+          ssh GONBA "sudo journalctl -u gonba-build -n 100 --no-pager" 2>&1 || true
+          echo ""
+          echo "=== systemctl status ==="
+          ssh GONBA "sudo systemctl status gonba --no-pager -l" 2>&1 || true
