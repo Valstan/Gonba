@@ -51,11 +51,11 @@ _Сейчас нет — все начатые задачи в текущей с
 ### Удобство разработки
 
 - **CI deploy step** — `.github/workflows/deploy-prod.yml` через `workflow_run` после успешного CI на `main`. SSH-ключ — общий `id_ed25519`. На failure — НЕ роллим, выгружаем `journalctl` и фейлим. Миграции остаются ручным шагом ДО merge (safety net в workflow проверяет наличие новых `web/src/migrations/*.ts`). (Сделано — см. `docs/PROJECT.md → CI / автоматический деплой`.)
-- **Hook на `git commit`**, который автоматически напоминает обновить `DEVELOPMENT_LOG.md` если коммит — `feat`/`fix`/`refactor`. Реализуется через `.husky/` или `.git/hooks/prepare-commit-msg`.
+- **Hook на `git commit`** — напоминает обновить `DEVELOPMENT_LOG.md` для `feat:/fix:/refactor:`-коммитов. `scripts/git-hooks/prepare-commit-msg` + `scripts/install-git-hooks.sh`. (Сделано — устанавливается одной командой `bash scripts/install-git-hooks.sh`.)
 - **Команда `/check`** — одной кнопкой `health-check`: dev local up? Prod /api/health? Git состояние? TypeScript? Lint? (Сделано — см. `.claude/commands/check.md`.)
 - **Команда `/sql`** для безопасного выполнения SQL на проде через SSH с диалогом-подтверждением (учитывая что Auto-mode classifier режет direct ALTER без warning). (Сделано — см. `.claude/commands/sql.md`.)
-- **Скрипт `scripts/dev-doctor.sh`** проверяет окружение (Postgres, .env, node_modules, payload-types, importMap, SSH alias `GONBA`). (Сделано — `bash scripts/dev-doctor.sh`.)
-- **ADR (Architectural Decision Records)** в `docs/adr/` для важных решений (почему orbit + grid; почему push:true в dev и migrations на проде; почему prefer relationship + slug-mirror vs pure relationship; почему Yandex.Disk вместо S3).
+- **Скрипт `scripts/dev-doctor.sh`** проверяет окружение (Postgres, .env, node_modules, payload-types, importMap, SSH alias `GONBA`, git hooks). (Сделано — `bash scripts/dev-doctor.sh`.)
+- **ADR (Architectural Decision Records)** в `docs/adr/` для важных решений. Заведены 3 первых ADR (Yandex.Disk vs S3; гибридные миграции; build через systemd-run). Заводить новые — по мере появления значимых решений (формат — см. `docs/adr/_template.md`).
 - **Smoke tests E2E через Playwright** для критичных user flow:
   - Открытие главной → видна orbit-карусель
   - Открытие /projects → видна сетка плашек

@@ -98,6 +98,29 @@ gh secret set SSH_PRIVATE_KEY --repo Valstan/Gonba < ~/.ssh/id_ed25519
 - ✅ `workflow_dispatch` (ручной trigger) — **успех** за 10м44с. Прод жив, CDN /api/health = 200.
 - ❌ `workflow_run` (auto после CI) — **не сработал**, потому что CI workflow на main падает (см. раунд 4).
 
+### Раунд 5 — Фаза A: git hook + ADR — PR #13
+
+**Первая из пяти фаз закрытия 🟢-идей** (1+2 из 6 выбранных пользователем).
+
+- **`scripts/git-hooks/prepare-commit-msg`** + **`scripts/install-git-hooks.sh`** — мягкое напоминание: если commit message начинается с `feat:`/`fix:`/`refactor:` (включая scoped формы `feat(api):`), и в staged-файлах НЕТ `docs/DEVELOPMENT_LOG.md` — выводит жёлтое предупреждение в stderr и пропускает дальше. **НЕ блокирует** коммит (чтобы не раздражать на быстрых фиксах). Пропускает merge/squash коммиты автоматически. Установка одной командой `bash scripts/install-git-hooks.sh` — идемпотентная, нужна один раз на каждой машине разработки.
+- **`docs/adr/`** — новая директория с **Architectural Decision Records** (формат Michael Nygard). Создан:
+  - `README.md` — объяснение что это, когда писать, индекс ADR
+  - `_template.md` — пустой шаблон для новых ADR
+  - **3 первых ADR** на основе уже зафиксированных архитектурных решений:
+    - [0001](../docs/adr/0001-yandex-disk-as-media-storage.md) — Yandex.Disk как хранилище медиа (vs S3 и платных альтернатив)
+    - [0002](../docs/adr/0002-push-true-dev-migrations-prod.md) — гибридная стратегия миграций (`push:true` на dev + явные миграции на проде)
+    - [0003](../docs/adr/0003-build-via-systemd-run-on-prod.md) — build на проде через `systemd-run` (защита от SSH-disconnect)
+- **`scripts/dev-doctor.sh`** дополнен: блок `[Git hooks]` проверяет установлен ли `prepare-commit-msg`.
+- **`CLAUDE.md`** дополнен:
+  - В таблице источников правды добавлена ссылка на `docs/adr/`
+  - В жизненном цикле задачи: «На новой машине разработки — один раз `bash scripts/install-git-hooks.sh`» и «При архитектурных решениях — заведи новый ADR».
+
+**Следующие фазы (в очереди по запросу пользователя):**
+- B: E2E Playwright smoke tests (~6 ч)
+- C: Live preview плашек /projects (~4 ч)
+- D: Yadisk UI polish (~2–4 ч)
+- E: VK auto-sync wizard (~8–12 ч)
+
 ### Раунд 4 — Фикс CI (pnpm 11 in corepack) — PR #12
 
 **Проблема:** `CI` workflow (`.github/workflows/ci.yml`) красный последние 3 коммита на main. Падает на шаге `Integration tests`:
