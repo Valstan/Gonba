@@ -26,23 +26,7 @@ _Сейчас нет — все начатые задачи в текущей с
 
 ## 🟡 Техдолги
 
-### Build / Deploy
-
-- **`payload migrate` интерактивный (drizzle `push:true` y/N prompt).** В сессии 2026-05-21 `pnpm payload migrate` без TTY завис на 40+ минут (молча) — судя по всему попал на drizzle push-prompt для расхождения схема ↔ коллекции. Workaround сейчас — применять миграции через прямой `psql -f web/src/migrations/<name>.sql` (зеркало) и руками `INSERT INTO payload_migrations`. Постоянное решение: либо `push: false` на dev (но тогда сломается текущий «свободный» dev-flow), либо `yes y | corepack pnpm payload migrate` обёртка-скрипт.
-- **Direct UPDATE/INSERT в БД минует Payload `afterChange`-хуки.** В частности `revalidateTag('global_header')` не вызывается. Лечится `systemctl restart gonba`, но «знание» нигде не задокументировано в коде. Стоит добавить wrapper-скрипт или хотя бы заметку в `CLAUDE.md`.
-
-### Конфиг / окружение
-
-- **`web/.env` шаблон в `web/.env.example`** содержит `DATABASE_URL=postgresql://127.0.0.1:5432/gonba` без user/password. На локальной Windows-машине это не работает без `postgres:postgres@` префикса. → Обновить пример.
-
-### Documentation drift
-
-- **Memory `dev_env_requirements`** утверждает «на локалке нет Postgres» — устарело: на машине Valstan установлен PostgreSQL 16 (`postgresql-x64-16`, port 5432, user `postgres`/`postgres`, БД `gonba`). Обновить memory.
-- **`docs/RELEASE_STABILITY_CHECKLIST.md`** упоминает `npm install && npm run build`. После уроков сегодняшней сессии deploy-flow стал сложнее (`systemd-run --uid=valstan`, нельзя через прямой SSH). Стоит обновить или сослаться на `/reliz` команду.
-
-### Данные в БД
-
-- У некоторых проектов поле `title` равно slug: `eco-hotel-booking`, `about-project`, `vyatskiy-sbor`. Должно быть человеческое название. → Чистка через админку `/admin/collections/projects`.
+_Все техдолги текущей серии закрыты в фазе F. Новые появятся по мере работы — добавлять сюда._
 
 ---
 

@@ -98,6 +98,32 @@ gh secret set SSH_PRIVATE_KEY --repo Valstan/Gonba < ~/.ssh/id_ed25519
 - ✅ `workflow_dispatch` (ручной trigger) — **успех** за 10м44с. Прод жив, CDN /api/health = 200.
 - ❌ `workflow_run` (auto после CI) — **не сработал**, потому что CI workflow на main падает (см. раунд 4).
 
+### Раунд 10 — Фаза F: финальная чистка хвостов — PR #18
+
+**Цель:** закрыть мелкие 🟡-техдолги и часть 🟢-идей одним заходом.
+
+**Изменения:**
+
+- **`web/.env.example`** — `DATABASE_URL` теперь содержит `postgres:postgres@` префикс (нужно на Windows + системный Postgres 16). Добавлен закомментированный вариант для docker compose.
+- **`docs/RELEASE_STABILITY_CHECKLIST.md`** — полностью переписан. Теперь это «бумажная» референс-карта на случай ручного деплоя; основной flow ушёл в `/reliz` и `.github/workflows/deploy-prod.yml`. Добавлены ссылки на новые скрипты (`dev-doctor.sh`, `safe-build.sh`, `run-migrate.sh`).
+- **`scripts/run-migrate.sh`** — обёртка `yes y | corepack pnpm payload migrate` для headless-окружений. Решает 🟡-техдолг «`payload migrate` интерактивный» (зависал на drizzle y/N в сессии 2026-05-21). Fallback на `psql -f` зеркало остаётся документированным.
+- **`CLAUDE.md`** — заметка про direct UPDATE усилена ссылкой на `ssh GONBA "sudo systemctl restart gonba"` и упомянуты Header/Footer-глобалы как самые частые цели. Добавлен новый пункт про `payload migrate` workaround.
+- **Memory `dev_env_requirements`** — обновлена с актуальной информацией: Postgres 16 уже установлен локально (postgres/postgres@gonba), SSH alias `GONBA` уже настроен, добавлен пункт про git hooks. Старый текст «нет Docker / нет Postgres» удалён.
+
+**3 проекта с `title === slug`** — поправлены прямым UPDATE на проде (после явного подтверждения пользователя):
+- `vyatskiy-sbor`: title → «Вятскiй сборъ» (из seed)
+- `about-project`: title → «О проекте ГОНЬБА»
+- `eco-hotel-booking`: title → «Бронирование ЭКО-отеля»
+
+Direct UPDATE минует Payload `afterChange`-хуки — после правки `systemctl restart gonba` (на проде это сделано в этой же сессии). Локальная БД не синхронизирована: PowerShell + psql на Windows зацепились на UTF-8 кодировке для кириллицы в SQL-литералах; на dev-сервере это не блокер (база переопределится при следующих экспериментах). Способ для будущего: класть SQL в файл с BOM или применять через bash/SSH.
+
+**Что НЕ сделано в этой фазе (намеренно):**
+
+- 🟢 Полноценный step-by-step VK wizard с прогресс-баром (8-12ч, высокий риск регрессии). Базовая визуальная разбивка через `tabs` уже сделана в фазе E — закрывает 80% UX-выгоды.
+- 🟢 Admin E2E в CI — требует отдельной seed-инфраструктуры для admin user в CI workflow. Локально `admin.e2e.spec.ts` уже работает через `pnpm test:e2e`.
+- 🟢 Полный визуальный QA `/admin/yadisk` со скриншотами — нужна живая обратная связь от пользователя, не закрывается «вслепую» автоматически.
+- 🟢 ADR — это процессная задача (расширять по мере появления решений), не закрывается одним PR.
+
 ### Раунд 9 — Фаза E: VK auto-sync «wizard»-табы — PR #17
 
 **Реструктуризация коллекции `vk-auto-sync`** через встроенный Payload `tabs` field — визуальная разбивка длинной формы на 4 шага:
