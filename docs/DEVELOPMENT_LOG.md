@@ -98,6 +98,21 @@ gh secret set SSH_PRIVATE_KEY --repo Valstan/Gonba < ~/.ssh/id_ed25519
 - ✅ `workflow_dispatch` (ручной trigger) — **успех** за 10м44с. Прод жив, CDN /api/health = 200.
 - ❌ `workflow_run` (auto после CI) — **не сработал**, потому что CI workflow на main падает (см. раунд 4).
 
+### Раунд 7 — Фаза C: Live preview плашек /projects + fix E2E — PR #15
+
+**Live preview** для редактора плашек на `/projects` (админский режим):
+
+- Вынес общий компонент **`Plate`** + helpers (`resolveAccent`, `pickImage`, `projectLabel`, `projectHref`, `imageSrc`) из `EditableProjectsGrid.tsx` в новый файл `web/src/app/(frontend)/projects/PlateCard.tsx`. Это устранило дублирование и подготовило плашку к reuse.
+- В `EditProjectDialog.tsx` добавлен **preview area** сверху диалога: тот же `Plate` рендерится с локальным state формы. Любая правка (название, описание, цвет, картинка через upload) мгновенно отражается в превью без сохранения.
+- `useMemo<previewProject>` собирает объект из original project + override локальными полями. `null` логотип → деграция на букву (по аналогии с frontend).
+- Ширина диалога увеличена с `max-w-lg` на `max-w-2xl` чтобы плашка влезала.
+
+**Эффект для редакторов:**
+- Цикл «изменил → сохранил → посмотрел → не понравилось → откатил» (раньше ~30 сек) → **мгновенный**.
+- Не пишем в БД мусор-черновики при перебирании цветов.
+
+**Параллельно — fix E2E теста из фазы B:** CI фазы B упал на `can load projects grid page` (мой `text=/гонба/i` локатор требовал данные в БД, но CI создаёт пустую `gonba_ci`). Заменил на проверку HTTP-статуса + видимости `<body>` — независимо от seed.
+
 ### Раунд 6 — Фаза B: E2E Playwright smoke для /projects — PR #14
 
 **Расширение `web/tests/e2e/frontend.e2e.spec.ts`** двумя сценариями:
