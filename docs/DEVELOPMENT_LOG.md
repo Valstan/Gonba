@@ -98,6 +98,19 @@ gh secret set SSH_PRIVATE_KEY --repo Valstan/Gonba < ~/.ssh/id_ed25519
 - ✅ `workflow_dispatch` (ручной trigger) — **успех** за 10м44с. Прод жив, CDN /api/health = 200.
 - ❌ `workflow_run` (auto после CI) — **не сработал**, потому что CI workflow на main падает (см. раунд 4).
 
+### Раунд 6 — Фаза B: E2E Playwright smoke для /projects — PR #14
+
+**Расширение `web/tests/e2e/frontend.e2e.spec.ts`** двумя сценариями:
+
+- `can load projects grid page` — открывает `/projects`, проверяет что hero-плашка `гонба` отрисовалась.
+- `can navigate from projects grid to a project page` — на `/projects` находит ссылку «Войти в проект» (первую), кликает, проверяет что попали на `/projects/[slug]` и видны либо h1 либо табы (feed/lavka/chat/...). Если активных проектов нет (пустая БД) — `test.skip`.
+
+Не добавляю в `admin.e2e.spec.ts`: текущий CI workflow запускает только `frontend.e2e.spec.ts` (без admin-seed), admin-тесты гоняются локально через `pnpm test:e2e`. Тяжёлые сценарии (создание VK-источника, auto-fill title) оставлены на ручной локальный прогон — добавлять их в CI без отдельной admin-seed-инфраструктуры повысит риск flaky без пропорциональной выгоды.
+
+**Защищаем от регрессов:**
+- редизайн `/projects` (PR #4) — теперь любая случайная поломка hero-блока или плашек ловится перед merge
+- маршрутизация `/projects/[slug]` (после мерджа PR #6, #7, плюс эта серия) — открытие табов проекта тоже smoke-проверяется
+
 ### Раунд 5 — Фаза A: git hook + ADR — PR #13
 
 **Первая из пяти фаз закрытия 🟢-идей** (1+2 из 6 выбранных пользователем).
