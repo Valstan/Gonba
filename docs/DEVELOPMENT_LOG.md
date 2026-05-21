@@ -94,6 +94,26 @@ gh secret set SSH_PRIVATE_KEY --repo Valstan/Gonba < ~/.ssh/id_ed25519
 
 **Первый live-тест:** этот PR сам через себя задеплоится после merge. Если упадёт — будет видно журналы в Actions, попадём в режим «лечим вручную».
 
+**Результат live-теста:**
+- ✅ `workflow_dispatch` (ручной trigger) — **успех** за 10м44с. Прод жив, CDN /api/health = 200.
+- ❌ `workflow_run` (auto после CI) — **не сработал**, потому что CI workflow на main падает (см. раунд 4).
+
+### Раунд 4 — Фикс CI (pnpm 11 in corepack) — PR #12
+
+**Проблема:** `CI` workflow (`.github/workflows/ci.yml`) красный последние 3 коммита на main. Падает на шаге `Integration tests`:
+```
+[ERR_PNPM_UNSUPPORTED_ENGINE] Got: 11.1.3 — Expected version: ^9 || ^10
+```
+Когда `npm run test:int` (через npm) дёргает внутри себя `corepack pnpm run test:int:raw`, corepack без подсказки берёт global pnpm 11, который не проходит engines проекта.
+
+**Фикс:** одно поле в `web/package.json`:
+```json
+"packageManager": "pnpm@10.15.0"
+```
+Corepack читает это поле и автоматически использует именно эту версию pnpm независимо от того что установлено глобально. Не ломает `npm ci` (npm игнорирует поле) и не требует менять CI workflow.
+
+**Эффект:** после merge CI станет зелёным → `workflow_run` триггер для `deploy-prod` начнёт срабатывать сам без `workflow_dispatch`.
+
 ---
 
 ## 2026-05-20 — ГОНЬБА 20 мая 2026 (Claude session)
