@@ -34,4 +34,29 @@ test.describe('Frontend', () => {
     await expect(page.locator('h1').first()).toContainText(/Поиск/i)
     await expect(page.locator('input#search, input[placeholder="Поиск"]').first()).toBeVisible()
   })
+
+  test('can load projects grid page', async ({ page }) => {
+    await page.goto('/projects')
+    await expect(page).toHaveURL(/\/projects$/)
+    // /projects использует EditableProjectsGrid с hero-плашкой "гонба" сверху
+    // и сеткой плашек проектов. Проверяем что страница загрузилась без 404
+    // и что что-то значимое отрисовалось — либо hero, либо хотя бы один заголовок.
+    const heroLabel = page.locator('text=/гонба/i').first()
+    await expect(heroLabel).toBeVisible({ timeout: 10000 })
+  })
+
+  test('can navigate from projects grid to a project page', async ({ page }) => {
+    await page.goto('/projects')
+    // Берём первую ссылку «Войти в проект» (на плашке проекта).
+    // Если на /projects ещё нет ни одного активного проекта — тест пропускаем
+    // (это не регресс приложения, а пустая БД).
+    const enterLink = page.getByRole('link', { name: /Войти в проект/i }).first()
+    const count = await enterLink.count()
+    test.skip(count === 0, 'На /projects нет активных проектов — нечего открывать')
+    await enterLink.click()
+    await expect(page).toHaveURL(/\/projects\/[^/]+(\/.*)?$/)
+    // На странице проекта должен быть либо h1 с названием, либо табы (feed/lavka/chat/...)
+    const headingOrTabs = page.locator('h1, [role="tab"]').first()
+    await expect(headingOrTabs).toBeVisible({ timeout: 10000 })
+  })
 })
