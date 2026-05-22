@@ -15,6 +15,7 @@
 | [`docs/RELEASE_STABILITY_CHECKLIST.md`](docs/RELEASE_STABILITY_CHECKLIST.md) | Pre-release checklist. Морально устарел — см. `/reliz`. |
 | [`docs/adr/`](docs/adr/) | Architectural Decision Records — **почему** мы выбрали тот или иной архитектурный подход. Читать когда возникает вопрос «а почему так?». |
 | [`web/AGENTS.md`](web/AGENTS.md) | Правила Payload CMS разработки (типизация, безопасность Local API, hooks). |
+| `C:\Users\valstan\.claude\cross-project-ideas\` | **Глобальный pool переносимых улучшений** между GONBA / MatricaRMZ / setka. `INDEX.md` — обзорная таблица, `ideas/NNN-*.md` — детальные файлы. Читай при `/start`, пиши когда замечаешь переносимый паттерн. Подробнее — в memory `feedback_cross_project_ideas`. |
 
 Slash-команда `/start` всё это читает автоматически и выдаёт сводку.
 

@@ -26,7 +26,7 @@ _Сейчас нет — все начатые задачи в текущей с
 
 ## 🟡 Техдолги
 
-_Все техдолги текущей серии закрыты в фазе F. Новые появятся по мере работы — добавлять сюда._
+- **`authorized_keys` на GONBA-сервере содержит публичные ключи с MatricaRMZ и setka серверов** (`valstan@a6fd55b8e0ae`, `valstan@setka`). Обнаружено 2026-05-22 при ротации deploy-ключа. Цепочка компрометации: взяв любой из тех серверов → доступ на GONBA. Решение: либо удалить эти ключи если они не нужны для cross-server скриптов, либо если нужны — задокументировать зачем и оставить.
 
 ---
 
@@ -41,6 +41,7 @@ _Все техдолги текущей серии закрыты в фазе F.
 - **Скрипт `scripts/dev-doctor.sh`** проверяет окружение (Postgres, .env, node_modules, payload-types, importMap, SSH alias `GONBA`, git hooks). (Сделано — `bash scripts/dev-doctor.sh`.)
 - **ADR (Architectural Decision Records)** в `docs/adr/` для важных решений. Заведены 3 первых ADR (Yandex.Disk vs S3; гибридные миграции; build через systemd-run). Заводить новые — по мере появления значимых решений (формат — см. `docs/adr/_template.md`).
 - **Smoke tests E2E через Playwright** — `web/tests/e2e/frontend.e2e.spec.ts` покрывает главную, /posts, /search, /projects, переход в проект. CI workflow гонит их перед каждым merge. Admin-сценарии (логин, /admin/yadisk, создание VK-источника) — в `admin.e2e.spec.ts`, запускаются локально через `pnpm test:e2e`; добавление в CI требует отдельной admin-seed-инфраструктуры. (Frontend сделано — см. фаза B; admin — отдельная задача.)
+- **Изолированный SSH deploy-ключ + ротация** — `~/.ssh/id_ed25519_gonba_deploy`, период 90 дней, следующая ротация 2026-08-20. Внедрено 2026-05-22 (см. `docs/PROJECT.md → SSH deploy-key — ротация` и `cross-project-ideas/ideas/001+002`). Аналогичное стоит применить к MatricaRMZ (всё ещё на общем `id_ed25519`) — в его собственной сессии.
 
 ### Продукт
 
