@@ -9,40 +9,31 @@
 
 ## Текущая нитка
 
-Нет активной нитки. Нитка **Media → Я.Диск** (ADR-0001) полностью завершена в этой сессии — 5 PR'ов слиты в main, прод задеплоен, `gonba-media-cache.timer` активирован, smoke пройден. Можно начинать с чистого листа.
+Нет активной нитки. В этой сессии за 1 PR закрыты 3 задачи: brain dispatch #0007 (security cleanup `authorized_keys` на проде), #0006 (секция «Failed approaches» в `SESSION_HANDOFF.md` + обновление `/close_session`), Media mini-follow-up (выпиливание `yadisk-sync-media.ts`). Плюс v2-финализации dispatches #0001 и #0006 от параллельной brain-сессии — confirmations. Прод стабилен, PENDING_FOLLOWUPS вычищен от 🟡-блокеров.
 
 ## Следующий шаг
 
-Свободное состояние. Пользователь сам выбирает следующую задачу. Возможные стартовые точки:
-1. Разобрать новые Brain-заявки `docs/inbox-from-brain/0006-*.md` и `0007-*.md` (untracked, пришли в эту сессию, но не обработаны).
-2. Подобрать одну из mini-follow-up'ов из `docs/PENDING_FOLLOWUPS.md → Media`: rename-after-purge, `yadisk-sync-media.ts` под phase-3, find-orphan-media, retry в фоне при `yandexError`.
-3. Любая новая задача от пользователя.
+Свободное состояние. Возможные стартовые точки:
+
+1. **Оставшиеся 3 mini-follow-up Media** в `docs/PENDING_FOLLOWUPS.md`: rename-after-purge (`moveYandexResource` в `afterChange` при `filenameChanged && previousDoc.yandexPath`), `scripts/find-orphan-media.ts` (62 файла на FS без записи в БД), retry в фоне при `yandexError`.
+2. **Журнал первого срабатывания `gonba-media-cache.timer`** — таймер активирован 2026-05-22, первый запуск Sat 2026-05-23 04:08 MSK. Глянуть через `ssh GONBA "journalctl -u gonba-media-cache -n 20 --no-pager"` что чистилось / были ли ошибки.
+3. **Уборочный коммит:** `docs/plans/media-to-yadisk.md` (все 7 фаз done) можно переименовать с `-DONE` суффиксом или переместить в `docs/plans/done/` если такая конвенция появится.
+4. Любая новая задача от пользователя или новая Brain-заявка в `docs/inbox-from-brain/`.
 
 ## Контекст
 
-- **План:** [`docs/plans/media-to-yadisk.md`](plans/media-to-yadisk.md) — все 7 фаз отмечены готовыми, плану можно дать `-DONE` суффикс при следующем уборочном коммите.
-- **Связанные коммиты сессии 2026-05-22 (по порядку, новейшие сверху):**
-  - [`ce443f6`](https://github.com/Valstan/Gonba/commit/ce443f6) — Merge PR #30 (ответ Brain dispatch #0001)
-  - [`7af4f6b`](https://github.com/Valstan/Gonba/commit/7af4f6b) — Merge PR #29 (Media фазы 6+7: ADR Implemented + finalize)
-  - [`b496618`](https://github.com/Valstan/Gonba/commit/b496618) — Merge PR #28 (Media фаза 5: migrate-script)
-  - [`8805fe3`](https://github.com/Valstan/Gonba/commit/8805fe3) — Merge PR #27 (Media фаза 4: cron-чистка TTL 30д)
-  - [`11e1f1f`](https://github.com/Valstan/Gonba/commit/11e1f1f) — Merge PR #26 (Media фаза 3: afterChange удаляет локал)
-  - [`f0c84cb`](https://github.com/Valstan/Gonba/commit/f0c84cb) — Merge PR #25 (brain_matrica ссылки)
-  - [`f461924`](https://github.com/Valstan/Gonba/commit/f461924) — Merge PR #24 (Media фазы 1+2: proxy endpoint + afterRead)
-- **Прод:** жив, `/api/health` 200. На странице с Media картинки идут через `/api/media/file/<id>` с `X-Cache: HIT-LEGACY` (333 существующих файла отдаются без round-trip к Я.Диску). `gonba-media-cache.timer` enabled, следующий запуск Sat 2026-05-23 04:08 MSK.
-- **Открытые вопросы для пользователя:** нет. Сессия закрыта чисто.
-
-## Failed approaches (этой нитки)
-
-_Не применимо — `Status: IDLE`, активной нитки нет. Секция заполняется только при `Status: ACTIVE` если в сессии отвергли подход (PoC не взлетел, обсудили и отбросили). Подробнее — [.claude/commands/close_session.md](../.claude/commands/close_session.md)._
+- **План:** нет активного плана. Старый [`docs/plans/media-to-yadisk.md`](plans/media-to-yadisk.md) — все 7 фаз done.
+- **Связанные коммиты сессии 2026-05-22 (новейшие сверху):**
+  - [`9f1bcca`](https://github.com/Valstan/Gonba/commit/9f1bcca) — Merge PR [#31](https://github.com/Valstan/Gonba/pull/31): brain dispatches + media cleanup + close_session enhanced
+- **Прод:** жив, BUILD_ID `T8lohSKLOBguEy-T5eeiE`, `/api/health` 200 in ~1s, `/api/media/file/319` 200 with `x-cache: HIT-LEGACY` (333 legacy-файла отдаются без round-trip к Я.Диску). `gonba-media-cache.timer` enabled.
+- **SSH:** `~/.ssh/authorized_keys` на GONBA-сервере содержит **только** изолированный `gonba-deploy@PC40-20260522` (idea #001 из brain_matrica). Backup чужих ключей — `~/.ssh/authorized_keys.backup-2026-05-22`. Если нужно восстановить — `cp backup → authorized_keys`.
+- **Открытые вопросы для пользователя:** нет.
 
 ## Не забыть (low-priority)
 
-- 📨 **Brain dispatch #0006** (`docs/inbox-from-brain/0006-failed-approaches-section.md`) — untracked, ждёт твоего разбора («применить / отложить / отклонить»).
-- 📨 **Brain dispatch #0007** (`docs/inbox-from-brain/0007-authorized-keys-chain-of-compromise.md`) — untracked. Тематически совпадает с уже зафиксированным 🟡-техдолгом в PENDING_FOLLOWUPS (чужие ключи в `authorized_keys` GONBA-сервера) — возможно Brain переоткрыл уже известный нам пункт.
-- 🟢 4 mini-follow-up'а в `PENDING_FOLLOWUPS.md → Media` (rename-after-purge, yadisk-sync-media phase-3, find-orphan-media, retry в фоне) — точечные доработки, не блокеры.
-- 🟡 `authorized_keys` на GONBA-сервере содержит чужие ключи (matricarmz, setka) — давно висит, тема компрометации.
-- 📊 Возможно: в новой сессии посмотреть журнал первого срабатывания `gonba-media-cache.timer` (04:08 завтра) через `ssh GONBA "journalctl -u gonba-media-cache -n 20 --no-pager"`.
+- 🟢 3 mini-follow-up'а в `PENDING_FOLLOWUPS.md → Media` (rename-after-purge, find-orphan-media, retry в фоне при yandexError) — точечные доработки, не блокеры.
+- 📊 Журнал первого срабатывания `gonba-media-cache.timer` (04:08 Sat 23 мая) — посмотреть в следующей сессии.
+- 🧹 `docs/plans/media-to-yadisk.md` — отметить как done (переименовать или переместить).
 
 ---
 
