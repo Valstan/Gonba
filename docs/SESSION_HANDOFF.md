@@ -9,19 +9,20 @@
 
 ## Текущая нитка
 
-Доводим ADR-0001 до конца: коллекция `Media` должна хранить файлы на Яндекс.Диске (единственный источник правды), локальный VPS — только кэш для быстрой выдачи. Прямо сейчас этап **планирования / proof-of-concept** — ещё не делали.
+Доводим ADR-0001 до конца: коллекция `Media` должна хранить файлы на Яндекс.Диске (единственный источник правды), локальный VPS — только кэш TTL 30 дней. Подход и план **выбраны** 2026-05-22: см. [`docs/plans/media-to-yadisk.md`](plans/media-to-yadisk.md). Этап — **Фаза 0 (Замеры)**, к коду ещё не приступали.
 
 ## Следующий шаг
 
-1. Открыть `docs/PENDING_FOLLOWUPS.md → 🟢 Архитектура / Media` — там полный scope и три подхода (A / B / C).
-2. С пользователем выбрать подход — рекомендую **A** (Payload Cloud Storage plugin с кастомным adapter'ом для Я.Диска) — самый идиоматичный, но 3-5 дней работы.
-3. Создать `docs/plans/media-to-yadisk.md` с выбранным подходом и этапами.
-4. Сделать proof-of-concept на одном тестовом документе Media: загрузка → файл уезжает на Я.Диск → запрос `/media/<id>` возвращает контент.
-5. Если PoC работает — план миграции существующих записей (сколько их? `SELECT count(*) FROM media` на проде через `/sql`).
+1. **Фаза 0** — запустить `/sql` для бейзлайн-метрик (`count(*)`, `count(yandex_path)`, `count(yandex_error)`, `sum(filesize)` из `media`) + `du -sh public/media` на проде. Заполнить таблицу Baseline в плане.
+2. **Фаза 1** — реализовать `web/src/app/(frontend)/api/media/file/[id]/route.ts` (proxy endpoint с кэшем), детали в плане.
+3. Дальше — по этапам плана (фазы 2-7).
+
+Подробности по каждой фазе, разрезы по PR'ам, подводные камни — в [`docs/plans/media-to-yadisk.md`](plans/media-to-yadisk.md).
 
 ## Контекст
 
-- **План:** ещё нет файла в `docs/plans/` — создать `docs/plans/media-to-yadisk.md` когда выберем подход.
+- **План:** [`docs/plans/media-to-yadisk.md`](plans/media-to-yadisk.md) — создан 2026-05-22, подход **B** (доработать гибрид: `afterRead` → собственный `/api/media/file/[id]` proxy с TTL-кэшем 30 дней).
+- **Ключевая находка при чтении кода 2026-05-22:** ~80% инфраструктуры уже в `web/src/collections/Media.ts` (yandex-поля, `afterChange`/`afterDelete`/`afterRead`-хуки, error handling) + полный wrapper `yandex-disk.ts`. Подход A (Cloud Storage plugin) переоценён в сторону B, т.к. фактически означал бы переписывание готового.
 - **Связанные коммиты сессии 2026-05-22:**
   - [`801ecc7`](https://github.com/Valstan/Gonba/commit/801ecc7) — изоляция SSH deploy-key + cross-project ideas pool (PR #20)
   - [`548a1b8`](https://github.com/Valstan/Gonba/commit/548a1b8) — AdminQuickLinks (dropdown «Меню» в шапке) (PR #21)
