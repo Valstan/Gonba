@@ -80,6 +80,14 @@ export default buildConfig({
         Icon: '@/components/AdminIcon',
         Logo: '@/components/AdminLogo',
       },
+      // Кастомные admin views (URL /admin/<path>) — Payload оборачивает их
+      // в DefaultTemplate, поэтому sidebar/AppHeader видны на этих маршрутах.
+      views: {
+        yadisk: {
+          Component: '@/components/YandexDiskView',
+          path: '/yadisk',
+        },
+      },
     },
     importMap: {
       baseDir: path.resolve(dirname),

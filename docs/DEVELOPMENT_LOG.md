@@ -6,6 +6,30 @@
 
 ---
 
+## 2026-05-22 — ГОНЬБА 22 мая 2026 (Claude session) — `/admin/yadisk` интегрирован в layout админки
+
+**Тема:** страница «Облако» больше не выглядит как отдельный сайт — она теперь Payload Custom View с обычными sidebar/AppHeader.
+
+### Что было не так
+
+`web/src/app/(payload)/admin/yadisk/page.tsx` был **обычным Next.js маршрутом** под Payload root layout. Next.js предпочитает специфичные маршруты — этот файл перехватывал `/admin/yadisk` ДО Payload-роутера в `[[...segments]]/page.tsx`. Поэтому страница рендерилась внутри минимального admin shell (только CSS-провайдеры и тема), без `DefaultTemplate` Payload → без меню, без хедера админки. Пользователь не мог одним кликом вернуться, скажем, в коллекцию Projects или открыть глобал Header.
+
+### Что сделано
+
+- **`web/src/components/YandexDiskView/index.tsx`** — новый Payload Custom View. Принимает `AdminViewServerProps` (Payload подаёт `initPageResult`, `params`, `searchParams`), сам оборачивает контент в `DefaultTemplate` из `@payloadcms/next/templates` — передаёт туда `i18n` / `locale` / `payload` / `permissions` / `user` / `visibleEntities` из `initPageResult`. Этот шаблон сам рендерит nav + AppHeader → меню админки появляется на странице.
+- **`web/src/payload.config.ts`** — зарегистрирован view через `admin.components.views.yadisk: { Component: '@/components/YandexDiskView', path: '/yadisk' }`. Payload-роутер сам подхватывает URL `/admin/yadisk` и зовёт компонент.
+- **`web/src/app/(payload)/admin/yadisk/page.tsx`** — **удалён**, директория тоже. Иначе Next.js всё равно перекрывал Payload-роутер.
+- **Логика осталась прежней**: проверка ролей (`admin`/`manager`), hero-блок с pill-ссылками («Media в CMS», «Добавить в Media», «Карусель»), `<YandexDiskManager />`. Просто теперь в DefaultTemplate — со всем меню сбоку.
+- **No-access сообщение** тоже рендерится внутри DefaultTemplate (а не в отдельной странице), чтобы юзер без прав мог через меню уйти, скажем, в свой профиль.
+
+### Уроки
+
+- **`(payload)/admin/<segment>/page.tsx` ломает Payload-роутер.** Если хочется кастомный admin view с полным шаблоном — регистрируй через `admin.components.views`, не создавай свой Next.js файл маршрута. Один Next.js маршрут только нужен — это catch-all `[[...segments]]/page.tsx`, и он сгенерирован Payload-ом.
+- **`DefaultTemplate` придётся обернуть вручную внутри custom view.** Payload не делает это автоматически — view получает богатые `initPageResult` пропы и сам решает, рисовать ли шаблон. Пример — `NotFoundView` в `@payloadcms/next`.
+- **На stale `.next/types/` после удаления маршрута** TypeScript ругается. Лечится `rm -rf .next/types/<old-path>`; при следующем `next build` индекс пересоберётся.
+
+---
+
 ## 2026-05-22 — ГОНЬБА 22 мая 2026 (Claude session) — AdminQuickLinks (быстрые ссылки в шапке)
 
 **Тема:** в админке Payload теперь есть dropdown «Меню» в правой части шапки с быстрыми ссылками. Видна на всех маршрутах. Первая ссылка — «На главную сайта» (открывается в новой вкладке, чтобы не терять контекст правки).
