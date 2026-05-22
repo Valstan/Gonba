@@ -174,17 +174,17 @@ Payload:
 - Хост: `831d0ce99bdf.vps.myjino.ru`
 - Порт: `22`
 - Пользователь: `valstan`
-- Ключ: ed25519 (`~/.ssh/id_ed25519`)
+- Ключ: ed25519 (`~/.ssh/id_ed25519_gonba_deploy`) — **изолированный per-project ключ**, не используется на других серверах. См. раздел «SSH deploy-key — ротация» ниже.
 - ОС сервера: Ubuntu Linux 24.04 (ядро 6.8.x)
 
-**На локалке желательно завести алиас `GONBA` в `~/.ssh/config`:**
+**На локалке алиас `GONBA` в `~/.ssh/config`:**
 
 ```
 Host GONBA
   HostName 831d0ce99bdf.vps.myjino.ru
   Port 22
   User valstan
-  IdentityFile ~/.ssh/id_ed25519
+  IdentityFile ~/.ssh/id_ed25519_gonba_deploy
   IdentitiesOnly yes
   StrictHostKeyChecking accept-new
 ```
@@ -264,17 +264,57 @@ ssh GONBA "sudo systemctl start gonba-vk-sync.service && journalctl -u gonba-vk-
 **Один раз настроить secret:**
 
 ```bash
-# из локалки (где лежит ~/.ssh/id_ed25519)
-gh secret set SSH_PRIVATE_KEY --repo Valstan/Gonba < ~/.ssh/id_ed25519
+# из локалки (где лежит ~/.ssh/id_ed25519_gonba_deploy — см. раздел «SSH deploy-key — ротация»)
+gh secret set SSH_PRIVATE_KEY --repo Valstan/Gonba < ~/.ssh/id_ed25519_gonba_deploy
 ```
 
-Используется тот же ed25519-ключ, которым разработчик ходит на прод вручную. **Внимание:** этот ключ также авторизован на `matricarmz` — если GitHub secret утечёт, оба сервера в риске. Если бюджет на это есть — лучше сгенерить отдельный deploy-ключ (`ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_gonba_deploy -C 'github-deploy@gonba'`), залить публичную часть в `valstan@GONBA:~/.ssh/authorized_keys`, а приватную — в secret.
+Используется **изолированный** ed25519-ключ, авторизованный только на прод-сервере GONBA — не на других серверах разработчика. Утечка secret не открывает доступ к чужим серверам. См. раздел «SSH deploy-key — ротация» ниже про регулярную замену.
 
 **Ручной trigger** (когда workflow_dispatch):
 - Actions → Deploy to production → Run workflow → branch `main`.
 - Используй после ручного фикса failure: пофиксил → push в main → CI прошёл → второй раз CI не нужен, дёрни deploy руками.
 
 **Slash-команда `/reliz`** остаётся актуальной для случаев, когда нужен ручной контроль (миграции, сложные релизы, hot-fix без прохождения CI). Workflow и `/reliz` идемпотентно совместимы — оба идут через `safe-build.sh`.
+
+### SSH deploy-key — ротация
+
+| Параметр | Значение |
+|---|---|
+| Файл (локально) | `~/.ssh/id_ed25519_gonba_deploy` |
+| GH Action secret | `SSH_PRIVATE_KEY` в репо `Valstan/Gonba` |
+| Авторизован на | `valstan@831d0ce99bdf.vps.myjino.ru:~/.ssh/authorized_keys` (только GONBA-сервер) |
+| **Создан** | **2026-05-22** |
+| **Период ротации** | **90 дней** |
+| **Следующая ротация не позднее** | **2026-08-20** |
+
+Команда `/start` проверяет возраст ключа: если осталось < 10 дней до дедлайна — выводит **🟡 напоминание о ротации** в отчёте сессии.
+
+**Процедура ротации** (примерно 10 минут):
+
+```bash
+# 1. Сгенерить новую пару (старую затирает -y подтверждением)
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_gonba_deploy -N '' -C "gonba-deploy@$(hostname)-$(date +%Y%m%d)"
+
+# 2. Залить публичный на прод
+PUBKEY=$(cat ~/.ssh/id_ed25519_gonba_deploy.pub)
+ssh GONBA "grep -qxF '$PUBKEY' ~/.ssh/authorized_keys || echo '$PUBKEY' >> ~/.ssh/authorized_keys"
+
+# 3. Проверить новый ключ
+ssh -o BatchMode=yes GONBA "echo OK"
+
+# 4. Убрать старый публичный ключ из authorized_keys (СПРОСИТЬ пользователя)
+# ssh GONBA "sed -i '/<fingerprint old>/d' ~/.ssh/authorized_keys"
+
+# 5. Обновить GH secret
+gh secret set SSH_PRIVATE_KEY --repo Valstan/Gonba < ~/.ssh/id_ed25519_gonba_deploy
+
+# 6. Триггернуть workflow_dispatch для проверки
+gh workflow run "Deploy to production" --repo Valstan/Gonba
+
+# 7. Обновить даты в этой таблице (Создан, Следующая ротация)
+```
+
+См. также cross-project pool: `C:\Users\valstan\.claude\cross-project-ideas\ideas\002-ssh-deploy-key-rotation.md`.
 
 ### Docker (локально)
 
