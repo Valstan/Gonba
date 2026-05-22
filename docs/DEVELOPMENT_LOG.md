@@ -6,6 +6,32 @@
 
 ---
 
+## 2026-05-22 — ГОНЬБА 22 мая 2026 (Claude session) — Media → Я.Диск, фаза 3 (afterChange удаляет локал)
+
+**Тема:** stack-PR поверх PR #24. Завершаем нитку перехода к «Я.Диск primary» — после успешной заливки локальный файл удаляется безусловно (а не только для файлов >50MB).
+
+### Что сделано (`web/src/collections/Media.ts`)
+
+- В `afterChange`-хуке убрана обёртка `if (sizeBytes > LOCAL_MAX_BYTES)` вокруг блока удаления локалов. Теперь после успешного `uploadLocalFileToYandex` + `publishYandexResource` + `payload.update(yandex*)` локальный файл **всегда** удаляется (плюс derivatives через `Object.values(doc.sizes)`, на будущее — сейчас `imageSizes: []`).
+- При yandex-error (catch-блок) локальный файл **не** удаляется — остаётся как fallback (стандартный Payload `staticDir`).
+- Удалены unused: константы `LOCAL_MAX_MB`, `LOCAL_MAX_BYTES`, переменная `sizeBytes`, env-knob `YANDEX_DISK_LOCAL_MAX_MB` (нигде больше не используется в Media.ts).
+- Добавлен комментарий про найденную регрессию rename: при переименовании Media-документа `afterChange` пытается читать локал по новому имени, которого больше нет → warning + skip. Это **записано как follow-up** в плане (`moveYandexResource` вместо повторной заливки).
+
+### Локальная проверка
+
+- `tsc --noEmit` clean
+
+### Найденные хвосты
+
+- `web/scripts/yadisk-sync-media.ts` (batch-sync, `pnpm run yadisk:sync`) использует `LOCAL_MAX_BYTES`/`YANDEX_DISK_LOCAL_MAX_MB`. Скрипт ручной, редко запускается. Согласовать с phase-3-семантикой — follow-up в плане.
+- Rename-after-purge — записано как follow-up в плане.
+
+### Уроки
+
+- **Безусловное удаление локала после успеха = новая обязанность хранилища.** Раньше код «удалял только большие файлы»; это маскировало некоторые слабые места (rename, restore из локала). Теперь они стали явными и требуют отдельных follow-up'ов. Меньше прячем, больше документируем.
+
+---
+
 ## 2026-05-22 — ГОНЬБА 22 мая 2026 (Claude session) — Media → Я.Диск, фаза 1+2 (proxy endpoint)
 
 **Тема:** старт многоэтапной нитки [`docs/plans/media-to-yadisk.md`](plans/media-to-yadisk.md) — переход на Я.Диск как primary, локальный диск как TTL-кэш. В этой сессии сделаны фазы 0 (baseline), 1 (endpoint), 2 (`afterRead` подменяет URL). Готов PR1.

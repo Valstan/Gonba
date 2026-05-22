@@ -21,8 +21,6 @@ import {
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
-const LOCAL_MAX_MB = Number(process.env.YANDEX_DISK_LOCAL_MAX_MB || 50)
-const LOCAL_MAX_BYTES = Number.isFinite(LOCAL_MAX_MB) ? LOCAL_MAX_MB * 1024 * 1024 : 50 * 1024 * 1024
 
 export const Media: CollectionConfig = {
   slug: 'media',
@@ -166,11 +164,15 @@ export const Media: CollectionConfig = {
 
         const mediaRoot = path.resolve(dirname, '../../public/media')
         const localPath = path.join(mediaRoot, doc.filename)
-        const sizeBytes = typeof doc.filesize === 'number' ? doc.filesize : 0
 
         try {
           await fs.access(localPath)
         } catch {
+          // After Phase 3 (this commit) Yandex-synced files are removed from
+          // local disk immediately. So on `update` with `filenameChanged=true`
+          // (rename), the file no longer exists locally to re-upload. We can't
+          // re-derive the new filename on Y.Disk without moving — that's a
+          // follow-up (see plan: rename-after-purge). For now: warn + skip.
           req.payload.logger.warn(`Yandex sync skipped: file missing at ${localPath}`)
           return
         }
@@ -213,21 +215,29 @@ export const Media: CollectionConfig = {
             context: { skipYandexSync: true },
           })
 
-          if (sizeBytes > LOCAL_MAX_BYTES) {
-            const sizeFiles = doc.sizes
-              ? (Object.values(doc.sizes) as Array<{ filename?: string }>)
-              : []
-            const toRemove = [
-              localPath,
-              ...sizeFiles.map((size) => path.join(mediaRoot, size?.filename || '')),
-            ]
-            for (const filePath of toRemove) {
-              if (!filePath || filePath.endsWith('/')) continue
-              try {
-                await fs.rm(filePath)
-              } catch {
-                // Ignore local cleanup errors
-              }
+          // Phase 3: Y.Disk is now primary. After a successful upload+publish
+          // we always remove the local original (and any image-size derivatives,
+          // if collection ever gains them). The `/api/media/file/[id]` proxy
+          // serves from `MEDIA_CACHE_DIR` (populated lazily on cache miss) or
+          // from this legacy `public/media/` dir while it still has the file —
+          // for new uploads, this dir empties on each upload by design.
+          //
+          // If upload to Y.Disk fails (catch below), we DO NOT remove the local
+          // copy — it stays as a fallback (Payload's default staticDir serves it
+          // for records without yandexPath).
+          const sizeFiles = doc.sizes
+            ? (Object.values(doc.sizes) as Array<{ filename?: string }>)
+            : []
+          const toRemove = [
+            localPath,
+            ...sizeFiles.map((size) => path.join(mediaRoot, size?.filename || '')),
+          ]
+          for (const filePath of toRemove) {
+            if (!filePath || filePath.endsWith('/')) continue
+            try {
+              await fs.rm(filePath)
+            } catch {
+              // Ignore local cleanup errors — file may already be gone or in use
             }
           }
         } catch (error) {
