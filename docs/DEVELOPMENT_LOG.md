@@ -6,6 +6,32 @@
 
 ---
 
+## 2026-05-22 — ГОНЬБА 22 мая 2026 (Claude session) — AdminQuickLinks (быстрые ссылки в шапке)
+
+**Тема:** в админке Payload теперь есть dropdown «Меню» в правой части шапки с быстрыми ссылками. Видна на всех маршрутах. Первая ссылка — «На главную сайта» (открывается в новой вкладке, чтобы не терять контекст правки).
+
+### Что сделано
+
+- **`web/src/components/AdminQuickLinks/index.tsx`** — компонент на нативном `<details>` (dropdown без JS-зависимостей, доступен с клавиатуры). Список ссылок в массиве `QUICK_LINKS` сверху файла — расширяется одной строкой.
+- **`web/src/components/AdminQuickLinks/index.scss`** — стилизация на site-vars Payload (`--theme-elevation-*`), без Tailwind (см. урок F1 из 2026-05-21). На узких экранах (`max-width: 768px`) у триггера остаётся только иконка `≡` без текста.
+- **`web/src/payload.config.ts`** — подключение через `admin.components.actions: ['@/components/AdminQuickLinks']`. Этот слот рендерится в правой части AppHeader Payload-админки и виден на всех маршрутах (dashboard, list, edit, custom views типа `/admin/yadisk`).
+- **`web/src/app/(payload)/admin/importMap.js`** — пересобран через `pnpm generate:importmap`, чтобы Payload узнал о новом компоненте.
+
+### Как добавлять новые ссылки
+
+В `QUICK_LINKS` массиве в `AdminQuickLinks/index.tsx` — добавить объект `{ label, href, icon?, target?, title? }`. По умолчанию ссылка открывается в новой вкладке. Идеи на будущее:
+
+- 🔗 `/admin/yadisk` — внутри админки, `target: '_self'`
+- 🔗 `/api/health` — для быстрой диагностики
+- 🔗 `https://github.com/Valstan/Gonba/actions` — открыть последние CI-runs
+
+### Уроки
+
+- **`admin.components.actions` — глобальный header-slot.** Не путать с per-view actions (которые задаются в коллекции через `admin.components.edit.SaveButton` и т.п.) — те видны только на конкретной view. Тот же слот можно использовать для других action-кнопок типа «↻ Очистить кэш».
+- **`<details>` вместо React-dropdown** — на admin-маршрутах часто хочется минимум JS-зависимостей (Payload и так тащит много). Нативный `<details>` решает 90% случаев без лишних строк кода.
+
+---
+
 ## 2026-05-22 — ГОНЬБА 22 мая 2026 (Claude session) — Изоляция deploy-ключа + cross-project ideas pool
 
 **Тема сессии:** (1) убрать общий SSH-ключ из GH Action — сгенерить изолированный deploy-ключ для GONBA с регулярной ротацией; (2) создать глобальный pool переносимых идей между проектами GONBA/MatricaRMZ/setka.
