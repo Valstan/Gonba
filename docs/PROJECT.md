@@ -314,7 +314,7 @@ gh workflow run "Deploy to production" --repo Valstan/Gonba
 # 7. Обновить даты в этой таблице (Создан, Следующая ротация)
 ```
 
-См. также cross-project pool: `C:\Users\valstan\.claude\cross-project-ideas\ideas\002-ssh-deploy-key-rotation.md`.
+См. также cross-project pool: [`../brain_matrica/cross-project-ideas/ideas/002-ssh-deploy-key-rotation.md`](../../brain_matrica/cross-project-ideas/ideas/002-ssh-deploy-key-rotation.md) (meta-репо [`brain_matrica`](https://github.com/Valstan/brain_matrica)).
 
 ### Docker (локально)
 
