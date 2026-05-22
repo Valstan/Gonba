@@ -1,6 +1,6 @@
 # Session Handoff
 
-**Status:** ACTIVE
+**Status:** IDLE
 **Updated:** 2026-05-22
 **Branch:** main
 **Last released version:** —
@@ -9,39 +9,37 @@
 
 ## Текущая нитка
 
-Доводим ADR-0001 до конца: коллекция `Media` должна хранить файлы на Яндекс.Диске (единственный источник правды), локальный VPS — только кэш TTL 30 дней. Подход и план: см. [`docs/plans/media-to-yadisk.md`](plans/media-to-yadisk.md). **Фазы 0+1+2 пройдены**, PR1 на ревью: [#24](https://github.com/Valstan/Gonba/pull/24).
+Нет активной нитки. Нитка **Media → Я.Диск** (ADR-0001) полностью завершена в этой сессии — 5 PR'ов слиты в main, прод задеплоен, `gonba-media-cache.timer` активирован, smoke пройден. Можно начинать с чистого листа.
 
 ## Следующий шаг
 
-1. **Дождаться merge PR1** ([#24](https://github.com/Valstan/Gonba/pull/24)) и подтвердить на проде: открыть страницу с Media, DevTools → картинки тянутся через `/api/media/file/<id>`, `X-Cache: HIT-LEGACY` (без round-trip к Я.Диску благодаря 333 файлам уже в `public/media`).
-2. **Фаза 3 (PR2)** — `afterChange`-хук безусловно удаляет локальный файл после успешной заливки на Я.Диск (сейчас удаляет только если >50MB). Файл `web/src/collections/Media.ts`, тот же блок `if (sizeBytes > LOCAL_MAX_BYTES)` → убрать условие.
-3. **Фаза 4 (PR3)** — `web/scripts/clean-media-cache.ts` + systemd-timer для TTL 30д кэш-чистки.
-4. **Фаза 5 (PR4)** — `web/scripts/migrate-media-to-yandex.ts` (по baseline фактически no-op, нужен как защитная сетка).
-5. **Фазы 6+7 (PR5)** — cleanup `LOCAL_MAX_BYTES`, ADR-0001 → `Implemented`, smoke на проде.
+Свободное состояние. Пользователь сам выбирает следующую задачу. Возможные стартовые точки:
+1. Разобрать новые Brain-заявки `docs/inbox-from-brain/0006-*.md` и `0007-*.md` (untracked, пришли в эту сессию, но не обработаны).
+2. Подобрать одну из mini-follow-up'ов из `docs/PENDING_FOLLOWUPS.md → Media`: rename-after-purge, `yadisk-sync-media.ts` под phase-3, find-orphan-media, retry в фоне при `yandexError`.
+3. Любая новая задача от пользователя.
 
 ## Контекст
 
-- **План:** [`docs/plans/media-to-yadisk.md`](plans/media-to-yadisk.md) — создан 2026-05-22, подход **B** (доработать гибрид: `afterRead` → собственный `/api/media/file/[id]` proxy с TTL-кэшем 30 дней).
-- **Ключевая находка при чтении кода 2026-05-22:** ~80% инфраструктуры уже в `web/src/collections/Media.ts` (yandex-поля, `afterChange`/`afterDelete`/`afterRead`-хуки, error handling) + полный wrapper `yandex-disk.ts`. Подход A (Cloud Storage plugin) переоценён в сторону B, т.к. фактически означал бы переписывание готового.
-- **Связанные коммиты сессии 2026-05-22:**
-  - [`801ecc7`](https://github.com/Valstan/Gonba/commit/801ecc7) — изоляция SSH deploy-key + cross-project ideas pool (PR #20)
-  - [`548a1b8`](https://github.com/Valstan/Gonba/commit/548a1b8) — AdminQuickLinks (dropdown «Меню» в шапке) (PR #21)
-  - [`d0d1072`](https://github.com/Valstan/Gonba/commit/d0d1072) — `/admin/yadisk` теперь Payload Custom View с меню админки (PR #22)
-  - [`7343f5f`](https://github.com/Valstan/Gonba/commit/7343f5f) — SESSION_HANDOFF + `/close_session` (cross-project pool idea 003) (PR #23)
-- **Прод:** жив, на новом изолированном SSH deploy-ключе (`id_ed25519_gonba_deploy`). `/api/health` 200. Следующая ротация ключа не позднее **2026-08-20**.
-- **Открытые вопросы для пользователя:**
-  - Подход A / B / C для миграции Media (см. PENDING_FOLLOWUPS)?
-  - Стратегия кэша на VPS: TTL? LRU? Размер?
-  - Что делать с уже залитыми в Payload Media файлами на disk?
+- **План:** [`docs/plans/media-to-yadisk.md`](plans/media-to-yadisk.md) — все 7 фаз отмечены готовыми, плану можно дать `-DONE` суффикс при следующем уборочном коммите.
+- **Связанные коммиты сессии 2026-05-22 (по порядку, новейшие сверху):**
+  - [`ce443f6`](https://github.com/Valstan/Gonba/commit/ce443f6) — Merge PR #30 (ответ Brain dispatch #0001)
+  - [`7af4f6b`](https://github.com/Valstan/Gonba/commit/7af4f6b) — Merge PR #29 (Media фазы 6+7: ADR Implemented + finalize)
+  - [`b496618`](https://github.com/Valstan/Gonba/commit/b496618) — Merge PR #28 (Media фаза 5: migrate-script)
+  - [`8805fe3`](https://github.com/Valstan/Gonba/commit/8805fe3) — Merge PR #27 (Media фаза 4: cron-чистка TTL 30д)
+  - [`11e1f1f`](https://github.com/Valstan/Gonba/commit/11e1f1f) — Merge PR #26 (Media фаза 3: afterChange удаляет локал)
+  - [`f0c84cb`](https://github.com/Valstan/Gonba/commit/f0c84cb) — Merge PR #25 (brain_matrica ссылки)
+  - [`f461924`](https://github.com/Valstan/Gonba/commit/f461924) — Merge PR #24 (Media фазы 1+2: proxy endpoint + afterRead)
+- **Прод:** жив, `/api/health` 200. На странице с Media картинки идут через `/api/media/file/<id>` с `X-Cache: HIT-LEGACY` (333 существующих файла отдаются без round-trip к Я.Диску). `gonba-media-cache.timer` enabled, следующий запуск Sat 2026-05-23 04:08 MSK.
+- **Открытые вопросы для пользователя:** нет. Сессия закрыта чисто.
 
 ## Не забыть (low-priority)
 
-- 🟡 В `authorized_keys` GONBA-сервера два «чужих» ключа от matricarmz/setka — разобрать в их сессиях.
-- 🟢 В **MatricaRMZ** применить идеи 001+002 (изолированный deploy-key + ротация) из cross-project pool.
-- 🟢 В **setka** применить идею 002 (ключ изолирован, нужна формальная ротация — спросить период).
-- 🟢 В **setka** применить идею 003 (SESSION_HANDOFF + `/close_session`) — у него тоже бывают многоэтапные рефакторинги.
-- 🟢 Расширить `AdminQuickLinks` ссылками на `/admin/yadisk`, `/api/health`, GitHub Actions — когда появится потребность.
+- 📨 **Brain dispatch #0006** (`docs/inbox-from-brain/0006-failed-approaches-section.md`) — untracked, ждёт твоего разбора («применить / отложить / отклонить»).
+- 📨 **Brain dispatch #0007** (`docs/inbox-from-brain/0007-authorized-keys-chain-of-compromise.md`) — untracked. Тематически совпадает с уже зафиксированным 🟡-техдолгом в PENDING_FOLLOWUPS (чужие ключи в `authorized_keys` GONBA-сервера) — возможно Brain переоткрыл уже известный нам пункт.
+- 🟢 4 mini-follow-up'а в `PENDING_FOLLOWUPS.md → Media` (rename-after-purge, yadisk-sync-media phase-3, find-orphan-media, retry в фоне) — точечные доработки, не блокеры.
+- 🟡 `authorized_keys` на GONBA-сервере содержит чужие ключи (matricarmz, setka) — давно висит, тема компрометации.
+- 📊 Возможно: в новой сессии посмотреть журнал первого срабатывания `gonba-media-cache.timer` (04:08 завтра) через `ssh GONBA "journalctl -u gonba-media-cache -n 20 --no-pager"`.
 
 ---
 
-> Этот файл — короткий **sticky note**, что было следующим шагом, чтобы следующая сессия (или ты с другого компа) могла продолжить без пересказа контекста. **Перезаписывается целиком** в конце каждой значимой сессии через `/close_session`. История — `git log -- docs/SESSION_HANDOFF.md`. Подробнее — `cross-project-ideas/ideas/003-session-handoff.md`.
+> Sticky note — что было следующим шагом. Перезаписывается через `/close_session`. История — `git log -- docs/SESSION_HANDOFF.md`.
