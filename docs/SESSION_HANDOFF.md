@@ -9,15 +9,15 @@
 
 ## Текущая нитка
 
-Доводим ADR-0001 до конца: коллекция `Media` должна хранить файлы на Яндекс.Диске (единственный источник правды), локальный VPS — только кэш TTL 30 дней. Подход и план **выбраны** 2026-05-22: см. [`docs/plans/media-to-yadisk.md`](plans/media-to-yadisk.md). Этап — **Фаза 0 (Замеры)**, к коду ещё не приступали.
+Доводим ADR-0001 до конца: коллекция `Media` должна хранить файлы на Яндекс.Диске (единственный источник правды), локальный VPS — только кэш TTL 30 дней. Подход и план: см. [`docs/plans/media-to-yadisk.md`](plans/media-to-yadisk.md). **Фазы 0+1+2 пройдены**, PR1 на ревью: [#24](https://github.com/Valstan/Gonba/pull/24).
 
 ## Следующий шаг
 
-1. **Фаза 0** — запустить `/sql` для бейзлайн-метрик (`count(*)`, `count(yandex_path)`, `count(yandex_error)`, `sum(filesize)` из `media`) + `du -sh public/media` на проде. Заполнить таблицу Baseline в плане.
-2. **Фаза 1** — реализовать `web/src/app/(frontend)/api/media/file/[id]/route.ts` (proxy endpoint с кэшем), детали в плане.
-3. Дальше — по этапам плана (фазы 2-7).
-
-Подробности по каждой фазе, разрезы по PR'ам, подводные камни — в [`docs/plans/media-to-yadisk.md`](plans/media-to-yadisk.md).
+1. **Дождаться merge PR1** ([#24](https://github.com/Valstan/Gonba/pull/24)) и подтвердить на проде: открыть страницу с Media, DevTools → картинки тянутся через `/api/media/file/<id>`, `X-Cache: HIT-LEGACY` (без round-trip к Я.Диску благодаря 333 файлам уже в `public/media`).
+2. **Фаза 3 (PR2)** — `afterChange`-хук безусловно удаляет локальный файл после успешной заливки на Я.Диск (сейчас удаляет только если >50MB). Файл `web/src/collections/Media.ts`, тот же блок `if (sizeBytes > LOCAL_MAX_BYTES)` → убрать условие.
+3. **Фаза 4 (PR3)** — `web/scripts/clean-media-cache.ts` + systemd-timer для TTL 30д кэш-чистки.
+4. **Фаза 5 (PR4)** — `web/scripts/migrate-media-to-yandex.ts` (по baseline фактически no-op, нужен как защитная сетка).
+5. **Фазы 6+7 (PR5)** — cleanup `LOCAL_MAX_BYTES`, ADR-0001 → `Implemented`, smoke на проде.
 
 ## Контекст
 
