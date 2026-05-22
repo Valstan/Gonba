@@ -67,15 +67,35 @@
 - **Rename Media-документа** перестаёт работать с автозаливкой: `afterChange` пытается читать локал по новому имени, но предыдущий файл уже удалён. Warning «Yandex sync skipped: file missing at X», doc сохранится без обновления `yandexPath`. Низкая вероятность в реальном использовании, но **записано как follow-up**: «rename-after-purge — использовать `moveYandexResource` вместо повторной заливки».
 - **`web/scripts/yadisk-sync-media.ts`** (batch-sync, `pnpm run yadisk:sync`) всё ещё использует `LOCAL_MAX_BYTES`/`YANDEX_DISK_LOCAL_MAX_MB`. Скрипт ручной, редко запускается. **Follow-up:** согласовать с phase-3-семантикой (либо выпилить, либо честно мигрировать).
 
-### Фаза 4 — Cron-чистка кэша по TTL (2-3 ч)
+### Фаза 4 — Cron-чистка кэша по TTL — **сделано в PR3**
 
-- [ ] `web/scripts/clean-media-cache.ts`:
-  - Аргументы: `--dir <path>` (default из env `MEDIA_CACHE_DIR`), `--ttl-days 30`, `--dry`
-  - Обход директории, для каждого файла — `stat.atimeMs` (или `mtimeMs` если ФС не пишет atime — Linux ext4 по умолчанию `relatime`, atime обновляется не чаще раза в сутки — для наших целей хватит)
-  - Удалить если старше TTL, лог "removed N files, freed M MB"
-- [ ] `package.json` script `cache:clean`
-- [ ] `deploy/systemd/gonba-media-cache.{service,timer}` — раз в сутки в 04:00 (по аналогии с `gonba-vk-sync.timer`)
-- [ ] Документация в `docs/PROJECT.md` (раздел systemd-таймеров)
+- [x] `web/scripts/clean-media-cache.ts`:
+  - [x] Аргументы: `--dir <path>` (default из env `MEDIA_CACHE_DIR` → `./public/media-cache`), `--ttl-days 30`, `--dry`
+  - [x] Использует `Math.max(atimeMs, mtimeMs)` — на Linux ext4 с `relatime` atime обновляется при чтении (endpoint вызывает `utimes` на cache-hit), на `noatime`-mount fallback на mtime
+  - [x] Логирует scanned/eligible/removed/freed в MB
+  - [x] Skip `.tmp.*` файлов (artefacts атомарного rename из endpoint'а)
+  - [x] При отсутствии папки — log + exit 0 (нечего чистить)
+- [x] `package.json` script `cache:clean`
+- [x] `deploy/systemd/gonba-media-cache.{service,timer}` — daily 04:00 + `RandomizedDelaySec=30min` + `Persistent=true` (выполнит догоняюще если сервер был выключен в 04:00)
+- [x] `docs/PROJECT.md` обновлён в разделе «Скрипты»
+
+**Локальный smoke test:**
+
+- TS-check clean
+- `cache:clean --dir ./public/nonexistent --dry` → "Cache dir does not exist — nothing to clean"
+- `cache:clean --dir <test-dir> --ttl-days 0 --dry` → корректно отметил оба тестовых файла eligible
+- `cache:clean --dir <test-dir> --ttl-days 0` → оба файла удалены, папка пуста
+
+**На прод — после merge PR3:**
+
+```bash
+# Активировать таймер на проде
+ssh GONBA
+sudo cp /home/valstan/GONBA/deploy/systemd/gonba-media-cache.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now gonba-media-cache.timer
+systemctl list-timers gonba-media-cache.timer
+```
 
 ### Фаза 5 — Миграция существующих записей (3-5 ч + ручной запуск)
 
@@ -135,13 +155,14 @@
 
 ## Текущий этап
 
-**Этапы пройдены:** Фаза 0 (baseline), Фаза 1 (endpoint), Фаза 2 (afterRead → endpoint), Фаза 3 (afterChange безусловно удаляет локал).
+**Этапы пройдены:** 0 (baseline), 1 (endpoint), 2 (afterRead), 3 (afterChange purges local), 4 (cache cron).
 
 **Готово к ревью и merge:**
-- **PR1** ([#24](https://github.com/Valstan/Gonba/pull/24)) — `feat(media): proxy endpoint /api/media/file/[id] + afterRead на endpoint`
-- **PR2** (stack поверх PR1) — `feat(media): afterChange безусловно удаляет локал после Я.Диск-sync`
+- **PR1** ([#24](https://github.com/Valstan/Gonba/pull/24)) — proxy endpoint + afterRead
+- **PR2** ([#26](https://github.com/Valstan/Gonba/pull/26)) — afterChange удаляет локал, stack на PR1
+- **PR3** (stack на PR2) — cache cron-чистка, systemd-timer
 
-**Следующий шаг:** Фаза 4 — `web/scripts/clean-media-cache.ts` + systemd-timer для TTL 30д кэш-чистки (PR3).
+**Следующий шаг:** Фаза 5 — `web/scripts/migrate-media-to-yandex.ts` (PR4, по baseline фактически no-op / защитная сетка).
 
 ### Что подтверждено локально
 

@@ -160,6 +160,7 @@ Payload:
 
 - `pnpm run vk:import` — импорт постов из VK
 - `pnpm run yadisk:sync` — разовая синхронизация локальных медиа на Yandex.Disk
+- `pnpm run cache:clean` — удалить из `MEDIA_CACHE_DIR` файлы, к которым не обращались более N дней (default 30). Аргументы: `--dir <path>`, `--ttl-days <N>`, `--dry`. Запускается systemd-таймером `gonba-media-cache.timer` (см. ниже).
 - `POST /yadisk-api/sync` — сверка/обновление Yandex-метаданных медиа батчами (admin/manager)
 - `tsx scripts/russify.ts` — русификация/seed контента (см. `web/scripts/russify.ts`)
 
