@@ -53,13 +53,19 @@
   - Если `yandexPath` нет (старая запись до миграции) → оставить стандартный Payload URL (`/media/<filename>` через `staticDir`)
 - [ ] Проверить что `next/image` рендерит правильно для и того и другого случая
 
-### Фаза 3 — `afterChange`-хук удаляет локальный файл после успешной заливки (1-2 ч)
+### Фаза 3 — `afterChange`-хук удаляет локальный файл после успешной заливки — **сделано в PR2**
 
-- [ ] После `uploadLocalFileToYandex` + `publishYandexResource` + успешного `payload.update` с `yandex*` полями:
-  - **Безусловно** удалить `web/public/media/<filename>` (текущая логика удаляет только если >50MB — убрать условие)
-  - Если есть `imageSizes` derivatives — удалить и их (в коллекции сейчас `imageSizes: []`, но если когда-нибудь добавим — учесть)
-- [ ] При yandex-error: НЕ удалять локальный файл, оставить fallback через `staticDir`. `yandexError` уже фиксируется.
-- [ ] Retry-в-фоне (если `yandexError` стоит — попробовать ещё раз при следующем обновлении документа) — **выносим в follow-up**, в эту нитку не делаем
+- [x] После `uploadLocalFileToYandex` + `publishYandexResource` + успешного `payload.update` с `yandex*` полями:
+  - [x] **Безусловно** удалить `web/public/media/<filename>` (убрано условие `if (sizeBytes > LOCAL_MAX_BYTES)`)
+  - [x] Если есть `imageSizes` derivatives — удалить и их (в коллекции сейчас `imageSizes: []`, цикл сохранён на будущее)
+  - [x] Удалена константа `LOCAL_MAX_BYTES`/`LOCAL_MAX_MB` и переменная `sizeBytes` (стали неиспользуемыми)
+- [x] При yandex-error: НЕ удалять локальный файл, оставить fallback через `staticDir`. Catch-блок не задевает удаление.
+- [ ] Retry-в-фоне (если `yandexError` стоит — попробовать ещё раз при следующем обновлении документа) — **остаётся как follow-up**
+
+**Следствия фазы 3 (новые):**
+
+- **Rename Media-документа** перестаёт работать с автозаливкой: `afterChange` пытается читать локал по новому имени, но предыдущий файл уже удалён. Warning «Yandex sync skipped: file missing at X», doc сохранится без обновления `yandexPath`. Низкая вероятность в реальном использовании, но **записано как follow-up**: «rename-after-purge — использовать `moveYandexResource` вместо повторной заливки».
+- **`web/scripts/yadisk-sync-media.ts`** (batch-sync, `pnpm run yadisk:sync`) всё ещё использует `LOCAL_MAX_BYTES`/`YANDEX_DISK_LOCAL_MAX_MB`. Скрипт ручной, редко запускается. **Follow-up:** согласовать с phase-3-семантикой (либо выпилить, либо честно мигрировать).
 
 ### Фаза 4 — Cron-чистка кэша по TTL (2-3 ч)
 
@@ -129,11 +135,13 @@
 
 ## Текущий этап
 
-**Этапы пройдены:** Фаза 0 (baseline), Фаза 1 (endpoint), Фаза 2 (afterRead → endpoint).
+**Этапы пройдены:** Фаза 0 (baseline), Фаза 1 (endpoint), Фаза 2 (afterRead → endpoint), Фаза 3 (afterChange безусловно удаляет локал).
 
-**Готово к ревью и merge как PR1:** `feat(media): proxy endpoint /api/media/file/[id] + afterRead rewrite`.
+**Готово к ревью и merge:**
+- **PR1** ([#24](https://github.com/Valstan/Gonba/pull/24)) — `feat(media): proxy endpoint /api/media/file/[id] + afterRead на endpoint`
+- **PR2** (stack поверх PR1) — `feat(media): afterChange безусловно удаляет локал после Я.Диск-sync`
 
-**Следующий шаг (после merge PR1):** Фаза 3 — `afterChange` безусловно удаляет локал после успешной заливки на Я.Диск.
+**Следующий шаг:** Фаза 4 — `web/scripts/clean-media-cache.ts` + systemd-timer для TTL 30д кэш-чистки (PR3).
 
 ### Что подтверждено локально
 
@@ -171,6 +179,8 @@
 - **Деривативы** (`imageSizes`) Payload — сейчас пустой массив `imageSizes: []`. Если когда-нибудь включим — потребуется отдельная итерация (заливать все размеры на Я.Диск).
 - **Объединить с `/yadisk-api/preview`** — этот endpoint обслуживает менеджер `/admin/yadisk`, имеет другие требования (приватные пути не в Media). Не трогаем.
 - **62 orphan-файла в `public/media/`** (есть на FS, нет записи в БД). Отдельный скрипт `scripts/find-orphan-media.ts` — найти, показать список, опционально удалить с подтверждением. Не в этой нитке.
+- **Rename-after-purge** (новое после Phase 3): когда пользователь переименовывает Media-документ, `afterChange` пытается перечитать локал по новому имени и видит — файла нет (мы его уже удалили). Нужно: распознать «это переименование уже-залитой записи» (`filenameChanged=true && previousDoc.yandexPath`) и сделать `moveYandexResource(oldYandexPath, newYandexPath)` + обновить `yandexPath` в БД. Без локала.
+- **`web/scripts/yadisk-sync-media.ts`** (ручной batch sync, `pnpm run yadisk:sync`) использует `LOCAL_MAX_BYTES`/`YANDEX_DISK_LOCAL_MAX_MB`. После Phase 3 эта семантика устарела. Либо обновить скрипт под новую логику, либо выпилить если migrate-media-to-yandex (фаза 5) полностью покрывает его use-case.
 
 ---
 
