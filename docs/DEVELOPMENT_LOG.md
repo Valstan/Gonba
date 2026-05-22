@@ -6,6 +6,110 @@
 
 ---
 
+## 2026-05-22 — ГОНЬБА 22 мая 2026 (Claude session) — Brain dispatches v2 (финализация консенсуса)
+
+**Тема:** во время сессии параллельная brain_matrica-сессия положила **обновлённые** версии двух уже обработанных заявок — с резюме решений пользователя по всем трём проектам. Чисто confirmations, новых действий не требуется.
+
+### Что подтверждено
+
+- **`#0001` (unify session close command name) — v2 финализация:** имя `/close_session` зафиксировано как стандарт между MatricaRMZ / GONBA / setka. setka переименовывает `/finish` → `/close_session` параллельно. У GONBA имя уже корректное (с прошлой сессии 2026-05-22), структурных изменений нет.
+- **`#0006` (failed approaches section) — v2 финализация:** контекст: «SESSION_HANDOFF.md обязательно везде; DEV_HISTORY — на усмотрение каждого проекта». GONBA применила полное предложение в этой же сессии (см. блок ниже про #0006). Confirmation.
+
+### Что сделано
+
+- Файлы `docs/inbox-from-brain/0001-...v2.md` и `0006-...v2.md` удалены (как просит протокол dispatch'ей).
+- В `docs/inbox-from-brain/` добавлен `README.md` в git (был untracked) — будущие сессии увидят инструкцию обработки заявок сразу при `/start`.
+
+---
+
+## 2026-05-22 — ГОНЬБА 22 мая 2026 (Claude session) — Media mini-follow-up: выпиливание yadisk-sync-media
+
+**Тема:** закрытие одного из 4-х mini-follow-up'ов нитки Media → Я.Диск. Скрипт `web/scripts/yadisk-sync-media.ts` (`pnpm run yadisk:sync`) после phase-3 устарел. Решение: **выпилить целиком** (не обновлять).
+
+### Почему выпилить, а не обновить
+
+Скрипт делал 4 вещи:
+
+1. **Backfill `yandexPath`/`PublicKey`/`Sha256`** для уже синхронизированных записей — узкая ad-hoc задача, не требует своего скрипта.
+2. **Restore локального файла** если есть Я.Диск и размер ≤ `LOCAL_MAX_BYTES` — **прямо противоречит phase-3**: после успешной заливки локалка удаляется безусловно, а её отсутствие восполняется TTL-кэшом через `/api/media/file/[id]` proxy на cache-miss.
+3. **Public seed restore** через `YANDEX_DISK_SEED_PUBLIC_KEY` — seed-сценарий первого деплоя, давно прошёл (на проде baseline 333/333 синхронизированы).
+4. **Upload + publish** для записей без `yandexResourceId` — **полностью покрывается `media:migrate-yadisk`** (phase-5 PR #28, idempotent, поддерживает `--dry`/`--limit`/`--id`).
+
+### Что сделано
+
+- Удалён `web/scripts/yadisk-sync-media.ts` (340 строк)
+- Удалена строка `"yadisk:sync": "tsx scripts/yadisk-sync-media.ts"` из `web/package.json`
+- `docs/PROJECT.md` — две правки: в списке скриптов `yadisk:sync` заменён на `media:migrate-yadisk` (с описанием), в секции «Yandex.Disk integration» убрана ссылка на устаревший скрипт, добавлено упоминание ADR-0001 Implemented.
+- `docs/plans/media-to-yadisk.md`, `docs/PENDING_FOLLOWUPS.md` — follow-up отмечен закрытым (strikethrough + дата).
+- `corepack pnpm run typecheck` — clean.
+
+### Уроки
+
+- **Старые batch-скрипты после смены архитектуры — кандидаты на выпиливание, не «обновление под новые правила».** Попытка адаптировать `yadisk-sync-media.ts` (через `if env-flag disable restore`) только добавила бы dead code. Чистый удалить + указатель на `media:migrate-yadisk` понятнее.
+- **`LOCAL_MAX_BYTES`/`YANDEX_DISK_LOCAL_MAX_MB`** окончательно похоронены: ни Media.ts, ни batch-скриптов, ни env-переменных в `.env.example`. Один меньше knob для поддержки.
+
+---
+
+## 2026-05-22 — ГОНЬБА 22 мая 2026 (Claude session) — Brain dispatch #0006 (Failed approaches section)
+
+**Тема:** ответ на заявку от `brain_matrica` (`docs/inbox-from-brain/0006-failed-approaches-section.md`) — добавить секцию «Failed approaches» в SESSION_HANDOFF.md + обновить `/close_session`. Применено по запросу пользователя («доверимся Мозгу»).
+
+### Заявка кратко
+
+Brain предложил: в `SESSION_HANDOFF.md` ввести секцию «Failed approaches (этой нитки)» с явной фиксацией отвергнутых подходов, плюс обновить `/close_session` чтобы он напоминал её заполнить. Цель — следующая сессия не повторяет PoC-тупики, потерянные сейчас в свободном тексте.
+
+### Что сделано
+
+- **`.claude/commands/close_session.md`** — обновлены:
+  - Шаг 2 (Уточнить у пользователя): добавлен 4-й опциональный вопрос про failed approaches при `Status: ACTIVE`.
+  - Шаг 3 (Шаблон SESSION_HANDOFF.md): добавлена секция `## Failed approaches (этой нитки)` после «Контекст» с конкретным форматом записи.
+  - Новый раздел «Важно про Failed approaches» с **grade'ами** (где что фиксируем): CLAUDE.md → eternal, ADR → architectural alternatives, SESSION_HANDOFF → failed approaches активной нитки, DEV_LOG → session post-mortem. Это снимает риск дублирования (предупреждение brain'а из «Возможные нет»).
+  - Жизненный цикл: при `Status: IDLE` секция выкидывается, отвергнутые подходы переносятся в DEV_LOG → блок «Уроки».
+- **`docs/SESSION_HANDOFF.md`** — добавлена секция `## Failed approaches (этой нитки)` с пояснением для текущего IDLE-состояния (применимо только при ACTIVE).
+
+### Решение по приоритезации
+
+Применили **с дополнением** (а не slept-import предложения brain'а):
+
+- **Grade'ы** в `/close_session` явно разделяют, что куда писать. Это снимает дублирование, которое brain сам обозначил как возможный «нет».
+- При закрытии нитки (Status: IDLE) failed approaches **переносятся** в DEV_LOG, а не аккумулируются в sticky-note. Sticky-note остаётся коротким.
+
+### Уроки
+
+- **Brain даёт паттерн, мы решаем как его пристёгивать к существующей системе.** В чистой форме предложение #0006 рисковало дублировать CLAUDE.md/ADR/DEV_LOG. С grade-ами стало очевидно где живёт каждый тип failed approach.
+- **Шаблоны нужно обновлять одновременно в двух местах**: `/close_session` (что writer пишет) и `SESSION_HANDOFF.md` (что reader видит в `/start`). Расхождение сделает next-session инструкции непонятными.
+
+---
+
+## 2026-05-22 — ГОНЬБА 22 мая 2026 (Claude session) — Brain dispatch #0007 (security cleanup authorized_keys)
+
+**Тема:** ответ на заявку от `brain_matrica` (`docs/inbox-from-brain/0007-authorized-keys-chain-of-compromise.md`) — давний 🟡-техдолг про чужие ключи в `~/.ssh/authorized_keys` GONBA-сервера. Brain поднял до 🔴 (security risk). Закрыт в этой сессии.
+
+### Заявка кратко
+
+В `~/.ssh/authorized_keys` на GONBA-сервере были 3 ключа: `valstan@a6fd55b8e0ae` (MatricaRMZ-сервер), `valstan@setka` (setka-машина), `gonba-deploy@PC40-20260522` (наш изолированный per-project ключ из идеи pool #001). Первые два создавали **цепочку компрометации**: атака на любой из тех серверов → автоматический доступ на GONBA с правами `valstan`.
+
+### Что сделано
+
+```bash
+ssh GONBA "cp ~/.ssh/authorized_keys ~/.ssh/authorized_keys.backup-2026-05-22 \
+  && sed -i '/valstan@a6fd55b8e0ae/d; /valstan@setka/d' ~/.ssh/authorized_keys"
+```
+
+- Backup: `~/.ssh/authorized_keys.backup-2026-05-22` (3 строки)
+- После: 1 строка — только `gonba-deploy@PC40-20260522`
+- Smoke: `ssh -o BatchMode=yes GONBA "echo OK"` → OK, `/api/health` → 200 OK
+- Файл `docs/inbox-from-brain/0007-...md` удалён (по протоколу dispatch'ей)
+- В `PENDING_FOLLOWUPS.md` запись 🟡 про authorized_keys удалена
+
+### Уроки
+
+- **Изолированный per-project ключ (идея #001) ≠ полная изоляция.** Внедрение `id_ed25519_gonba_deploy` 2026-05-22 закрыло утечку **новых** ключей наружу, но исторические чужие ключи на сервере остались. Cleanup — отдельный шаг, не следствие #001.
+- **Backup перед `sed -i` на проде — обязательно.** Один опечатанный regex запирает себя без доступа. `cp` сначала, `sed` потом.
+- **brain_matrica переоткрыл давний техдолг с переоценкой приоритета.** Полезный паттерн: meta-сессия читает PENDING_FOLLOWUPS чужими глазами и видит security-impact там, где исходный автор записал 🟡.
+
+---
+
 ## 2026-05-22 — ГОНЬБА 22 мая 2026 (Claude session) — Brain dispatch #0001 (close-session command name)
 
 **Тема:** ответ на заявку от `brain_matrica` (положена в `docs/inbox-from-brain/0001-unify-session-close-command-name.md`).

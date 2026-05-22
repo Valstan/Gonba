@@ -228,7 +228,7 @@ ssh GONBA "cd /home/valstan/GONBA/web && corepack pnpm run media:migrate-yadisk 
 - **Объединить с `/yadisk-api/preview`** — этот endpoint обслуживает менеджер `/admin/yadisk`, имеет другие требования (приватные пути не в Media). Не трогаем.
 - **62 orphan-файла в `public/media/`** (есть на FS, нет записи в БД). Отдельный скрипт `scripts/find-orphan-media.ts` — найти, показать список, опционально удалить с подтверждением. Не в этой нитке.
 - **Rename-after-purge** (новое после Phase 3): когда пользователь переименовывает Media-документ, `afterChange` пытается перечитать локал по новому имени и видит — файла нет (мы его уже удалили). Нужно: распознать «это переименование уже-залитой записи» (`filenameChanged=true && previousDoc.yandexPath`) и сделать `moveYandexResource(oldYandexPath, newYandexPath)` + обновить `yandexPath` в БД. Без локала.
-- **`web/scripts/yadisk-sync-media.ts`** (ручной batch sync, `pnpm run yadisk:sync`) использует `LOCAL_MAX_BYTES`/`YANDEX_DISK_LOCAL_MAX_MB`. После Phase 3 эта семантика устарела. Либо обновить скрипт под новую логику, либо выпилить если migrate-media-to-yandex (фаза 5) полностью покрывает его use-case.
+- ~~**`web/scripts/yadisk-sync-media.ts`** (ручной batch sync, `pnpm run yadisk:sync`) использует `LOCAL_MAX_BYTES`/`YANDEX_DISK_LOCAL_MAX_MB`. После Phase 3 эта семантика устарела.~~ **Выпилен 2026-05-22** — `media:migrate-yadisk` полностью покрывает заливку, restore локального файла после phase-3 противоречит идее «локалка = TTL-кэш».
 
 ---
 
