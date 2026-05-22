@@ -1,0 +1,111 @@
+/* AdminQuickLinks — dropdown с быстрыми ссылками в шапке Payload-админки.
+ *
+ * Стилизация на site-vars (см. (payload)/site-theme.css) — без Tailwind,
+ * потому что utility-классы не подключены к (payload)-маршрутам
+ * (см. DEVELOPMENT_LOG 2026-05-21, F1).
+ */
+
+.admin-quick-links {
+  position: relative;
+  display: inline-block;
+
+  /* Скрыть стандартный маркер <details> */
+  & > summary {
+    list-style: none;
+  }
+  & > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  &__trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--theme-elevation-150, rgba(0, 0, 0, 0.1));
+    background: var(--theme-elevation-50, rgba(255, 255, 255, 0.6));
+    color: var(--theme-elevation-800, #1a1a1a);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+    transition: background 120ms ease, border-color 120ms ease;
+  }
+
+  &__trigger:hover,
+  &[open] > &__trigger {
+    background: var(--theme-elevation-100, rgba(0, 0, 0, 0.04));
+    border-color: var(--theme-elevation-200, rgba(0, 0, 0, 0.15));
+  }
+
+  &__trigger:focus-visible {
+    outline: 2px solid var(--theme-success-500, #2563eb);
+    outline-offset: 2px;
+  }
+
+  &__trigger-icon {
+    font-size: 18px;
+    line-height: 1;
+    color: var(--theme-elevation-600, #555);
+  }
+
+  &__trigger-label {
+    white-space: nowrap;
+  }
+
+  &__menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 100;
+    min-width: 220px;
+    padding: 6px;
+    border-radius: 10px;
+    border: 1px solid var(--theme-elevation-150, rgba(0, 0, 0, 0.1));
+    background: var(--theme-elevation-0, #fff);
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.18), 0 4px 10px -4px rgba(0, 0, 0, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    color: var(--theme-elevation-800, #1a1a1a);
+    text-decoration: none;
+    font-size: 13px;
+    transition: background 100ms ease;
+  }
+
+  &__item:hover,
+  &__item:focus-visible {
+    background: var(--theme-elevation-100, rgba(0, 0, 0, 0.05));
+    text-decoration: none;
+    outline: none;
+  }
+
+  &__item-icon {
+    font-size: 16px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  &__item-label {
+    flex: 1;
+  }
+
+  /* На узких экранах прячем текст у триггера, остаётся только иконка */
+  @media (max-width: 768px) {
+    &__trigger {
+      padding: 6px 8px;
+    }
+    &__trigger-label {
+      display: none;
+    }
+  }
+}

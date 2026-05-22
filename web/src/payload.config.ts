@@ -73,6 +73,9 @@ export default buildConfig({
       // The `BeforeDashboard` component renders the 'welcome' block that you see after logging into your admin panel.
       // Feel free to delete this at any time. Simply remove the line below.
       beforeDashboard: ['@/components/BeforeDashboard'],
+      // Быстрые ссылки в шапке админки (dropdown), видны на всех маршрутах.
+      // Список ссылок задаётся в самом компоненте — расширять там.
+      actions: ['@/components/AdminQuickLinks'],
       graphics: {
         Icon: '@/components/AdminIcon',
         Logo: '@/components/AdminLogo',
