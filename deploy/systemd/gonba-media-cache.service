@@ -1,0 +1,10 @@
+[Unit]
+Description=GONBA media cache cleanup (remove files unused for 30+ days)
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=valstan
+WorkingDirectory=/home/valstan/GONBA/web
+EnvironmentFile=-/home/valstan/GONBA/web/.env
+ExecStart=/usr/bin/corepack pnpm run cache:clean

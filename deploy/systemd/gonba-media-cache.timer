@@ -1,0 +1,11 @@
+[Unit]
+Description=GONBA media cache cleanup timer (daily 04:00)
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+Persistent=true
+RandomizedDelaySec=30min
+Unit=gonba-media-cache.service
+
+[Install]
+WantedBy=timers.target

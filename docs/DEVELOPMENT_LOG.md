@@ -6,6 +6,41 @@
 
 ---
 
+## 2026-05-22 — ГОНЬБА 22 мая 2026 (Claude session) — Media → Я.Диск, фаза 4 (cron-чистка кэша TTL 30д)
+
+**Тема:** stack-PR поверх PR2. Кэш `MEDIA_CACHE_DIR` теперь чистится автоматически — файлы, к которым не обращались >30 дней, удаляются ежедневно в 04:00 systemd-таймером.
+
+### Что сделано
+
+- **`web/scripts/clean-media-cache.ts`** — новый скрипт. Аргументы: `--dir <path>` (default `MEDIA_CACHE_DIR` env → `./public/media-cache`), `--ttl-days 30`, `--dry`. Использует `Math.max(atimeMs, mtimeMs)` — на Linux ext4 с `relatime` atime обновляется при чтении (endpoint вызывает `utimes` на cache-hit), fallback на mtime защищает от `noatime`-mount. Логирует scanned / eligible / removed / freed в MB. Skip `.tmp.*` файлов (артефакты атомарного rename из endpoint'а). Отсутствие папки — exit 0 (нечего чистить).
+- **`deploy/systemd/gonba-media-cache.service`** + **`.timer`** — daily в 04:00, `Persistent=true` (догонит если сервер был выключен), `RandomizedDelaySec=30min`, `User=valstan`, читает `.env` из `web/`.
+- **`web/package.json`** — добавлен script `"cache:clean": "tsx scripts/clean-media-cache.ts"`.
+- **`docs/PROJECT.md`** — упомянут новый скрипт в разделе «Скрипты».
+
+### Локальный smoke
+
+- TS clean
+- `cache:clean --dir ./public/nonexistent --dry` → «Cache dir does not exist — nothing to clean»
+- `cache:clean --ttl-days 0 --dry` → корректно отметил тестовые файлы eligible
+- `cache:clean --ttl-days 0` → файлы удалены, папка пуста
+
+### Активация на проде (после merge PR3)
+
+```bash
+ssh GONBA
+sudo cp /home/valstan/GONBA/deploy/systemd/gonba-media-cache.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now gonba-media-cache.timer
+systemctl list-timers gonba-media-cache.timer
+```
+
+### Уроки
+
+- **`atime` на Windows-FS «дёргается».** `touch -a -t` через Git Bash не работает как ожидалось — atime сразу же обновляется первой stat'-операцией. На Linux с `relatime` — нормально. Тест через `--ttl-days 0` обходит проблему (всё eligible независимо от timestamps).
+- **`Math.max(atime, mtime)` лучше чем чистый atime** — защищает от ложноположительных удалений: восстановленный из бэкапа файл с старым mtime, но свежий atime — остаётся живой.
+
+---
+
 ## 2026-05-22 — ГОНЬБА 22 мая 2026 (Claude session) — Media → Я.Диск, фаза 3 (afterChange удаляет локал)
 
 **Тема:** stack-PR поверх PR #24. Завершаем нитку перехода к «Я.Диск primary» — после успешной заливки локальный файл удаляется безусловно (а не только для файлов >50MB).
