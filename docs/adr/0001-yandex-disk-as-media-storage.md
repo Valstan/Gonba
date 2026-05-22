@@ -1,7 +1,8 @@
 # 0001. Yandex.Disk как хранилище медиа вместо S3
 
-- **Status:** Accepted
+- **Status:** Implemented (2026-05-22)
 - **Date:** 2026-04 (зафиксировано задним числом 2026-05-21)
+- **Implementation:** [`docs/plans/media-to-yadisk.md`](../plans/media-to-yadisk.md) — фазы 1-5, PR #24 + #26 + #27 + #28
 - **Deciders:** Valstan
 
 ## Context
@@ -51,4 +52,17 @@
 - `web/src/server/integrations/yandex-disk.ts` — основная интеграция
 - `web/src/server/integrations/yandex-disk-gallery.ts` — авто-галерея
 - `web/src/components/Gallery/YandexGallerySection.tsx` — frontend
+- `web/src/app/api/media/file/[id]/route.ts` — proxy endpoint (PR #24)
+- `web/src/collections/Media.ts` — afterRead → endpoint, afterChange удаляет локал (PR #24, #26)
+- `web/scripts/clean-media-cache.ts` + `deploy/systemd/gonba-media-cache.{service,timer}` — TTL-чистка кэша (PR #27)
+- `web/scripts/migrate-media-to-yandex.ts` — защитная сетка для orphan-записей (PR #28)
 - [Yandex Disk REST API docs](https://yandex.ru/dev/disk/rest/)
+
+## Implementation notes
+
+После реализации (нитка plan'а `docs/plans/media-to-yadisk.md`, 2026-05-22) фактическая раскладка:
+
+- **Я.Диск — единственный долгосрочный источник** медиа. Все 333 записи Media на проде имеют `yandexPath`.
+- **Локальный VPS — TTL-кэш** в `MEDIA_CACHE_DIR` (default `web/public/media-cache`). Лениво заполняется на cache-miss через `/api/media/file/[id]`. Чистится ежедневно systemd-таймером `gonba-media-cache.timer` для файлов с `max(atime, mtime)` > 30 дней.
+- **Раздача файлов** идёт через proxy `/api/media/file/[id]`, не через прямые публичные ссылки Я.Диска — это обходит ротацию public links и даёт стабильный CDN-friendly URL с правильным `Cache-Control: immutable`.
+- **Legacy `public/media`** при первом proxy-запросе работает как fallback-кэш (HIT-LEGACY) — постепенно теряет файлы (новые записи сразу удаляются по phase-3), но не критично — TTL-cron подметает оставшиеся.

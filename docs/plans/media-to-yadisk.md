@@ -173,15 +173,23 @@ ssh GONBA "cd /home/valstan/GONBA/web && corepack pnpm run media:migrate-yadisk 
 
 ## Текущий этап
 
-**Этапы пройдены:** 0 (baseline), 1 (endpoint), 2 (afterRead), 3 (afterChange purges local), 4 (cache cron), 5 (migrate script).
+**Все этапы пройдены:** 0+1+2+3+4+5+6+7.
 
 **Готово к ревью и merge:**
 - **PR1** ([#24](https://github.com/Valstan/Gonba/pull/24)) — proxy endpoint + afterRead
-- **PR2** ([#26](https://github.com/Valstan/Gonba/pull/26)) — afterChange удаляет локал, stack на PR1
-- **PR3** ([#27](https://github.com/Valstan/Gonba/pull/27)) — cache cron, stack на PR2
-- **PR4** (stack на PR3) — migrate-media-to-yandex.ts (защитная сетка)
+- **PR2** ([#26](https://github.com/Valstan/Gonba/pull/26)) — afterChange удаляет локал
+- **PR3** ([#27](https://github.com/Valstan/Gonba/pull/27)) — cache cron
+- **PR4** ([#28](https://github.com/Valstan/Gonba/pull/28)) — migrate script
+- **PR5** (этот PR) — ADR-0001 → `Implemented`, обновление PROJECT_STATE, закрытие PENDING_FOLLOWUPS
 
-**Следующий шаг:** Фазы 6+7 — cleanup (`yadisk-sync-media.ts` под phase-3-семантику, опционально rename-after-purge), ADR-0001 → `Implemented`, прод-smoke. Это PR5.
+**Прод-smoke (фаза 7)** — после merge всех 5 PR'ов:
+1. Открыть страницу с Media (например, `/projects/<slug>`) → DevTools → картинки идут через `/api/media/file/<id>`
+2. `X-Cache: HIT-LEGACY` на существующих 333 файлах (без round-trip к Я.Диску)
+3. `journalctl -u gonba-media-cache.timer -n 5` — таймер активен (после ручного `systemctl enable --now`)
+4. Загрузить тестовое фото → проверить в `ssh GONBA "ls public/media | grep <filename>"` что локала больше нет
+5. Удалить документ Media → файл удалён с Я.Диска
+
+**Нитка считается закрытой** после прод-smoke (фаза 7).
 
 ### Что подтверждено локально
 

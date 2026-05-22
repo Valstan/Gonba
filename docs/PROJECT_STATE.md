@@ -85,7 +85,22 @@ scripts/                      — общие deploy/dev помощники
 - API: `/yadisk-api/*` (защищено `requireAdmin`)
 - Кастомный UI в admin: `/admin/yadisk`
 - Авто-загрузка фото-галереи проекта: `web/src/server/integrations/yandex-disk-gallery.ts` + `web/src/components/Gallery/YandexGallerySection.tsx`
-- Env: `YANDEX_DISK_TOKEN`, `YANDEX_DISK_BASE_PATH`, `YANDEX_DISK_MEDIA_PATH`
+- Env: `YANDEX_DISK_TOKEN`, `YANDEX_DISK_BASE_PATH`, `YANDEX_DISK_MEDIA_PATH`, `MEDIA_CACHE_DIR`
+
+### Media — Я.Диск как primary, локалка как TTL-кэш (ADR-0001 Implemented 2026-05-22)
+- **Хранение:** Я.Диск — единственный долгосрочный источник. Все записи Media имеют `yandexPath`, `yandexPublicUrl`, `yandexResourceId`, `yandexSha256` и др. в sidebar-полях (readonly).
+- **Раздача:** через proxy endpoint `web/src/app/api/media/file/[id]/route.ts`:
+  - Cache lookup в `MEDIA_CACHE_DIR` (default `public/media-cache/`) → fallback `public/media/` (legacy)
+  - На cache miss — `getDownloadUrl(yandexPath)` (приватная одноразовая ссылка по токену), `body.tee()` в response + writeStream в кэш
+  - Rate-limit 240/min на IP, headers `Cache-Control: max-age=30d immutable`, `X-Cache: HIT | HIT-LEGACY | MISS`
+- **Жизненный цикл файла:**
+  1. Upload через админку Payload → Payload пишет в `staticDir` (`public/media`)
+  2. `afterChange` хук → загрузка на Я.Диск + удаление локала (безусловно после успеха)
+  3. Чтение через сайт → endpoint берёт с Я.Диска, сохраняет в `MEDIA_CACHE_DIR` атомарно (`<name>.tmp.<pid>...` → `rename`)
+  4. Файлы старше 30 дней в `MEDIA_CACHE_DIR` чистит ежедневный systemd-таймер `gonba-media-cache.timer` (`web/scripts/clean-media-cache.ts`, использует `max(atime, mtime)`)
+  5. `afterDelete` хук → удаляет ресурс с Я.Диска (через `yandexPath`/`yandexResourceId`)
+- **Защитная сетка** для orphan-записей без `yandexPath` — `pnpm run media:migrate-yadisk -- --dry` (см. `web/scripts/migrate-media-to-yandex.ts`)
+- Подробности и история — [`docs/plans/media-to-yadisk.md`](plans/media-to-yadisk.md), ADR-0001
 
 ### VK (импорт постов)
 - **Ручной скрипт**: `web/scripts/vk-import.ts`, команда `pnpm run vk:import`
@@ -117,6 +132,7 @@ scripts/                      — общие deploy/dev помощники
 - Header global: `unstable_cache` Next.js с тегом `global_header`. Сбрасывается через `revalidateTag` из Payload `afterChange`-хука (`web/src/Header/hooks/revalidateHeader.ts`). **Прямой `UPDATE` в БД** этот хук не дёргает → нужно `systemctl restart gonba`.
 - Главная `/` — `revalidate = 600` (dynamic с ISR).
 - `/projects` — `revalidate = 30` (быстро подхватывает админские правки плашек).
+- **Media файлы** (`/api/media/file/[id]`): `Cache-Control: public, max-age=2592000, immutable` (30 дней в браузере, иммутабельно — потому что URL содержит id). Server-side disk кэш в `MEDIA_CACHE_DIR` чистится TTL-cron'ом (см. секцию Media выше). Никакого `unstable_cache` — endpoint всегда выполняется, но 99% запросов отдают локальный файл, не дёргая Я.Диск.
 
 ## Slash-команды
 
