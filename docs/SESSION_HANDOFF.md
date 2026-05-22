@@ -32,6 +32,10 @@
 - **Прод:** жив, `/api/health` 200. На странице с Media картинки идут через `/api/media/file/<id>` с `X-Cache: HIT-LEGACY` (333 существующих файла отдаются без round-trip к Я.Диску). `gonba-media-cache.timer` enabled, следующий запуск Sat 2026-05-23 04:08 MSK.
 - **Открытые вопросы для пользователя:** нет. Сессия закрыта чисто.
 
+## Failed approaches (этой нитки)
+
+_Не применимо — `Status: IDLE`, активной нитки нет. Секция заполняется только при `Status: ACTIVE` если в сессии отвергли подход (PoC не взлетел, обсудили и отбросили). Подробнее — [.claude/commands/close_session.md](../.claude/commands/close_session.md)._
+
 ## Не забыть (low-priority)
 
 - 📨 **Brain dispatch #0006** (`docs/inbox-from-brain/0006-failed-approaches-section.md`) — untracked, ждёт твоего разбора («применить / отложить / отклонить»).

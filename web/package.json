@@ -24,7 +24,6 @@
     "test:int": "node ./scripts/run-with-watchdog.mjs --idle-ms=90000 --stagnation-ms=240000 --max-ms=900000 -- corepack pnpm run test:int:raw",
     "test:int:raw": "NODE_OPTIONS='--no-deprecation --max-old-space-size=1024' vitest run --config ./vitest.config.mts",
     "vk:import": "tsx scripts/vk-import.ts",
-    "yadisk:sync": "tsx scripts/yadisk-sync-media.ts",
     "cache:clean": "tsx scripts/clean-media-cache.ts",
     "media:migrate-yadisk": "tsx scripts/migrate-media-to-yandex.ts"
   },

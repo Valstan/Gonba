@@ -159,7 +159,7 @@ Payload:
 Скрипты:
 
 - `pnpm run vk:import` — импорт постов из VK
-- `pnpm run yadisk:sync` — разовая синхронизация локальных медиа на Yandex.Disk
+- `pnpm run media:migrate-yadisk` — защитная сетка для записей без `yandexPath` (post-phase-3). Аргументы: `--dry`, `--limit N`, `--id <id>`, `--max N`. Идемпотентно. Подробности — `web/scripts/migrate-media-to-yandex.ts`.
 - `pnpm run cache:clean` — удалить из `MEDIA_CACHE_DIR` файлы, к которым не обращались более N дней (default 30). Аргументы: `--dir <path>`, `--ttl-days <N>`, `--dry`. Запускается systemd-таймером `gonba-media-cache.timer` (см. ниже).
 - `POST /yadisk-api/sync` — сверка/обновление Yandex-метаданных медиа батчами (admin/manager)
 - `tsx scripts/russify.ts` — русификация/seed контента (см. `web/scripts/russify.ts`)
@@ -347,8 +347,8 @@ docker compose up
 - Админка Payload живет в том же Next.js приложении.
 - Для Yandex.Disk API используются отдельные маршруты `/yadisk-api/*`.
 - Роли в `requireAdmin`: `admin` и `manager`.
-- Медиа из Payload сохраняется на Yandex.Disk (локально — только временно для загрузки).
-- Для миграции и сверки после ручных перемещений на Диске запускать `pnpm run yadisk:sync`.
+- Медиа из Payload сохраняется на Yandex.Disk (после ADR-0001 Implemented 2026-05-22 — Я.Диск primary, локалка = TTL-кэш через `/api/media/file/[id]` proxy).
+- Для защитной миграции orphan-записей без `yandexPath` — `pnpm run media:migrate-yadisk` (idempotent, поддерживает `--dry`).
 - Превью для файлов Диска отдается через `/yadisk-api/preview` (иначе приватные ссылки дают 403).
 - Для корректной работы `next/image` на проде должен быть задан `NEXT_PUBLIC_SERVER_URL` (домен продакшена).
 - Для защиты от ручных перемещений на Диске медиа периодически сверяется по `resource_id` (на чтении документа).

@@ -26,7 +26,7 @@ _Сейчас нет — все начатые задачи в текущей с
 
 ## 🟡 Техдолги
 
-- **`authorized_keys` на GONBA-сервере содержит публичные ключи с MatricaRMZ и setka серверов** (`valstan@a6fd55b8e0ae`, `valstan@setka`). Обнаружено 2026-05-22 при ротации deploy-ключа. Цепочка компрометации: взяв любой из тех серверов → доступ на GONBA. Решение: либо удалить эти ключи если они не нужны для cross-server скриптов, либо если нужны — задокументировать зачем и оставить.
+_Сейчас нет — `authorized_keys` cleanup закрыт 2026-05-22 (см. DEVELOPMENT_LOG, dispatch #0007)._
 
 ---
 
@@ -49,7 +49,7 @@ _Сейчас нет — все начатые задачи в текущей с
 
 - **Follow-ups из нитки (mini-задачи):**
   - **Rename Media-документа** после Phase 3 не работает с автозаливкой (`afterChange` не находит локала). Solution: `moveYandexResource(oldYandexPath, newYandexPath)` в случае `filenameChanged && previousDoc.yandexPath`. Низкая вероятность, отдельный мини-PR.
-  - **`web/scripts/yadisk-sync-media.ts`** (ручной batch sync) всё ещё использует `LOCAL_MAX_BYTES`/`YANDEX_DISK_LOCAL_MAX_MB`. Согласовать с phase-3-семантикой — либо обновить, либо выпилить если `media:migrate-yadisk` его полностью покрывает.
+  - ~~**`web/scripts/yadisk-sync-media.ts`** (ручной batch sync)~~ **Выпилен 2026-05-22** — `media:migrate-yadisk` полностью покрывает заливку, restore локала противоречит phase-3.
   - **62 orphan-файла** в `public/media` (есть на FS, нет записи в БД). Скрипт `scripts/find-orphan-media.ts` — найти, показать, опционально удалить.
   - **Retry в фоне** при `yandexError` (для тех редких записей где afterChange упал) — нужен ли, exponential backoff? Сейчас: ошибка пишется в `yandexError`-поле, ручной retry через редактирование документа в админке.
 
