@@ -6,6 +6,45 @@
 
 ---
 
+## 2026-05-22 — ГОНЬБА 22 мая 2026 (Claude session) — Media → Я.Диск, фазы 6+7 (finalize)
+
+**Тема:** stack-PR5, последний в нитке. Документация и закрытие — без новых код-изменений. ADR-0001 переведён в `Implemented`, PROJECT_STATE обновлён, запись в PENDING_FOLLOWUPS закрыта.
+
+### Что сделано
+
+- **`docs/adr/0001-yandex-disk-as-media-storage.md`** — статус `Accepted` → `Implemented (2026-05-22)`, добавлены ссылки на PR'ы #24/#26/#27/#28, секция «Implementation notes» с фактической раскладкой (Я.Диск primary / VPS TTL-кэш / proxy endpoint / immutable URL).
+- **`docs/PROJECT_STATE.md`** — добавлен раздел «Media — Я.Диск как primary, локалка как TTL-кэш (ADR-0001 Implemented 2026-05-22)» с описанием жизненного цикла файла. Раздел «Кэш-инвалидация» расширен пунктом про `/api/media/file/[id]` (`Cache-Control: max-age=30d immutable`).
+- **`docs/PENDING_FOLLOWUPS.md`** — главная запись «Архитектура / Media» вычеркнута, заменена на 4 мини-follow-up'а: rename-after-purge, yadisk-sync-media.ts согласовать с phase-3, find-orphan-media.ts, retry в фоне.
+- **`docs/plans/media-to-yadisk.md`** — отмечены все фазы 0-7 готовыми, описан smoke-test протокол для проде.
+
+### Прод-smoke (после merge всех 5 PR — фаза 7)
+
+```bash
+# 1. Активировать TTL-таймер кэша
+ssh GONBA
+sudo cp /home/valstan/GONBA/deploy/systemd/gonba-media-cache.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now gonba-media-cache.timer
+systemctl list-timers gonba-media-cache.timer
+
+# 2. Проверить что existing-файлы отдаются через endpoint с HIT-LEGACY
+curl -sI 'https://гоньба.рф/api/media/file/319' | grep -i 'x-cache\|cache-control'
+
+# 3. Защитная сетка миграции — должно быть 0
+ssh GONBA "cd /home/valstan/GONBA/web && corepack pnpm run media:migrate-yadisk -- --dry"
+```
+
+### Итог нитки
+
+В сумме за день — **5 PR'ов в стеке**, ~1200 строк кода/документации. От «локалка primary, Я.Диск только для больших файлов» к «Я.Диск primary, локалка = TTL-кэш через proxy». Полное соответствие ADR-0001 достигнуто.
+
+### Уроки
+
+- **Stacked PRs работают** для длинных архитектурных ниток. Не пришлось делать «один большой PR на 5 фаз» — каждый PR можно ревьюить и откатить независимо. После merge PR1 — PR2 fast-forward'ом, и т.д.
+- **Документация в конце даёт перспективу.** Когда писал ADR Implementation notes — увидел картину целиком (без перескакивания между фазами), смог сформулировать «жизненный цикл файла» в 5 шагах. До этой сессии такого описания не было.
+
+---
+
 ## 2026-05-22 — ГОНЬБА 22 мая 2026 (Claude session) — Media → Я.Диск, фаза 5 (migrate-script)
 
 **Тема:** stack-PR4 поверх PR3. Защитная сетка для записей без `yandexPath` — `web/scripts/migrate-media-to-yandex.ts`. По baseline на проде 0 таких записей (все 333 синхронизированы), но скрипт нужен на случай новых orphan'ов и для ручного PoC.
