@@ -6,6 +6,50 @@
 
 ---
 
+## 2026-05-22 — ГОНЬБА 22 мая 2026 (Claude session) — Media → Я.Диск, фаза 1+2 (proxy endpoint)
+
+**Тема:** старт многоэтапной нитки [`docs/plans/media-to-yadisk.md`](plans/media-to-yadisk.md) — переход на Я.Диск как primary, локальный диск как TTL-кэш. В этой сессии сделаны фазы 0 (baseline), 1 (endpoint), 2 (`afterRead` подменяет URL). Готов PR1.
+
+### Что сделано
+
+- **Baseline (фаза 0):** 333 записи Media в проде, все с `yandex_path` (100% синхронизация уже была), 0 ошибок, 404 MB в БД / 408 MB на FS / 395 файлов (62 orphans). **Следствие:** скрипт миграции из плана становится защитной сеткой, а не основной работой.
+- **`web/src/app/api/media/file/[id]/route.ts`** — новый proxy endpoint:
+  - Lookup через Local API с `context: { skipYandexCheck: true }` чтобы получить сырой doc без рекурсии afterRead
+  - Cache lookup в двух локациях: `MEDIA_CACHE_DIR` (env, default `public/media-cache`) → fallback `public/media` (legacy 333 файла)
+  - Cache miss → `getDownloadUrl(yandexPath)` (приватная одноразовая ссылка по токену, не `yandexPublicUrl` который ротируется), `fetch`, `body.tee()`: одна ветка в HTTP-ответ, другая в `pipeline → createWriteStream(<name>.tmp.<pid>.<ts>.<rnd>)` → атомарный `rename`
+  - Rate-limit: 240 req/min на IP-хэш через существующий `checkRateLimit`
+  - Headers: `Cache-Control: public, max-age=2592000, immutable`, `Content-Type` из `doc.mimeType`, `X-Cache: HIT | HIT-LEGACY | MISS` (для observability), `Content-Length` из `fs.stat` на cache-hit и из upstream headers на cache-miss
+  - Все пути от `process.cwd()` (= web project root для Next) — устойчиво к перемещению файла маршрута
+- **`web/src/collections/Media.ts`** — упрощён `afterRead`-хук: всегда переписывает `doc.url` и `doc.thumbnailURL` на `/api/media/file/<id>` если есть `yandexPath`. Удалена логика `LOCAL_MAX_BYTES`/`fs.access`/«если файл большой и есть локально». Записи без `yandexPath` (по бейзлайну 0 шт.) сохраняют стандартный Payload URL.
+
+### Локальный smoke test
+
+- `tsc --noEmit` clean
+- `pnpm dev` → `/api/health` 200
+- `curl /api/media/file/319` с мок-файлом в legacy → 200, X-Cache: HIT-LEGACY, тело совпадает
+- `curl /api/media/file/99999999` → 404 «Media not found»
+- `curl /api/media/file/319` без локального файла + локальный токен недействителен → 502 «Upstream storage error» (корректно)
+
+### Найдено по ходу и зафиксировано
+
+- 62 файла в `public/media` без записи в БД (orphans) — добавлено в follow-ups плана; отдельный скрипт `scripts/find-orphan-media.ts` (когда руки дойдут)
+- Изначальный путь к legacy-папке через `path.resolve(dirname, '../../../../../public/media')` — посчитан на 1 уровень неверно (учитывая каталог `[id]/`); заменён на `process.cwd()`-anchor
+
+### Не сделано в этой сессии (по плану)
+
+- Фаза 3 — `afterChange` безусловно удаляет локальный файл после успешной заливки на Я.Диск (PR2)
+- Фаза 4 — cron-чистка кэша по TTL 30 дней (PR3)
+- Фаза 5 — скрипт миграции (PR4, фактически защитная сетка по baseline)
+- Фазы 6-7 — cleanup и smoke на проде (PR5)
+
+### Уроки
+
+- **Подход выбирать после чтения существующего кода, а не до.** Изначальная рекомендация handoff'а была A (Cloud Storage plugin) исходя из «с нуля». Чтение `Media.ts` показало ~80% уже сделано — это изменило рекомендацию на B (1-2 дня вместо 4-5).
+- **`process.cwd()` для anchor-путей в App Router** надёжнее чем `import.meta.url + ../../`. Файл маршрута может переехать, относительные пути сломаются молча.
+- **Tee в Web Streams** работает идиоматично в Node 20+ — `upstream.body.tee()` + `Readable.fromWeb` для одной ветки записи на диск. Без буферизации в память.
+
+---
+
 ## 2026-05-22 — ГОНЬБА 22 мая 2026 (Claude session) — SESSION_HANDOFF + /close_session (cross-project pool idea 003)
 
 **Тема:** перенос идеи 003 из MatricaRMZ — система непрерывности разработки между сессиями (sticky-note в репо + skill финализации + шаг 0 в `/start`). Первое **обратное** срабатывание cross-project pool'а — MatricaRMZ-сессия добавила идею с пометкой ❓ для GONBA, GONBA-сессия её приняла.

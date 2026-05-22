@@ -138,31 +138,17 @@ export const Media: CollectionConfig = {
         if (!doc) return doc
         if (context?.skipYandexCheck) return doc
 
-        const applyPublicUrl = (url?: string | null) => {
-          if (!url) return
-          doc.url = url
-          doc.thumbnailURL = url
-          doc.sizes = undefined
-        }
-        const mediaRoot = path.resolve(dirname, '../../public/media')
-        const localPath = doc.filename ? path.join(mediaRoot, doc.filename) : null
-        const sizeBytes = typeof doc.filesize === 'number' ? doc.filesize : 0
-        let hasLocal = false
-        if (localPath) {
-          try {
-            await fs.access(localPath)
-            hasLocal = true
-          } catch {
-            hasLocal = false
-          }
-        }
-        const shouldServeYandex =
-          Boolean(doc.yandexPublicUrl) && (sizeBytes > LOCAL_MAX_BYTES || !hasLocal)
-        if (shouldServeYandex) {
-          applyPublicUrl(doc.yandexPublicUrl)
-        } else if (!hasLocal && doc.url) {
-          doc.url = ''
-          doc.thumbnailURL = ''
+        // If the document has a Yandex.Disk path, all reads go through our
+        // proxy endpoint /api/media/file/[id]. The endpoint serves from local
+        // cache when available (legacy public/media or new MEDIA_CACHE_DIR)
+        // and falls back to streaming from Y.Disk on cache miss.
+        //
+        // Records without yandexPath (currently 0 in prod per baseline 2026-05-22,
+        // but kept as a safety net) get the standard Payload staticDir URL untouched.
+        if (doc.yandexPath || doc.yandexResourceId) {
+          const proxyUrl = `/api/media/file/${doc.id}`
+          doc.url = proxyUrl
+          doc.thumbnailURL = proxyUrl
           doc.sizes = undefined
         }
 

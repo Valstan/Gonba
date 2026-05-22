@@ -1,0 +1,187 @@
+# Media → Я.Диск как единственный источник правды
+
+**Связано:** [`ADR-0001`](../adr/0001-yandex-disk-as-media-storage.md), [`PENDING_FOLLOWUPS.md → 🟢 Архитектура / Media`](../PENDING_FOLLOWUPS.md), [`SESSION_HANDOFF.md`](../SESSION_HANDOFF.md).
+
+**Создан:** 2026-05-22.
+
+---
+
+## Цель
+
+Довести [ADR-0001](../adr/0001-yandex-disk-as-media-storage.md) до конца: коллекция `Media` хранит файлы **на Яндекс.Диске как primary**; локальный диск VPS — только **кэш с TTL 30 дней** от последнего обращения. Файлы отдаются через собственный proxy-endpoint `/api/media/file/[id]`, а не через прямые `disk.yandex.ru` ссылки.
+
+---
+
+## Выбранный подход
+
+**B — доработка существующего гибрида.** ~80% инфраструктуры уже есть (`web/src/collections/Media.ts` с `afterChange`/`afterDelete`/`afterRead`-хуками + полный wrapper Я.Диск API в `yandex-disk.ts`). Альтернативы A (Cloud Storage plugin) и C (полная замена) — записаны в [`PENDING_FOLLOWUPS.md`](../PENDING_FOLLOWUPS.md), не выбраны (см. сессию 2026-05-22).
+
+**Endpoint:** свой `/api/media/file/[id]` — проверяет локальный кэш → fallback на Я.Диск через `getDownloadUrl(yandexPath)` (приватная одноразовая ссылка по токену, не `yandexPublicUrl`) → стримит ответ клиенту + сохраняет в кэш. Стабильно при ротации публичных ссылок Я.Диска.
+
+**Кэш:** TTL 30 дней с момента последнего обращения (`atime`/`mtime`). Cron раз в сутки чистит файлы старше TTL. Кэш-папка отдельная от `public/media` (например, `public/media-cache/` или `/var/lib/gonba-media-cache/`).
+
+---
+
+## Этапы
+
+### Фаза 0 — Замеры (10 мин)
+
+- [ ] Через `/sql` (read-only) — `SELECT count(*), count(yandex_path), count(*) FILTER (WHERE yandex_path IS NULL), count(yandex_error), pg_size_pretty(sum(filesize)::bigint) FROM media`
+- [ ] На проде `ssh GONBA "du -sh /home/valstan/GONBA/web/public/media"`
+- [ ] Зафиксировать в этом плане ниже («Baseline»)
+
+### Фаза 1 — Proxy endpoint `/api/media/file/[id]` (4-6 ч)
+
+- [ ] `web/src/app/(frontend)/api/media/file/[id]/route.ts` — GET handler:
+  - Загрузить Media doc по id через Local API (с `overrideAccess: true`, depth 0)
+  - Определить путь к кэшу: **проверять две локации** —
+    1. `path.join(CACHE_DIR, doc.filename)` (новая кэш-папка, env `MEDIA_CACHE_DIR`)
+    2. `path.join(LEGACY_MEDIA_DIR, doc.filename)` (`web/public/media/` — там лежат все 333 существующих файла)
+  - **Если файл найден в любой** → обновить atime (`utimesAsync(now, now)`), стримить с диска + правильные headers (`Content-Type` из `doc.mimeType`, `Cache-Control: public, max-age=2592000, immutable` если id-based URL). Опционально: при hit'е в legacy перенести в новую кэш-папку через `rename` (eventually единая локация).
+  - **Если нет** → `getDownloadUrl(yandexPath)` (приватная download URL по токену, не `yandexPublicUrl` — последний может быть устаревшим), `fetch(href)` → stream-piped в HTTP-ответ И параллельно в writeStream на диск через `tee`-pattern. На первой итерации можно проще: `fetch → ArrayBuffer → Response + writeFile`, оптимизируем стриминг во второй итерации
+  - **Если `yandexPath` отсутствует** → fallback на стандартный Payload `staticDir` (для безопасности; по baseline таких записей сейчас 0, но защитимся)
+  - 404 если doc не найден
+- [ ] Rate-limit endpoint через `web/src/server/rate-limit` (один и тот же IP, тысячи запросов в минуту — отбиваем)
+- [ ] `web/next.config.js` — добавить `images.remotePatterns` для `${NEXT_PUBLIC_SERVER_URL}/api/media/file/*` (или уже покрывается existing pattern для self origin — проверить)
+- [ ] Unit/manual тест: вручную залить файл в админке → curl на `/api/media/file/<id>` → 200 + content + после второго запроса кэш-файл на диске. Также: запрос за существующей записью → должен отдать из legacy `public/media/` без round-trip к Я.Диску.
+
+### Фаза 2 — `afterRead`-хук всегда отдаёт `/api/media/file/[id]` (1-2 ч)
+
+- [ ] В `web/src/collections/Media.ts` упростить `afterRead`:
+  - Удалить логику `LOCAL_MAX_BYTES` и проверки локального файла
+  - Всегда: если есть `yandexPath` → `doc.url = '/api/media/file/' + doc.id`, `doc.thumbnailURL = doc.url`
+  - Если `yandexPath` нет (старая запись до миграции) → оставить стандартный Payload URL (`/media/<filename>` через `staticDir`)
+- [ ] Проверить что `next/image` рендерит правильно для и того и другого случая
+
+### Фаза 3 — `afterChange`-хук удаляет локальный файл после успешной заливки (1-2 ч)
+
+- [ ] После `uploadLocalFileToYandex` + `publishYandexResource` + успешного `payload.update` с `yandex*` полями:
+  - **Безусловно** удалить `web/public/media/<filename>` (текущая логика удаляет только если >50MB — убрать условие)
+  - Если есть `imageSizes` derivatives — удалить и их (в коллекции сейчас `imageSizes: []`, но если когда-нибудь добавим — учесть)
+- [ ] При yandex-error: НЕ удалять локальный файл, оставить fallback через `staticDir`. `yandexError` уже фиксируется.
+- [ ] Retry-в-фоне (если `yandexError` стоит — попробовать ещё раз при следующем обновлении документа) — **выносим в follow-up**, в эту нитку не делаем
+
+### Фаза 4 — Cron-чистка кэша по TTL (2-3 ч)
+
+- [ ] `web/scripts/clean-media-cache.ts`:
+  - Аргументы: `--dir <path>` (default из env `MEDIA_CACHE_DIR`), `--ttl-days 30`, `--dry`
+  - Обход директории, для каждого файла — `stat.atimeMs` (или `mtimeMs` если ФС не пишет atime — Linux ext4 по умолчанию `relatime`, atime обновляется не чаще раза в сутки — для наших целей хватит)
+  - Удалить если старше TTL, лог "removed N files, freed M MB"
+- [ ] `package.json` script `cache:clean`
+- [ ] `deploy/systemd/gonba-media-cache.{service,timer}` — раз в сутки в 04:00 (по аналогии с `gonba-vk-sync.timer`)
+- [ ] Документация в `docs/PROJECT.md` (раздел systemd-таймеров)
+
+### Фаза 5 — Миграция существующих записей (3-5 ч + ручной запуск)
+
+- [ ] `web/scripts/migrate-media-to-yandex.ts`:
+  - Аргументы: `--dry`, `--limit N` (для batch'ей), `--id <id>` (одиночный, для PoC)
+  - SELECT media WHERE yandex_path IS NULL ORDER BY id
+  - Для каждой: найти `public/media/<filename>`, загрузить на Я.Диск, опубликовать, обновить запись через Local API (с `context.skipYandexSync` чтобы не задвоить)
+  - Idempotent (если yandex_path уже есть — пропускаем)
+  - **Не** удалять локальный файл в скрипте — это уже делает фаза 3 на следующем `update`. ИЛИ опция `--purge-local` если хочется агрессивно
+  - Логировать каждую запись: id, filename, size, yandex_path, success/error
+- [ ] **PoC сначала на одной test-записи** — залить тестовое фото в админке (но без yandex, симулировать «старую»), потом прогнать `--id <test-id>` → проверить что:
+  - Файл на Я.Диске
+  - `yandex*` поля заполнены
+  - На сайте `/projects/<slug>` отображается (через `/api/media/file/<id>`)
+- [ ] После PoC — на проде через ssh запустить `--dry`, посмотреть отчёт, согласовать с пользователем, запустить без `--dry`
+
+### Фаза 6 — Cleanup и документация (1-2 ч)
+
+- [ ] Удалить из `Media.ts` константу `LOCAL_MAX_BYTES` и связанную логику (после миграции не нужна)
+- [ ] Удалить переменную окружения `YANDEX_DISK_LOCAL_MAX_MB` из `.env.example` и `docs/PROJECT.md`
+- [ ] Добавить `MEDIA_CACHE_DIR` в `.env.example`, `docs/PROJECT.md` (раздел env)
+- [ ] Обновить `ADR-0001` → статус `Implemented`, дата, ссылка на этот план
+- [ ] Обновить `docs/PROJECT_STATE.md` → раздел про Media: «локальный диск = кэш TTL 30д, `/api/media/file/[id]` proxy»
+- [ ] Закрыть запись в `docs/PENDING_FOLLOWUPS.md → 🟢 Архитектура / Media`, перенести в `DEVELOPMENT_LOG.md` текущей сессии
+
+### Фаза 7 — Smoke check на проде (1 ч)
+
+- [ ] Загрузить тестовое фото через `/admin` → видно файл на Я.Диске в `/admin/yadisk`
+- [ ] На сайте отображается через `/api/media/file/<id>` (DevTools → Network)
+- [ ] После первого запроса — кэш-файл на диске VPS (`ls /var/lib/gonba-media-cache/` или где разместим)
+- [ ] Симуляция TTL: `touch -a -t 202604010000 <cache-file>` (поставить atime в апрель 2026 = >30 дней назад) → запустить `node scripts/clean-media-cache.ts --dry` → файл в списке для удаления
+- [ ] Удалить документ Media в админке → удалить из Я.Диска (через `/admin/yadisk` проверить отсутствие)
+
+---
+
+## Baseline
+
+Замер выполнен 2026-05-22:
+
+| Метрика | Значение |
+|---|---|
+| `media.count(*)` | **333** |
+| `media.count(yandex_path IS NOT NULL)` | **333** (100% — все уже на Я.Диске!) |
+| `media.count(yandex_path IS NULL)` | **0** |
+| `media.count(yandex_error IS NOT NULL)` | **0** |
+| `sum(filesize)` (Postgres) | **404 MB** |
+| `du -sh public/media` (FS) | **408 MB** |
+| Файлов на FS | **395** (на 62 больше чем записей в БД → orphans) |
+
+### Выводы из baseline
+
+- **Фаза 5 (миграция существующих) — фактически no-op:** все 333 записи уже имеют `yandex_path`. Скрипт `migrate-media-to-yandex.ts` нужен только как «защитная сеть» на случай новых orphan-записей; основная работа уже сделана текущим `afterChange`-хуком.
+- **Lazy migration через endpoint:** endpoint `/api/media/file/[id]` при поиске кэша должен проверять **две** локации: новую `MEDIA_CACHE_DIR` и старую `public/media/`. Существующие 333 файла уже лежат локально → endpoint их отдаст сразу, без round-trip к Я.Диску. Со временем (или принудительно через скрипт) — переместить из `public/media/` в кэш-папку для единообразия.
+- **62 orphan-файла на FS** — техдолг. Возможные причины: остатки от удалённых записей (если `afterDelete` не удалял локальные копии до текущей логики), Payload-derivatives при ранних настройках `imageSizes`, ручные загрузки через FS минуя Payload. Добавлено в follow-ups (см. ниже).
+
+---
+
+## Текущий этап
+
+**Этапы пройдены:** Фаза 0 (baseline), Фаза 1 (endpoint), Фаза 2 (afterRead → endpoint).
+
+**Готово к ревью и merge как PR1:** `feat(media): proxy endpoint /api/media/file/[id] + afterRead rewrite`.
+
+**Следующий шаг (после merge PR1):** Фаза 3 — `afterChange` безусловно удаляет локал после успешной заливки на Я.Диск.
+
+### Что подтверждено локально
+
+- TypeScript clean (`tsc --noEmit` exit 0 после правок)
+- Dev-сервер поднимается без ошибок, `/api/health` → 200
+- Endpoint `/api/media/file/319` с мок-файлом в `public/media/<filename>`:
+  - HTTP 200, `X-Cache: HIT-LEGACY`, `Content-Type: image/jpeg` (из `doc.mimeType`), `Content-Length` из `fs.stat`, тело совпадает
+- Endpoint без локального файла + локальный YANDEX_DISK_TOKEN недействителен → корректный 502 `Upstream storage error` (cache-miss → Я.Диск → ошибка)
+- Endpoint с несуществующим id → 404 `Media not found`
+
+### Что осталось проверить на проде (после деплоя PR1)
+
+- Любая существующая запись Media → `X-Cache: HIT-LEGACY` (333 файла лежат в `public/media`, новой кэш-папки ещё нет, должен сработать legacy-фолбэк без round-trip к Я.Диску)
+- Сайт продолжает рендерить картинки без визуальных регрессий (HTML теперь содержит `/api/media/file/<id>` вместо `/media/<filename>`)
+
+---
+
+## Подводные камни и решения
+
+- **Public Y.Disk URL ротируется.** Поэтому **не** кэшируем `yandexPublicUrl`. Каждый раз когда нет файла в кэше — берём свежий приватный `getDownloadUrl(yandexPath)`. Endpoint всегда возвращает наш стабильный `/api/media/file/<id>`.
+- **`relatime` на ext4.** Linux обновляет atime не чаще раза в сутки → для TTL 30д это норма. Если ФС смонтирована с `noatime` — будем использовать `mtime`, обновляя его при каждом hit'е кэша (`utimes`).
+- **Параллельная запись в кэш.** Два запроса одного редкого файла одновременно — обе ветки пишут. Решение: писать во временный файл `<name>.tmp.<pid>`, потом `rename` (атомарно). Если rename проиграл — удалить tmp.
+- **Я.Диск rate-limits.** При cold cache + всплеске трафика — упёрлись в лимиты. Решение в текущей нитке: in-memory dedup (если уже идёт запрос за тем же файлом — второй ждёт результата первого). Wide rate-limiting — отдельный follow-up, не сюда.
+- **`next/image` + наш endpoint.** Endpoint должен возвращать корректный `Content-Type` (`image/jpeg`, `image/webp`, ...) — иначе `next/image` отдаст 500. Mime определяем из `doc.mimeType` (Payload его уже хранит).
+- **Большие файлы.** Текущий код «если >50MB удалить локально» — после фазы 3 удаляем безусловно. Но нужно убедиться что endpoint умеет стримить большие файлы (не буферизует целиком). Решение: `Response` с `ReadableStream` body (Web Streams), а не `Buffer`.
+- **Фаза 2 + старые записи.** Пока миграция не пройдёт, в БД есть записи без `yandexPath`. `afterRead` оставляет им стандартный `staticDir`-URL → они продолжают работать. После миграции все получают `/api/media/file/<id>`.
+
+---
+
+## Что НЕ делаем в этой нитке (записать как follow-ups)
+
+- **Retry в фоне** при `yandexError` — нужен ли, как часто, exponential backoff. Сейчас: ошибка сохраняется в поле, ручной retry через редактирование документа.
+- **Image-resize на лету** через `sharp` в endpoint — `next/image` пока справляется, делать не сейчас.
+- **Nginx-level caching** для `/api/media/file/*` — нужно отдельное обсуждение (cache-key, headers, purge при удалении).
+- **Деривативы** (`imageSizes`) Payload — сейчас пустой массив `imageSizes: []`. Если когда-нибудь включим — потребуется отдельная итерация (заливать все размеры на Я.Диск).
+- **Объединить с `/yadisk-api/preview`** — этот endpoint обслуживает менеджер `/admin/yadisk`, имеет другие требования (приватные пути не в Media). Не трогаем.
+- **62 orphan-файла в `public/media/`** (есть на FS, нет записи в БД). Отдельный скрипт `scripts/find-orphan-media.ts` — найти, показать список, опционально удалить с подтверждением. Не в этой нитке.
+
+---
+
+## Разрезы по коммитам / PR
+
+Один большой PR неудобно ревьюить. Предлагаю:
+
+1. **PR 1 — фазы 1+2:** новый endpoint + `afterRead` на новые ссылки. Совместимо со старыми записями. Можно мерджить и проверять на проде без миграции.
+2. **PR 2 — фаза 3:** удаление локального файла после успешной заливки. Поведение для новых файлов.
+3. **PR 3 — фаза 4:** cron-чистка кэша.
+4. **PR 4 — фаза 5:** скрипт миграции. **Запускаем вручную после ревью dry-run.**
+5. **PR 5 — фазы 6+7:** cleanup, ADR, документация, финальный smoke check.
+
+Каждый PR можно откатить независимо. Это даёт возможность увидеть проблемы на каждом шаге.

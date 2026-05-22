@@ -9,19 +9,20 @@
 
 ## Текущая нитка
 
-Доводим ADR-0001 до конца: коллекция `Media` должна хранить файлы на Яндекс.Диске (единственный источник правды), локальный VPS — только кэш для быстрой выдачи. Прямо сейчас этап **планирования / proof-of-concept** — ещё не делали.
+Доводим ADR-0001 до конца: коллекция `Media` должна хранить файлы на Яндекс.Диске (единственный источник правды), локальный VPS — только кэш TTL 30 дней. Подход и план: см. [`docs/plans/media-to-yadisk.md`](plans/media-to-yadisk.md). **Фазы 0+1+2 пройдены**, PR1 на ревью: [#24](https://github.com/Valstan/Gonba/pull/24).
 
 ## Следующий шаг
 
-1. Открыть `docs/PENDING_FOLLOWUPS.md → 🟢 Архитектура / Media` — там полный scope и три подхода (A / B / C).
-2. С пользователем выбрать подход — рекомендую **A** (Payload Cloud Storage plugin с кастомным adapter'ом для Я.Диска) — самый идиоматичный, но 3-5 дней работы.
-3. Создать `docs/plans/media-to-yadisk.md` с выбранным подходом и этапами.
-4. Сделать proof-of-concept на одном тестовом документе Media: загрузка → файл уезжает на Я.Диск → запрос `/media/<id>` возвращает контент.
-5. Если PoC работает — план миграции существующих записей (сколько их? `SELECT count(*) FROM media` на проде через `/sql`).
+1. **Дождаться merge PR1** ([#24](https://github.com/Valstan/Gonba/pull/24)) и подтвердить на проде: открыть страницу с Media, DevTools → картинки тянутся через `/api/media/file/<id>`, `X-Cache: HIT-LEGACY` (без round-trip к Я.Диску благодаря 333 файлам уже в `public/media`).
+2. **Фаза 3 (PR2)** — `afterChange`-хук безусловно удаляет локальный файл после успешной заливки на Я.Диск (сейчас удаляет только если >50MB). Файл `web/src/collections/Media.ts`, тот же блок `if (sizeBytes > LOCAL_MAX_BYTES)` → убрать условие.
+3. **Фаза 4 (PR3)** — `web/scripts/clean-media-cache.ts` + systemd-timer для TTL 30д кэш-чистки.
+4. **Фаза 5 (PR4)** — `web/scripts/migrate-media-to-yandex.ts` (по baseline фактически no-op, нужен как защитная сетка).
+5. **Фазы 6+7 (PR5)** — cleanup `LOCAL_MAX_BYTES`, ADR-0001 → `Implemented`, smoke на проде.
 
 ## Контекст
 
-- **План:** ещё нет файла в `docs/plans/` — создать `docs/plans/media-to-yadisk.md` когда выберем подход.
+- **План:** [`docs/plans/media-to-yadisk.md`](plans/media-to-yadisk.md) — создан 2026-05-22, подход **B** (доработать гибрид: `afterRead` → собственный `/api/media/file/[id]` proxy с TTL-кэшем 30 дней).
+- **Ключевая находка при чтении кода 2026-05-22:** ~80% инфраструктуры уже в `web/src/collections/Media.ts` (yandex-поля, `afterChange`/`afterDelete`/`afterRead`-хуки, error handling) + полный wrapper `yandex-disk.ts`. Подход A (Cloud Storage plugin) переоценён в сторону B, т.к. фактически означал бы переписывание готового.
 - **Связанные коммиты сессии 2026-05-22:**
   - [`801ecc7`](https://github.com/Valstan/Gonba/commit/801ecc7) — изоляция SSH deploy-key + cross-project ideas pool (PR #20)
   - [`548a1b8`](https://github.com/Valstan/Gonba/commit/548a1b8) — AdminQuickLinks (dropdown «Меню» в шапке) (PR #21)
