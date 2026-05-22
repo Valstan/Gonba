@@ -24,7 +24,7 @@ allowed-tools: Read, Bash, Glob, Grep, mcp__ccd_session__mark_chapter
 - **`Status: IDLE`** → handoff не выделяется, идём по обычному отчёту (свободное состояние, ждём задачу).
 - **Файл отсутствует** → пропустить шаг 0, идти дальше.
 
-Этот шаг даёт **непрерывность многоэтапных задач** между сессиями (особенно с двух компов). Подробнее — [`cross-project-ideas/ideas/003-session-handoff.md`](C:\Users\valstan\.claude\cross-project-ideas\ideas\003-session-handoff.md).
+Этот шаг даёт **непрерывность многоэтапных задач** между сессиями (особенно с двух компов). Подробнее — [`../brain_matrica/cross-project-ideas/ideas/003-session-handoff.md`](../../../brain_matrica/cross-project-ideas/ideas/003-session-handoff.md) (fallback при отсутствии brain_matrica: `~/.claude/cross-project-ideas/ideas/003-session-handoff.md`).
 
 ## Шаг 1. Глава сессии
 
@@ -41,7 +41,7 @@ allowed-tools: Read, Bash, Glob, Grep, mcp__ccd_session__mark_chapter
 
 Memory-файлы автоматически подгружены через `MEMORY.md` — учитывай их в рекомендациях (особенно `windows_pnpm_setup`, `dev_schema_push_prompt`, `prod_server_access`, `feedback_cross_project_ideas`).
 
-**Глобальный pool идей** — `C:\Users\valstan\.claude\cross-project-ideas\INDEX.md` (общий для всех проектов разработчика). Прочитай **только** строку про GONBA — ищи статусы `⚠️` (применимо, не применено) или `❓` (не оценено). Для каждой такой идеи открой `ideas/NNN-*.md` и сверь `applicable_when` против текущего состояния GONBA. Если идея подходит — включи **одной строкой** в отчёт «Кстати: из pool'а — `<идея>` подходит, потому что `<причина>`. Применить?». Не настаивай. См. инструкцию в `feedback_cross_project_ideas`.
+**Глобальный pool идей** — [`../brain_matrica/cross-project-ideas/INDEX.md`](../../../brain_matrica/cross-project-ideas/INDEX.md) (meta-репо [`brain_matrica`](https://github.com/Valstan/brain_matrica), путь относительный от Gonba/repo-root; см. `brain_matrica/README.md → Локальный путь`). Прочитай **только** строку про GONBA — ищи статусы `⚠️` (применимо, не применено) или `❓` (не оценено). Для каждой такой идеи открой `ideas/NNN-*.md` в `brain_matrica/cross-project-ideas/` и сверь `applicable_when` против текущего состояния GONBA. Если идея подходит — включи **одной строкой** в отчёт «Кстати: из pool'а — `<идея>` подходит, потому что `<причина>`. Применить?». Не настаивай. **Новые идеи добавляй в `brain_matrica` отдельной сессией** (`cd ../brain_matrica && claude`), не из этого репо. Fallback при отсутствии brain_matrica локально — `~/.claude/cross-project-ideas/` (legacy путь). См. инструкцию в `feedback_cross_project_ideas` memory.
 
 ## Шаг 3. Git sync (параллельно)
 

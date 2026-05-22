@@ -17,7 +17,7 @@
 | [`docs/RELEASE_STABILITY_CHECKLIST.md`](docs/RELEASE_STABILITY_CHECKLIST.md) | Pre-release checklist. Морально устарел — см. `/reliz`. |
 | [`docs/adr/`](docs/adr/) | Architectural Decision Records — **почему** мы выбрали тот или иной архитектурный подход. Читать когда возникает вопрос «а почему так?». |
 | [`web/AGENTS.md`](web/AGENTS.md) | Правила Payload CMS разработки (типизация, безопасность Local API, hooks). |
-| `C:\Users\valstan\.claude\cross-project-ideas\` | **Глобальный pool переносимых улучшений** между GONBA / MatricaRMZ / setka. `INDEX.md` — обзорная таблица, `ideas/NNN-*.md` — детальные файлы. Читай при `/start`, пиши когда замечаешь переносимый паттерн. Подробнее — в memory `feedback_cross_project_ideas`. |
+| [`../brain_matrica/`](../brain_matrica/) | **Кросс-проектный pool идей, tech-radar, реестр проектов, cross-project ADRs** между GONBA / MatricaRMZ / setka. Meta-репо [`brain_matrica`](https://github.com/Valstan/brain_matrica). Читай `cross-project-ideas/INDEX.md` перед предложением переносимого паттерна. Новые идеи добавляй **в brain_matrica отдельной сессией** (`cd ../brain_matrica && claude`), не из этого репо. При применении — `✅ YYYY-MM-DD` в таблице. Fallback: `~/.claude/cross-project-ideas/` (legacy). |
 
 Slash-команда `/start` всё это читает автоматически и выдаёт сводку.
 
