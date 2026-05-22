@@ -6,6 +6,43 @@
 
 ---
 
+## 2026-05-22 — ГОНЬБА 22 мая 2026 (Claude session) — Media → Я.Диск, фаза 5 (migrate-script)
+
+**Тема:** stack-PR4 поверх PR3. Защитная сетка для записей без `yandexPath` — `web/scripts/migrate-media-to-yandex.ts`. По baseline на проде 0 таких записей (все 333 синхронизированы), но скрипт нужен на случай новых orphan'ов и для ручного PoC.
+
+### Что сделано
+
+- **`web/scripts/migrate-media-to-yandex.ts`** — pagination через `payload.find({page, limit, where: { yandexPath: { exists: false }}})`, для каждой записи делает `uploadLocalFileToYandex` → `publishYandexResource` → `getYandexResource` → `getPublicDownloadUrl` → `payload.update(yandex*, skipYandexSync)`. Args: `--dry`, `--limit N`, `--id <id>` (одиночный), `--max N` (общий лимит).
+- **Семантика:** idempotent — запись с `yandexPath` → `skipped`, без локала → `missing-local`, ошибка → `failed` + `yandexError` в БД. Локальный файл не удаляет (это делает `afterChange` phase-3 на следующем update или TTL-cron через 30 дней).
+- **`web/package.json`** — добавлен script `"media:migrate-yadisk": "tsx scripts/migrate-media-to-yandex.ts"`.
+
+### Локальный smoke
+
+- TS clean
+- `--dry` без аргументов → «Found 0 candidate» (правильно: локальные 319 записей все с yandexPath, как и прод)
+- `--id 319 --dry` → «[319] skip — yandexPath already set: /gonba/media/319-...», processed=1, skipped=1
+- `--id 999999 --dry` → корректная ошибка «Could not load media id=999999: Не найдено»
+
+### Использование на проде
+
+```bash
+# Сначала dry-run
+ssh GONBA "cd /home/valstan/GONBA/web && corepack pnpm run media:migrate-yadisk -- --dry"
+
+# Если нужно реально мигрировать
+ssh GONBA "cd /home/valstan/GONBA/web && corepack pnpm run media:migrate-yadisk"
+
+# Одиночная запись (PoC)
+ssh GONBA "cd /home/valstan/GONBA/web && corepack pnpm run media:migrate-yadisk -- --id <test-id>"
+```
+
+### Уроки
+
+- **«Защитная сетка»-скрипты стоит писать даже когда баклог пуст.** Будущая регрессия может пробить afterChange (новая ошибка Я.Диск API, новые edge cases в Payload upload UI), и тогда orphan'ы появятся. Иметь однострочный recovery в `pnpm run` гораздо лучше чем разбираться в боль момента.
+- **Bulk `payload.find` с `where: { yandexPath: { exists: false } }`** на dev-БД работает мгновенно — Drizzle транслирует в чистый `IS NULL`. Никаких сюрпризов с типами.
+
+---
+
 ## 2026-05-22 — ГОНЬБА 22 мая 2026 (Claude session) — Media → Я.Диск, фаза 4 (cron-чистка кэша TTL 30д)
 
 **Тема:** stack-PR поверх PR2. Кэш `MEDIA_CACHE_DIR` теперь чистится автоматически — файлы, к которым не обращались >30 дней, удаляются ежедневно в 04:00 systemd-таймером.

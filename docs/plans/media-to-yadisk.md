@@ -97,20 +97,38 @@ sudo systemctl enable --now gonba-media-cache.timer
 systemctl list-timers gonba-media-cache.timer
 ```
 
-### Фаза 5 — Миграция существующих записей (3-5 ч + ручной запуск)
+### Фаза 5 — Миграция существующих записей — **сделано в PR4 (защитная сетка)**
 
-- [ ] `web/scripts/migrate-media-to-yandex.ts`:
-  - Аргументы: `--dry`, `--limit N` (для batch'ей), `--id <id>` (одиночный, для PoC)
-  - SELECT media WHERE yandex_path IS NULL ORDER BY id
-  - Для каждой: найти `public/media/<filename>`, загрузить на Я.Диск, опубликовать, обновить запись через Local API (с `context.skipYandexSync` чтобы не задвоить)
-  - Idempotent (если yandex_path уже есть — пропускаем)
-  - **Не** удалять локальный файл в скрипте — это уже делает фаза 3 на следующем `update`. ИЛИ опция `--purge-local` если хочется агрессивно
-  - Логировать каждую запись: id, filename, size, yandex_path, success/error
-- [ ] **PoC сначала на одной test-записи** — залить тестовое фото в админке (но без yandex, симулировать «старую»), потом прогнать `--id <test-id>` → проверить что:
-  - Файл на Я.Диске
-  - `yandex*` поля заполнены
-  - На сайте `/projects/<slug>` отображается (через `/api/media/file/<id>`)
-- [ ] После PoC — на проде через ssh запустить `--dry`, посмотреть отчёт, согласовать с пользователем, запустить без `--dry`
+По baseline 2026-05-22 фаза фактически no-op: все 333 записи на проде уже имеют `yandexPath`. Скрипт нужен как **защитная сетка** на случай новых orphan-записей и для PoC-теста ручного миграционного workflow.
+
+- [x] `web/scripts/migrate-media-to-yandex.ts`:
+  - [x] Аргументы: `--dry`, `--limit N` (batch size, default 50), `--id <id>` (одиночный), `--max N` (общий лимит, для частичных smoke-тестов)
+  - [x] Pagination через `payload.find({page, limit})` с `where: { yandexPath: { exists: false } }`, sort by id
+  - [x] Для каждой: проверить локальный файл → `uploadLocalFileToYandex` → `publishYandexResource` → `getYandexResource` → `getPublicDownloadUrl` → `payload.update` с полным набором `yandex*` полей (через `context.skipYandexSync` чтобы не задвоить через afterChange-хук)
+  - [x] Idempotent: запись с `yandexPath` → `skipped`, без локала → `missing-local`, ошибка → `failed` + сохраняет `yandexError` в БД
+  - [x] **Не** удаляет локальный файл — это сделает phase-3 `afterChange` на следующем update (или TTL-cron через 30 дней)
+  - [x] Логирует через `payload.logger.info/warn/error` (pino), Summary в конце
+
+**Локальный smoke test:**
+
+- `--dry` без аргументов → "Found 0 candidate" (правильно — 319 записей в локальной dev-БД все имеют yandexPath, как и прод)
+- `--id 319 --dry` → "[319] skip — yandexPath already set" + processed=1, skipped=1
+- `--id 999999 --dry` → "Could not load media id=999999: Не найдено"
+- TS clean
+
+**На проде (после merge PR4) — PoC workflow:**
+
+```bash
+# 1. Dry-run на весь dataset (должен показать processed=0)
+ssh GONBA "cd /home/valstan/GONBA/web && corepack pnpm run media:migrate-yadisk -- --dry"
+
+# 2. Если появятся новые orphan-записи в будущем — запустить без --dry
+ssh GONBA "cd /home/valstan/GONBA/web && corepack pnpm run media:migrate-yadisk"
+
+# 3. Для PoC отдельной записи — сначала создать через админку без Я.Диск-синка
+#    (как это симулировать — отдельный вопрос; обычно afterChange всё сделает сам)
+ssh GONBA "cd /home/valstan/GONBA/web && corepack pnpm run media:migrate-yadisk -- --id <test-id> --dry"
+```
 
 ### Фаза 6 — Cleanup и документация (1-2 ч)
 
@@ -155,14 +173,15 @@ systemctl list-timers gonba-media-cache.timer
 
 ## Текущий этап
 
-**Этапы пройдены:** 0 (baseline), 1 (endpoint), 2 (afterRead), 3 (afterChange purges local), 4 (cache cron).
+**Этапы пройдены:** 0 (baseline), 1 (endpoint), 2 (afterRead), 3 (afterChange purges local), 4 (cache cron), 5 (migrate script).
 
 **Готово к ревью и merge:**
 - **PR1** ([#24](https://github.com/Valstan/Gonba/pull/24)) — proxy endpoint + afterRead
 - **PR2** ([#26](https://github.com/Valstan/Gonba/pull/26)) — afterChange удаляет локал, stack на PR1
-- **PR3** (stack на PR2) — cache cron-чистка, systemd-timer
+- **PR3** ([#27](https://github.com/Valstan/Gonba/pull/27)) — cache cron, stack на PR2
+- **PR4** (stack на PR3) — migrate-media-to-yandex.ts (защитная сетка)
 
-**Следующий шаг:** Фаза 5 — `web/scripts/migrate-media-to-yandex.ts` (PR4, по baseline фактически no-op / защитная сетка).
+**Следующий шаг:** Фазы 6+7 — cleanup (`yadisk-sync-media.ts` под phase-3-семантику, опционально rename-after-purge), ADR-0001 → `Implemented`, прод-smoke. Это PR5.
 
 ### Что подтверждено локально
 
