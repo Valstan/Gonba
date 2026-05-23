@@ -6,6 +6,42 @@
 
 ---
 
+## 2026-05-24 — ГОНЬБА 24 мая 2026 (Claude session) — Brain dispatch prod-redesign config (SQL заготовлен) + закрытие 3 вопросов PR1 + cleanup
+
+**Тема:** Параллельная нитка к этно-модерн редизайну — ответ на brain dispatch [`2026-05-23-prod-redesign-followup-config`](https://github.com/Valstan/brain_matrica/blob/main/mailboxes/GONBA/from-brain/2026-05-23-prod-redesign-followup-config.md) (compliance=recommend). SQL-патч заготовлен в репо, ждёт применения с dev-машины. Заодно — закрыты 3 открытых вопроса по PR1 этно-модерна и почищены stale-ветки.
+
+### Что сделано (две полусессии: 2026-05-23 ч.2 + 2026-05-24)
+
+- **PR1-вопросы закрыты** (зафиксировано в [`docs/plans/etno-modern-redesign.md → Текущий этап`](plans/etno-modern-redesign.md#текущий-этап) и `docs/SESSION_HANDOFF.md`):
+  - Имена slug-only: «ЭКО-отель» / «О проекте» / «Вятский сбор»
+  - Шрифты: PT Serif (заголовки) + Manrope (sans) + JetBrains Mono (eyebrows) через `next/font/google`
+  - Маппинг 10 проектов на 4 группы: принят как в плане PR2 §4
+- **SQL-патч для brain dispatch** — [`scripts/sql/2026-05-23-prod-redesign-config.sql`](../scripts/sql/2026-05-23-prod-redesign-config.sql):
+  - `gallery_yandex_folder` для 9 проектов (всё кроме `about-project`), пути `/public-galleries/<slug>/`
+  - `chat_enabled = true` + `chat_placeholder` для 4 проектов (`eco-hotel`, `workshops`, `excursions`, `horse-club`)
+  - SELECT-проверки результата + список мисматч-slug'ов + VK auto-sync timestamps
+  - Почему SQL: у `Projects` нет `afterChange`-хука с `revalidateTag` ([web/src/collections/Projects/index.ts:201](../web/src/collections/Projects/index.ts#L201)). `drafts: true` — NOTE в конце скрипта про возможную перетёрку из draft'а.
+- **Stale-ветки удалены локально:** `claude/fix-vk-auto-sync-versions`, `claude/modest-hoover-87e67b` — обе с `[gone]` upstream, без уникальных коммитов.
+- **PR [#35](https://github.com/Valstan/Gonba/pull/35)** merged squash → `288af36` на `main`. Автодеплой запущен (web-quality прошёл за 2m53s + 3m2s).
+
+### Что осталось (на следующую сессию с dev-машины)
+
+- **Запустить SQL** на проде:
+  ```bash
+  scp scripts/sql/2026-05-23-prod-redesign-config.sql GONBA:/tmp/
+  ssh GONBA "sudo -u postgres psql -d gonba -f /tmp/2026-05-23-prod-redesign-config.sql"
+  ```
+- **Подтверждающее письмо** brain — `mailbox/to-brain/2026-05-NN-prod-redesign-config-done.md` (kind=feedback) с фактами применения.
+- **Возвращение к этно-модерн PR1** — основная нитка ждёт dev-машину.
+
+### Уроки
+
+- **На Windows-машине без dev-окружения можно делать prod-config-задачи через SQL-патч**, если у коллекции нет `afterChange`-хука с `revalidateTag`. Прямой UPDATE безопасен, кэш-инвалидация не нужна. Это снимает блокер «эту задачу можно только с dev-машины».
+- **Сетевая блокировка github:443 на этой машине** может прийти посреди сессии (push'и зависают на 5 мин timeout). Локальный commit пережил overnight на ветке без push — в следующей сессии push прошёл. То есть простаивающий локальный commit не блокирует прогресс, если сеть восстановится.
+- **`/sql` skill тоже использует SSH** — без ключа на машине не сработает. Заранее проверять `ssh GONBA "echo ok"` если планируется prod-задача.
+
+---
+
 ## 2026-05-23 — ГОНЬБА 23 мая 2026 (Claude session) — План этно-модерн редизайна главной (Claude Design handoff)
 
 **Тема:** пользователь принёс архив-handoff из Claude Design (`Гоньба сайт-handoff.zip`) — три направления визуального языка для главной (A Журнал / B Этно-модерн / C Сторителлинг), плюс audit-разбор 6 проблем текущего сайта (плоский список 10+ ссылок, слаги в меню, фото не герой, нет «что делать», моб-second-sort). В этой сессии — приняли решение по направлению, зафиксировали план PR1-4, без кода.
