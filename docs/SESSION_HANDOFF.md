@@ -1,7 +1,7 @@
 # Session Handoff
 
-**Status:** IDLE
-**Updated:** 2026-05-22
+**Status:** ACTIVE
+**Updated:** 2026-05-23
 **Branch:** main
 **Last released version:** —
 
@@ -9,31 +9,38 @@
 
 ## Текущая нитка
 
-Нет активной нитки. В этой сессии за 1 PR закрыты 3 задачи: brain dispatch #0007 (security cleanup `authorized_keys` на проде), #0006 (секция «Failed approaches» в `SESSION_HANDOFF.md` + обновление `/close_session`), Media mini-follow-up (выпиливание `yadisk-sync-media.ts`). Плюс v2-финализации dispatches #0001 и #0006 от параллельной brain-сессии — confirmations. Прод стабилен, PENDING_FOLLOWUPS вычищен от 🟡-блокеров.
+**Этно-модерн редизайн главной** (4 PR'а). Пользователь принёс handoff-bundle из Claude Design с тремя направлениями визуального языка; в этой сессии выбрано направление **B (Этно-модерн)**, обоснование зафиксировано в [ADR-0004](adr/0004-frontpage-ethno-modern-redesign.md), детальный план PR1-4 — в [`plans/etno-modern-redesign.md`](plans/etno-modern-redesign.md), сам handoff лежит в [`design/handoff-2026-05-23/`](design/handoff-2026-05-23/INDEX.md). Кода в этой сессии не писалось.
 
 ## Следующий шаг
 
-Свободное состояние. Возможные стартовые точки:
+**PR1 — дизайн-токены + типографика + Header/Drawer/Footer + чистка слагов.** Делать на машине с рабочим dev-окружением (текущая машина без `web/.env`/`node_modules`/`payload-types.ts`).
 
-1. **Оставшиеся 3 mini-follow-up Media** в `docs/PENDING_FOLLOWUPS.md`: rename-after-purge (`moveYandexResource` в `afterChange` при `filenameChanged && previousDoc.yandexPath`), `scripts/find-orphan-media.ts` (62 файла на FS без записи в БД), retry в фоне при `yandexError`.
-2. **Журнал первого срабатывания `gonba-media-cache.timer`** — таймер активирован 2026-05-22, первый запуск Sat 2026-05-23 04:08 MSK. Глянуть через `ssh GONBA "journalctl -u gonba-media-cache -n 20 --no-pager"` что чистилось / были ли ошибки.
-3. **Уборочный коммит:** `docs/plans/media-to-yadisk.md` (все 7 фаз done) можно переименовать с `-DONE` суффиксом или переместить в `docs/plans/done/` если такая конвенция появится.
-4. Любая новая задача от пользователя или новая Brain-заявка в `docs/inbox-from-brain/`.
+**До старта PR1 уточнить у пользователя:**
+
+1. Финальные русские названия для 3 «slug-only» проектов (`eco-hotel-booking`, `about-project`, `vyatskiy-sbor`) — нужны для drawer'а и для миграции `header_nav_items`.
+2. Подтверждение набора шрифтов: PT Serif (заголовки) + Manrope (sans) + JetBrains Mono (eyebrows) — или замена. Все через `next/font/google`.
+3. Точный маппинг 10 проектов на 4 группы (см. таблицу в `plans/etno-modern-redesign.md → PR2 §4`) — пригодится для PR2, но если есть мнение уже сейчас — лучше зафиксировать.
+
+После уточнений — открыть `gonba-home.html` рядом с IDE и пройти по разделам PR1 в плане.
 
 ## Контекст
 
-- **План:** нет активного плана. Старый [`docs/plans/media-to-yadisk.md`](plans/media-to-yadisk.md) — все 7 фаз done.
-- **Связанные коммиты сессии 2026-05-22 (новейшие сверху):**
-  - [`9f1bcca`](https://github.com/Valstan/Gonba/commit/9f1bcca) — Merge PR [#31](https://github.com/Valstan/Gonba/pull/31): brain dispatches + media cleanup + close_session enhanced
-- **Прод:** жив, BUILD_ID `T8lohSKLOBguEy-T5eeiE`, `/api/health` 200 in ~1s, `/api/media/file/319` 200 with `x-cache: HIT-LEGACY` (333 legacy-файла отдаются без round-trip к Я.Диску). `gonba-media-cache.timer` enabled.
-- **SSH:** `~/.ssh/authorized_keys` на GONBA-сервере содержит **только** изолированный `gonba-deploy@PC40-20260522` (idea #001 из brain_matrica). Backup чужих ключей — `~/.ssh/authorized_keys.backup-2026-05-22`. Если нужно восстановить — `cp backup → authorized_keys`.
-- **Открытые вопросы для пользователя:** нет.
+- **План:** [`docs/plans/etno-modern-redesign.md`](plans/etno-modern-redesign.md) — конкретные файлы для каждого PR.
+- **ADR:** [`docs/adr/0004-frontpage-ethno-modern-redesign.md`](adr/0004-frontpage-ethno-modern-redesign.md) — почему B, почему orbit → `/orbit`, почему `/projects` остаётся.
+- **Handoff-bundle:** [`docs/design/handoff-2026-05-23/`](design/handoff-2026-05-23/INDEX.md) — оригинальные файлы Claude Design (HTML + JSX-прототипы + CSS-токены + audit).
+- **Связанные коммиты сессии 2026-05-23:** один планировочный PR (см. ниже), без кода.
+- **Прод:** жив, `/api/health` 200 in 0.58s (probe 2026-05-23). Никаких прод-операций в этой сессии не делалось.
+- **Открытые вопросы для пользователя:** 3 пункта выше (названия / шрифты / маппинг).
+
+## Failed approaches (этой нитки)
+
+_Пока нет — кода в этой нитке не писалось. Если в PR1-4 что-то не пойдёт — добавляем сюда («попробовали X, не сработало из-за Y, не повторять»). При закрытии нитки (Status: IDLE) — перенести в `DEVELOPMENT_LOG.md → Уроки`._
 
 ## Не забыть (low-priority)
 
-- 🟢 3 mini-follow-up'а в `PENDING_FOLLOWUPS.md → Media` (rename-after-purge, find-orphan-media, retry в фоне при yandexError) — точечные доработки, не блокеры.
-- 📊 Журнал первого срабатывания `gonba-media-cache.timer` (04:08 Sat 23 мая) — посмотреть в следующей сессии.
-- 🧹 `docs/plans/media-to-yadisk.md` — отметить как done (переименовать или переместить).
+- 🟢 3 mini-follow-up'а Media в `PENDING_FOLLOWUPS.md → Архитектура / Media` — никак не блокируют этно-модерн, можно подобрать в перерывах между PR.
+- 📊 Журнал `gonba-media-cache.timer` (Sat 2026-05-23 04:08 MSK был первый запуск) — глянуть `ssh GONBA "journalctl -u gonba-media-cache -n 20 --no-pager"`, если в следующей сессии будут силы.
+- 🧹 `docs/plans/media-to-yadisk.md` — все 7 фаз done, переименовать в `media-to-yadisk-DONE.md` (формат из `plans/README.md`).
 
 ---
 

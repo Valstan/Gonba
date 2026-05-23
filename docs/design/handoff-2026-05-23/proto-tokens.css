@@ -1,0 +1,134 @@
+/* Гоньба — прототип, направление B «Этно-модерн» */
+@import url('https://fonts.googleapis.com/css2?family=PT+Serif:ital,wght@0,400;0,700;1,400;1,700&family=PT+Sans:wght@400;700&family=Manrope:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  /* ethno tokens */
+  --paper: #ede3cf;
+  --paper-deep: #e2d6b8;
+  --paper-light: #f4ecd9;
+  --ink: #1f2418;
+  --forest: #2d4029;
+  --forest-deep: #1e2c1c;
+  --ochre: #a86a1d;
+  --ochre-light: #c98a35;
+  --oxblood: #6e2018;
+  --muted: #6b6450;
+  --rule: #c9bd9d;
+  --rule-light: #d9cfb0;
+
+  --serif: 'PT Serif', Georgia, serif;
+  --sans: 'Manrope', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --pad: 18px;
+  --pad-tight: 12px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: #2a261f;
+  font-family: var(--sans);
+  color: var(--ink);
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+#root { width: 100vw; height: 100vh; }
+
+/* ─── Stage: centers the phone frame, dark bg ─── */
+.stage {
+  width: 100vw; height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  background:
+    radial-gradient(ellipse at center, #3a3328 0%, #1f1c17 70%),
+    #1f1c17;
+}
+
+/* ─── Phone frame ─── */
+.phone {
+  width: 390px;
+  height: 844px;
+  background: var(--paper);
+  color: var(--ink);
+  position: relative;
+  overflow: hidden;
+  border-radius: 44px;
+  box-shadow:
+    0 0 0 12px #14110d,
+    0 0 0 13px #2a261f,
+    0 40px 100px rgba(0,0,0,.5),
+    0 12px 30px rgba(0,0,0,.35);
+}
+.phone::before {
+  /* notch */
+  content: '';
+  position: absolute;
+  top: 11px; left: 50%;
+  width: 110px; height: 28px;
+  background: #14110d;
+  border-radius: 18px;
+  transform: translateX(-50%);
+  z-index: 100;
+}
+
+/* ─── Scrollable screen inside phone ─── */
+.screen {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  background: inherit;
+}
+.screen::-webkit-scrollbar { display: none; }
+
+/* status bar */
+.statusbar {
+  height: 50px;
+  padding: 16px 28px 0;
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 15px; font-weight: 600;
+  font-feature-settings: 'tnum';
+  position: relative; z-index: 50;
+}
+.statusbar .right { display: flex; gap: 6px; align-items: center; }
+.statusbar.over { position: absolute; top: 0; left: 0; right: 0; color: #fff; }
+
+/* home indicator */
+.home-ind {
+  position: absolute;
+  left: 50%; bottom: 6px;
+  transform: translateX(-50%);
+  width: 134px; height: 5px;
+  background: currentColor; opacity: .25;
+  border-radius: 3px; z-index: 50;
+  pointer-events: none;
+}
+
+/* photo placeholder */
+.ph {
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 9.5px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: rgba(0,0,0,.55);
+  background-color: var(--ph-tone, rgba(120,90,40,.12));
+  background-image: repeating-linear-gradient(135deg, rgba(0,0,0,.045) 0 1px, transparent 1px 12px);
+  overflow: hidden;
+}
+.ph > span {
+  padding: 4px 8px;
+  background: rgba(255,255,255,.55);
+  border-radius: 2px;
+  text-align: center;
+}
+.ph.dark { color: rgba(255,255,255,.7); }
+.ph.dark > span { background: rgba(0,0,0,.35); color: rgba(255,255,255,.85); }
+
+/* utility */
+.frame * { font: inherit; }
+button { font: inherit; cursor: pointer; }
+a { color: inherit; text-decoration: none; }
+h1, h2, h3, h4, p { margin: 0; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
