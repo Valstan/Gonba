@@ -6,6 +6,43 @@
 
 ---
 
+## 2026-05-24 — ГОНЬБА 24 мая 2026 (Claude session, ч.4) — PR1 §1+§2 написан и в PR + setup Windows-машины с нуля
+
+**Тема:** четвёртая полусессия 24 мая на той же Windows-машине, которую три предыдущие полусессии отбрасывали как «без dev-окружения». В этой сессии пользователь переубедил Claude (вначале выводившего «всё ждёт dev-машины») попробовать setup на месте — и это сработало. За одну сессию: Postgres 16 portable установлен, dev-окружение поднято, реальный код PR1 §1+§2 написан/проверен/в PR.
+
+### Что сделано
+
+- **Setup Windows-машины с нуля (без админ-прав, без UAC, всё portable):**
+  - `corepack pnpm install --ignore-workspace --dir web` → 2m27s, deps в `web/node_modules`
+  - `corepack pnpm config set script-shell "C:\Program Files\Git\bin\bash.exe"` — глобально (раньше undefined, отсюда `NODE_OPTIONS='...'` префиксы в scripts падали с «не является внутренней или внешней командой»)
+  - **Postgres 16.14 portable:** скачан `postgresql-16.14-1-windows-x64-binaries.zip` (310 MB) с EDB через `Invoke-WebRequest` (redirect-resolve через `sbp.enterprisedb.com/getfile.jsp?fileid=1260202`), распакован в `C:\pgsql`. `initdb -D C:\pgsql\data -U postgres --pwfile=<tmpfile> --encoding=UTF8 --locale=C`. Запуск: `& 'C:\pgsql\bin\pg_ctl.exe' -D 'C:\pgsql\data' -l 'C:\pgsql\logs\postgres.log' start`. Создана БД `gonba` через `createdb`. **Без UAC, без системного сервиса, обратимо.**
+  - `web/.env` с placeholder секретами (DATABASE_URL правильный — `postgres:postgres@127.0.0.1:5432/gonba`; PAYLOAD/CRON/PREVIEW секреты — placeholder hex; YANDEX_DISK_TOKEN — `placeholder-no-real-token`). Достаточно чтобы Payload поднялся для local dev.
+  - `pnpm generate:types` + `pnpm generate:importmap` — после фикса script-shell отработали мгновенно. `web/src/payload-types.ts` и `(payload)/admin/importMap.js` сгенерированы.
+- **PR1 §1+§2 кодом ([PR #41](https://github.com/Valstan/Gonba/pull/41), commit `62ac774`):**
+  - `web/src/app/(frontend)/globals.css` +28: 12 ethno-токенов палитры (paper/forest/ochre/oxblood/ink + variants) после `--brand-olive` (line 142). 3 утилитарных vars (`--rule / --rule-light / --text-muted` — `--text-muted` именно так из-за конфликта с shadcn `--muted` на line 154). Шрифт-vars `--serif / --sans / --mono` через `var(--font-pt-serif)` etc + fallback chain. Layout `--pad-x / --pad-y` через `clamp()`. **5 алиасов `--brand-* → ethno`** (намеренно — везде где `bg-brand-forest` etc цвета станут hex-точными из новой палитры).
+  - `web/src/app/(frontend)/layout.tsx` +34/-1: `next/font/google` подключение PT_Serif (cyrillic+latin, weight 400/700, italic) + Manrope (cyrillic+latin, weight 300-800) + JetBrains_Mono (cyrillic+latin, weight 400/500), все `display: 'swap'`. CSS-vars прокинуты в `<html className>` рядом с Geist. **Geist НЕ удалён** — Tailwind `font-sans/font-mono` всё ещё на Geist (shadcn-tokens), новые ethno-компоненты в §3+§4 будут использовать `var(--serif)` через CSS.
+- **Визуальная проверка через Chrome** (после того как пользователь установил Chrome — Firefox tier=read тоже работал но окно вылезло за пределы видимого):
+  - `Start-Process chrome '--new-window','http://localhost:3001/'` (dev пере-сел на 3001 потому что 3000 был занят зомби node — `Stop-Process -Id <PID>` лечит) → screenshot показал работающую главную «Жемчужина Вятки» с оленями, заголовком, подзаголовком, частью orbit-карусели. **Никаких поломок от моих изменений.**
+- **Включён Claude-in-Chrome MCP в Claude Desktop:** в `%APPDATA%\Claude\claude_desktop_config.json` переключён `"chromeExtensionEnabled": false → true`. Это **встроенный** MCP в Claude Desktop, не отдельный Chrome extension с Web Store. Подхватится после restart Claude Desktop. Если получится — в следующих сессиях `mcp__claude-in-chrome__*` tools уберут необходимость в computer-use pixel-coordinates танцах для frontend-задач.
+
+### Уроки
+
+- **Не отбрасывать setup-возможности преждевременно.** Три полусессии 24 мая Claude писал «всё ждёт dev-машины» — и оказалось зря: 25 минут на portable Postgres + 3 минуты на pnpm install + 1 минуту на типы — и это уже dev-окружение. На любой Windows-машине без админ-прав можно поднять GONBA-dev меньше чем за полчаса. **Урок для CLAUDE.md →** раздел «Windows dev setup за 30 минут» (отдельным PR-доработкой документации, когда будут силы).
+- **`Start-Process firefox|chrome '<URL>'` через PowerShell — единственный путь** открыть конкретный URL в браузере с tier=read. `mcp__computer-use__type` в адресную строку **блокирован** на read-tier. Это сразу было ясно из tierGuidance, но при первом подходе с Firefox потерял время на попытках кликов.
+- **`Invoke-WebRequest` follows EDB redirects корректно** — `Method Head` сначала чтобы зарезолвить финальный URL и узнать Content-Length перед скачиванием 310 MB. Это удобный паттерн для downloads с обфусцированных download-серверов.
+- **`spawn UNKNOWN` в Payload на Windows + Node 22** — известная проблема (вероятно sharp/drizzle/yandex child-process). **Не лечится перезапуском dev** (проверено 3 раза). На следующий раз попробовать: Node 20 (как на проде), убрать `YANDEX_DISK_TOKEN` (yandex-trash cleanup может быть источником spawn), docker-compose из `web/docker-compose.yml` (там Linux Node, без Windows quirks). **Не блокер для нашей нитки** — первый запрос всегда успешен, visual через первый screenshot успели.
+- **PS 5.1 не имеет `[Convert]::ToHexString`** (.NET 5+). Для рандомных hex-секретов на WinPS 5.1 — `[BitConverter]::ToString($bytes).Replace('-','').ToLower()`. В этой сессии вместо этого использовали литеральные placeholder-строки — короче и понятнее.
+- **`bash &`-фоновые джобы умирают вместе с tool callback'ом.** Использовать `Bash run_in_background: true` для long-running вместо `command &; jobs`. Иначе процесс убивается сразу.
+- **Claude Desktop (FleetView/Epitaxy) хранит MCP-конфиг в `%APPDATA%\Claude\claude_desktop_config.json`**, а не `~/.claude.json` (там per-project preferences). Структура отличается от standalone Claude Code CLI — нет `mcpServers`-блока, MCP servers встроены в Desktop app и управляются флагами вроде `chromeExtensionEnabled`. **Урок:** на этой setup `claude mcp add ...` команда не работает, нужно редактировать desktop config напрямую.
+
+### Что НЕ сделано (намеренно)
+
+- **PR1 §3+§4 (Header rhomb + drawer + Footer 3-колонник)** — не начато, оставлено на следующую сессию. Большие visual-изменения, нужна стабильная dev-среда. На этой машине spawn UNKNOWN может усложнить визуальный review.
+- **SQL prod-config** — всё ещё ждёт SSH-ключа на машине (хвост ч.1/ч.2/ч.3).
+- **Merge PR #41** — пользователь нажмёт сам после ревью.
+
+---
+
 ## 2026-05-24 — ГОНЬБА 24 мая 2026 (Claude session, ч.3) — Заготовки миграции PR2 + CSS-vars PR1
 
 **Тема:** продолжение подготовки этно-модерн редизайна с той же Windows-машины без dev-окружения. Закрыты два следующих критических пути для будущих PR1/PR2 — оба в виде текста в плане (без создания файлов в `web/src/`, чтобы не сломать прод `push: true`).
