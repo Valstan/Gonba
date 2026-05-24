@@ -6,6 +6,30 @@
 
 ---
 
+## 2026-05-24 — ГОНЬБА 24 мая 2026 (Claude session, ч.2) — SSH opt-in (pool #006) + seed-snippet header_nav_items для PR1
+
+**Тема:** короткая сессия с той же Windows-машины (без SSH-ключа `id_ed25519_gonba_deploy`, без `web/.env`/`node_modules`/`payload-types.ts`). Закрыли два не-блокирующих следующего шага этно-модерн нитки: применили pool-идею #006 (Full-session SSH opt-in в `/start`) и заготовили готовый snippet seed-скрипта для `header_nav_items` чтобы dev-машина не сочиняла его с нуля при старте PR1.
+
+### Что сделано
+
+- **`.claude/commands/start.md`** — добавлен шаг 5.2 «SSH opt-in для сессии»: `AskUserQuestion` с 3 вариантами (пропустить / переспрашивать / полный доступ на сессию). Перед вопросом — проверка наличия `~/.ssh/id_ed25519_gonba_deploy` и алиаса `GONBA` в `~/.ssh/config`; если нет — вариант #3 деградирует с пометкой. При выборе #3 read-only SSH-команды (`journalctl`, `systemctl is-active`, `psql -c 'SELECT'`, `cat`, `ls`) Claude выполняет напрямую, **destructive** (`ALTER`/`UPDATE`/`INSERT`/`DELETE`/`restart`/`stop`/`rm`/`truncate`/`force-push`/`sudo`-write) **всё равно** через `AskUserQuestion`. Скоуп — только текущая сессия. См. pool [#006](../../brain_matrica/cross-project-ideas/ideas/006-full-session-ssh-optin.md).
+- **`docs/plans/etno-modern-redesign.md` PR1 §6** — расширен готовым snippet'ом для `web/scripts/seed-header-nav-ethno.ts` через `payload.updateGlobal({ slug: 'header', ... })` (shape подсмотрен в [`web/src/endpoints/seed/index.ts:300`](../web/src/endpoints/seed/index.ts#L300)). 5 групп: Пожить (`/projects?group=stay`) / Делать (`do`) / Смотреть (`see`) / Лавка (`shop`) / О проекте (`/projects/about-project`). Зафиксированы: маршрут с `?group=` реализуется в PR3 (фильтр на странице `/projects`); до PR3 ссылки корректно деградируют до полного каталога; drawer-подменю остаётся хардкодом по `gonba-home.html` строки 191-298; откат fixture'а — тот же snippet со старым массивом из seed (Проекты/События/Сервисы/Магазин/Контакты).
+- **`docs/PENDING_FOLLOWUPS.md`** — добавлена 🟢 идея «Drawer-подменю Header → в Payload» (после PR2, когда появится `Projects.group`-поле).
+
+### Что НЕ сделано (намеренно)
+
+- **SQL prod-redesign-config не применён** — нет SSH-ключа на этой машине, как и в полусессии ч.1. Ждёт dev-машины (см. `SESSION_HANDOFF.md`).
+- **PR1 этно-модерн кодом не начат** — без `web/.env` / `node_modules` / `payload-types.ts` это пол-сессии setup'а на Windows. Ждёт dev-машины.
+- **Формальное письмо feedback brain'у про #006** — пока в `from-brain/` физически нет письма (только запись `⚠️ директива 2026-05-24` в `cross-project-ideas/INDEX.md`). Если brain отправит — закрою feedback в следующей сессии письмом `kind=feedback`/`urgency=low` с фактом применения. Применение зафиксировано в pool INDEX'е (это сделает brain в своей сессии) и в этом DEV_LOG.
+
+### Уроки
+
+- **Pool-идея может быть применена «с упреждением»** до физического письма, если `compliance=recommend` и идея self-contained (не требует параллельных изменений в brain). Сокращает лаг brain↔project. Условие — в pool описание `proposed`/`ready` (как у #006: «пилот в setka работает»).
+- **Adaptation > копирование:** идея #006 в setka расширяет существующий `AskUserQuestion` про SSH-probe. В GONBA probe — это `curl`, без вопроса. Чистое копирование не подошло бы — пришлось сделать отдельный шаг 5.2 с теми же тремя вариантами, но независимый от probe.
+- **Подготовка fixture'ов на машине без dev-окружения** снимает время с dev-машины. Snippet к `payload.updateGlobal` пишется без проверки типов (это `tsx`-скрипт), достаточно знать shape `link`-field из [`web/src/fields/link.ts:24`](../web/src/fields/link.ts). Аналогично можно заготавливать миграции и seed-скрипты заранее.
+
+---
+
 ## 2026-05-24 — ГОНЬБА 24 мая 2026 (Claude session) — Brain dispatch prod-redesign config (SQL заготовлен) + закрытие 3 вопросов PR1 + cleanup
 
 **Тема:** Параллельная нитка к этно-модерн редизайну — ответ на brain dispatch [`2026-05-23-prod-redesign-followup-config`](https://github.com/Valstan/brain_matrica/blob/main/mailboxes/GONBA/from-brain/2026-05-23-prod-redesign-followup-config.md) (compliance=recommend). SQL-патч заготовлен в репо, ждёт применения с dev-машины. Заодно — закрыты 3 открытых вопроса по PR1 этно-модерна и почищены stale-ветки.
