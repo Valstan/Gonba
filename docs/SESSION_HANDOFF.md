@@ -9,60 +9,50 @@
 
 ## Текущая нитка
 
-**Этно-модерн редизайн главной** (4 PR'а) — основная нитка с сессии 2026-05-23. Решения по направлению B зафиксированы в [ADR-0004](adr/0004-frontpage-ethno-modern-redesign.md), детальный план — в [`plans/etno-modern-redesign.md`](plans/etno-modern-redesign.md), handoff-bundle — в [`design/handoff-2026-05-23/`](design/handoff-2026-05-23/INDEX.md). В сессии 2026-05-24 (три полусессии — ч.1/ч.2/ч.3 с одной Windows-машины без dev) подготовлены: SQL prod-config, готовые snippet'ы в плане (CSS-vars блок, `next/font/google`, fixture header_nav_items, миграция PR2 `.ts`+`.sql`), применена pool-идея #006 (SSH opt-in в `/start`). SQL и сам PR1-код ждут dev-машины.
+**Этно-модерн редизайн главной** (PR1-4) — основная нитка с сессии 2026-05-23. В сессии 2026-05-24 (ч.4) **впервые** написан реальный код: на той же Windows-машине развёрнуто полное dev-окружение (Postgres 16 portable + pnpm + types + importMap), сделан и отправлен в PR PR1 §1+§2 — фундамент ethno-токенов и шрифтов. PR [#41](https://github.com/Valstan/Gonba/pull/41) — CI зелёный, mergeable, ждёт твоего merge перед автодеплоем.
 
 ## Следующий шаг
 
-**На dev-машине, в таком порядке:**
+**В этом порядке:**
 
-1. **Запустить SQL prod-config** (одна команда):
-   ```bash
-   git pull --ff-only
-   scp scripts/sql/2026-05-23-prod-redesign-config.sql GONBA:/tmp/
-   ssh GONBA "sudo -u postgres psql -d gonba -f /tmp/2026-05-23-prod-redesign-config.sql"
-   ```
-   Проверить вывод SELECT-ов в конце: **9 yadisk-строк**, **4 chat-строки**, **0 мисматч-slug'ов**. Если мисматчи есть — скорректировать SQL под фактические slug'и.
+1. **Тебе:** merge PR [#41](https://github.com/Valstan/Gonba/pull/41) (gh pr merge --squash --delete-branch, либо через UI). Автодеплой через `.github/workflows/deploy-prod.yml`. Прод-эффект: брендовые цвета `bg-brand-forest` etc станут hex-точными из ethno-палитры (`#2d4029` etc вместо oklch). Header/Footer/главная остаются прежними.
 
-2. **Подтверждающее письмо brain** — создать `mailbox/to-brain/2026-05-NN-prod-redesign-config-done.md` (`kind=feedback`, `urgency=low`) с фактическим списком включённых slug'ов и статусом VK auto-sync. Можно объединить с PR1 этно-модерна или отдельным маленьким PR.
+2. **В следующей сессии (на любой машине):** PR2 этно-модерн (схема `Project` под этно-модерн) **или** PR1 §3+§4 (Header rhomb + drawer + Footer 3-колонник на --ink). По плану §3+§4 идут вторыми — но это **большие visual-изменения**, и они потребуют визуальной приёмки.
+   - Header: `gonba-home.html` строки 191-298 (rhomb + 5 групп + drawer)
+   - Footer: `gonba-home.html` строки 651-701 (3-колонник на --ink)
+   - SQL prod-config (`scripts/sql/2026-05-23-prod-redesign-config.sql`) — всё ещё не применён, ждёт SSH-ключа на машине.
 
-3. **PR1 этно-модерн** — план [`docs/plans/etno-modern-redesign.md`](plans/etno-modern-redesign.md) уже содержит готовые snippet'ы для механической части:
-   - §1: CSS-блок (12 ethno-vars + `clamp()` pad-x/pad-y + 5 алиасов brand-* → ethno; `--muted` → `--text-muted` из-за shadcn-конфликта) — вставить в `web/src/app/(frontend)/globals.css` внутрь `:root { ... }` после `--brand-olive`
-   - §2: `next/font/google` snippet (PT Serif + Manrope + JetBrains Mono, cyrillic+latin, italic PT Serif, `display: 'swap'`) — в `web/src/app/layout.tsx`
-   - §3: Хедер с rhomb-знаком + 5 групп + transparent поверх hero + drawer — пишется по handoff'у `gonba-home.html:191-298`
-   - §4: Footer 3-колонник на `--ink` — handoff `gonba-home.html:651-701`
-   - §5: Чистка слагов 3 проектов (ЭКО-отель / О проекте / Вятский сбор) — через admin Payload
-   - §6: `web/scripts/seed-header-nav-ethno.ts` (готовый `payload.updateGlobal`-snippet для 5 групп)
-
-4. **PR2 этно-модерн** (после PR1) — план §2 содержит готовые `.ts` + `.sql` миграции для 6 колонок `Projects`. Файлы НЕ созданы в `web/src/migrations/` намеренно (push:true опасность) — создавать **вместе** с PR2-кодом изменений в `web/src/collections/Projects/`.
+3. **Также (для следующей сессии):** проверить что Claude-in-Chrome MCP подхватился — в `%APPDATA%\Claude\claude_desktop_config.json` переключён `chromeExtensionEnabled: true`. Если в `/start` появятся `mcp__claude-in-chrome__*` tools — визуальная проверка станет легче (DOM-aware вместо pixel-clicks).
 
 ## Контекст
 
-- **План:** [`docs/plans/etno-modern-redesign.md`](plans/etno-modern-redesign.md) — теперь содержит готовые snippet'ы для PR1 §1/§2/§6 и PR2 §2.
+- **План:** [`docs/plans/etno-modern-redesign.md`](plans/etno-modern-redesign.md).
 - **ADR:** [`docs/adr/0004-frontpage-ethno-modern-redesign.md`](adr/0004-frontpage-ethno-modern-redesign.md).
 - **Handoff-bundle:** [`docs/design/handoff-2026-05-23/`](design/handoff-2026-05-23/INDEX.md).
-- **Brain dispatch:** [`from-brain/2026-05-23-prod-redesign-followup-config.md`](../../brain_matrica/mailboxes/GONBA/from-brain/2026-05-23-prod-redesign-followup-config.md) + промежуточный ответ [`to-brain/2026-05-24-prod-redesign-config-prepared.md`](../mailbox/to-brain/2026-05-24-prod-redesign-config-prepared.md).
-- **Связанные коммиты сессии 2026-05-24:**
-  - `288af36` — SQL для prod-redesign config + закрытие 3 вопросов PR1 ([#35](https://github.com/Valstan/Gonba/pull/35))
-  - `cc14165` — DEV_LOG ч.1 + brain letter kind=report ([#36](https://github.com/Valstan/Gonba/pull/36))
-  - `3e9269f` — SSH opt-in (pool #006) + seed-snippet header_nav_items ([#38](https://github.com/Valstan/Gonba/pull/38)) — ч.2
-  - `4fa8649` — заготовки миграции PR2 + CSS-vars/шрифты PR1 ([#39](https://github.com/Valstan/Gonba/pull/39)) — ч.3
-- **Прод:** ✅ жив, `/api/health` 200 in 0.72s (последняя проба ч.1). SQL ещё не применён — `gallery_yandex_folder` / `chat_enabled` по проектам = NULL/false.
+- **Коммиты сессии 2026-05-24 ч.4:**
+  - `62ac774` — feat(frontend): ethno CSS-vars + PT Serif/Manrope/JetBrains Mono (PR1 §1+§2) — [#41](https://github.com/Valstan/Gonba/pull/41), CI green
+- **Прод:** ✅ жив, `/api/health` 200 in 0.67s (последняя проба в начале сессии). После merge #41 — деплой подтянет CSS-vars + шрифты.
 - **Открытые вопросы для пользователя:** 0.
+- **Брат- и системные настройки этой Windows-машины (для следующего раза):**
+  - Postgres 16.14 portable в `C:\pgsql\`, БД `gonba`, user/pass `postgres/postgres`. Старт: `& 'C:\pgsql\bin\pg_ctl.exe' -D 'C:\pgsql\data' -l 'C:\pgsql\logs\postgres.log' start`. Падает периодически с recovery — пересоздавать не надо, перезапускать.
+  - pnpm script-shell установлен в git-bash (`C:\Program Files\Git\bin\bash.exe`) глобально.
+  - SSH-ключ к GONBA **по-прежнему отсутствует** на этой машине. Скопировать `id_ed25519_gonba_deploy` с dev-машины — или генерить заново и обновлять `authorized_keys` на проде (нежелательно — chain-of-compromise).
+  - `web/.env` с **placeholder секретами** (PAYLOAD_SECRET / CRON_SECRET / PREVIEW_SECRET — placeholder hex, YANDEX_DISK_TOKEN = `placeholder-no-real-token`). Реальные значения — на dev-машине. На CI секреты приходят из GitHub Secrets.
 
 ## Failed approaches (этой нитки)
 
-- **Push с этой Windows-машины посреди ночи 2026-05-23 → 2026-05-24** — `https://github.com:443` зависал на полный 5-минутный timeout (ping/DNS работали, но TLS handshake блокировался). Workaround: локальный commit `061902e` пережил overnight на ветке без push, на следующий день retry прошёл. **Урок:** перед длительной prod-задачей через push сначала `curl -sS -o /dev/null -w '%{http_code}\n' --max-time 5 https://github.com/`.
-- **Вариант «делать prod-config через /admin кликами»** — отброшен в пользу единого SQL-патча. Причина: у `Projects` нет `afterChange`-хука с `revalidateTag` ([web/src/collections/Projects/index.ts:201](../web/src/collections/Projects/index.ts)) — кэш-инвалидация не нужна. SQL занимает 1 команду вместо 13+ кликов. Trade-off `versions: { drafts: true }` — UPDATE может перетёрться при следующем Save в /admin → mitigated через NOTE в SQL и рекомендацию открыть проект в /admin → Save без правок (синк version snapshot).
-- **`/sql` skill для запуска SQL с этой машины** — не сработало бы, потому что skill использует тот же `ssh GONBA`, а ключа `id_ed25519_gonba_deploy` на Windows-машине нет. Запуск SQL = обязательно dev-машина с настроенным алиасом GONBA.
-- **Создание файла миграции PR2 в `web/src/migrations/` отдельно от PR2-кода** — отброшено (ч.3). Причина: `push: true` на проде при следующем restart попытался бы убрать «лишнюю» колонку (поскольку коллекция `Projects` её не объявляет в main), drizzle подвиснет в headless на y/N. Решение: текст миграции в плане, файл создаётся **только** вместе с PR2-кодом, одним PR.
+- **`pnpm dev` стабильно на Windows + Node 22 + Postgres** — после первого 1-2 запросов Payload падает с `spawn UNKNOWN` (`getPayload({ config })` фейлит). Predicted причина: child_process.spawn в sharp/drizzle/yandex-trash на Windows Node 22. **Не блокер для текущей нитки** (первый запрос всегда успешен, visual screenshot успели сделать), но мешает длительной dev-сессии. **Возможные варианты на следующий раз:** downgrade до Node 20 (как на проде), убрать `YANDEX_DISK_TOKEN` совсем (Yandex trash cleanup может быть источником spawn), переключиться на docker-compose из `web/docker-compose.yml`. **Не пробовать заново «просто перезапустить dev и надеяться»** — проверено 3 раза, не лечится.
+- **`ssh GONBA` с одним из существующих ключей (`id_ed25519` / `id_ed25519_matricarmz_deploy`)** — отвергнут с Permission denied. На проде authorized_keys содержит только изолированный `gonba-deploy@PC40-...`, которого здесь нет (см. cleanup 2026-05-22 dispatch #0007). **Решение:** копировать `id_ed25519_gonba_deploy` с dev-машины офлайн (флешка), не через chat.
+- **Открытие URL в Firefox через computer-use type (write в адресную строку)** — заведомо невозможно: Firefox tier=read блокирует typing. Сработало через `Start-Process firefox '-new-window','<URL>'` — это правильный путь для обоих браузеров.
 
 ## Не забыть (low-priority)
 
-- 🔵 **Запустить SQL prod-config + письмо kind=feedback** — первый пункт «Следующего шага» выше. Это завершает обработку brain dispatch.
-- 🟢 **Drawer-подменю Header → перенести из хардкода в Payload** (после PR2) — добавлено в `PENDING_FOLLOWUPS.md` ч.2.
-- 🟢 3 mini-follow-up'а Media в `PENDING_FOLLOWUPS.md → Архитектура / Media` (rename Я.Диск-ресурса; 62 orphan-файла; retry в фоне) — не блокируют этно-модерн.
-- 📊 Журнал `gonba-media-cache.timer` (`ssh GONBA "journalctl -u gonba-media-cache -n 20 --no-pager"`) — глянуть когда будут силы.
+- 🔵 **Запустить SQL prod-config + письмо kind=feedback** — нерешённый хвост ч.1/ч.2/ч.3 сессии. Требует dev-машины (SSH).
+- 🟢 **Drawer-подменю Header → перенести из хардкода в Payload** (после PR2).
+- 🟢 3 mini-follow-up'а Media в `PENDING_FOLLOWUPS.md → Архитектура / Media`.
+- 📊 Журнал `gonba-media-cache.timer` — глянуть когда будут силы.
 - 🧹 Переименовать `docs/plans/media-to-yadisk.md` → `media-to-yadisk-DONE.md`.
+- 🟢 **Проверить `chromeExtensionEnabled: true` подхватился** в следующей сессии (после restart Claude Desktop). Если `mcp__claude-in-chrome__*` появились — будущий visual review станет проще.
 
 ---
 

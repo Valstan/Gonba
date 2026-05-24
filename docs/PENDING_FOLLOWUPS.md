@@ -57,6 +57,12 @@ _Сейчас нет — `authorized_keys` cleanup закрыт 2026-05-22 (см
 
 - **Drawer-подменю Header → перенести из хардкода в Payload** (после PR2, когда появится поле `Projects.group`). Сейчас в PR1 drawer и подзаголовки (`«над рекой, 6 номеров»`) — хардкод по [`gonba-home.html`](design/handoff-2026-05-23/gonba-home.html) строки 191-298. Альтернативы: nested array `subItems` в `Header` global (расширение схемы в `web/src/Header/config.ts`), либо динамика — рендер по `Projects` с фильтром `where.group.equals.<...>`. Не блокер — кодить через хардкод проще, перенос делается когда захочется редактировать структуру drawer'а через админку.
 
+### Windows-dev quirks (нашли в сессии 2026-05-24 ч.4)
+
+- 🟡 **`spawn UNKNOWN` в Payload на Windows + Node 22** — `getPayload({ config })` падает после 1-2 запросов. Проверено 3 раза, не лечится restart'ом. Гипотезы: sharp child-process, drizzle migrations, или Yandex trash cleanup (последнее — самое подозрительное при `YANDEX_DISK_TOKEN=placeholder`). **Что попробовать:** (a) downgrade Node до 20 (как на проде), (b) убрать `YANDEX_DISK_TOKEN` совсем, (c) запустить через docker-compose из `web/docker-compose.yml`. Не блокер — первый запрос всегда успешен, для разовых проверок достаточно cold-restart. Чинить когда будет регулярная dev-работа с этой машины.
+- 🟢 **«Windows dev setup за 30 минут» — раздел в CLAUDE.md** на основе ч.4: Postgres portable (`get.enterprisedb.com/postgresql/postgresql-16.14-1-windows-x64-binaries.zip` → `C:\pgsql` → `initdb` → `pg_ctl start`), `pnpm config set script-shell` на git-bash, `pnpm install + generate:types + generate:importmap`. Сохранит ~30 минут будущим сессиям с новых машин.
+- 🟢 **Claude-in-Chrome MCP** — `chromeExtensionEnabled` в Claude Desktop config переключён в `true` в ч.4. Проверить в следующей сессии что `mcp__claude-in-chrome__*` tools появились (нужен restart Claude Desktop). Если работает — задокументировать в CLAUDE.md как способ frontend-проверки без computer-use pixel-clicks.
+
 ### Продукт
 
 - ~~**На `/projects` админский режим показывать предпросмотр изменений** перед сохранением (live preview).~~ (Сделано — `EditProjectDialog` рендерит общий `Plate` с локальным state, мгновенное обновление по мере правок.)
