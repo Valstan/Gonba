@@ -6,6 +6,37 @@
 
 ---
 
+## 2026-05-24 — ГОНЬБА 24 мая 2026 (Claude session, ч.3) — Заготовки миграции PR2 + CSS-vars PR1
+
+**Тема:** продолжение подготовки этно-модерн редизайна с той же Windows-машины без dev-окружения. Закрыты два следующих критических пути для будущих PR1/PR2 — оба в виде текста в плане (без создания файлов в `web/src/`, чтобы не сломать прод `push: true`).
+
+### Что сделано
+
+- **`docs/plans/etno-modern-redesign.md` PR2 §2** — расширен готовыми текстами миграции по паттерну [`web/src/migrations/20260521_120000.ts`](../web/src/migrations/20260521_120000.ts):
+  - `.ts` через `db.execute(sql\`...\`)` с `up`/`down`
+  - `.sql` зеркало (`BEGIN`/`COMMIT`, `IF NOT EXISTS` всюду — идемпотентно)
+  - Регистрация в `web/src/migrations/index.ts` (import + entry)
+  - 6 колонок: `"group"` (quoted — reserved SQL word) / `is_hero_of_homepage` / `is_featured` / `excerpt` / `chapter_roman` / `kind`
+  - Альтернатива если не хочется reserved-word: переименовать поле в Payload в `homepageGroup` → колонка `homepage_group`
+- **`docs/plans/etno-modern-redesign.md` PR1 §1+§2** — расширены:
+  - Готовый CSS-блок с 12 ethno-токенами палитры (paper/forest/ochre/oxblood/ink + paper-deep/light + forest-deep + ochre-light + rule/rule-light) + 3 font-family через `var(--font-*)` (next/font CSS-vars) + `clamp()` для `--pad-x`/`--pad-y` + 5 алиасов `--brand-*` → ethno-vars
+  - Учтён конфликт `--muted` (shadcn-токен в [`globals.css:154`](../web/src/app/(frontend)/globals.css)) → ethno-вариант называется `--text-muted`
+  - Полный snippet `next/font/google` для PT Serif (cyrillic+latin, weight 400/700, italic) + Manrope (cyrillic+latin, weight 300-800) + JetBrains Mono с `display: 'swap'` и `variable: '--font-pt-serif'`-стилем
+  - Зафиксировано: dark-theme ethno-варианта в PR1 не делаем — главная «дневная» (как в handoff)
+
+### Что НЕ сделано (намеренно)
+
+- **Файлы `web/src/migrations/<TS>_add_project_group_fields.ts/.sql` не созданы** — добавление миграции без сопровождающего изменения `Projects` collection опасно: Payload `push: true` на проде на следующем restart попытается «убрать лишнюю колонку» (поскольку коллекция её не объявляет) → в headless подвиснет на drizzle y/N. Создавать на dev-машине **вместе** с PR2-кодом.
+- **`globals.css` и `layout.tsx` не правлены** — это уже PR1 кодом, который ждёт dev-машины (`payload-types.ts` для проверки типов).
+
+### Уроки
+
+- **Сверка ethno-токенов с существующим shadcn-стеком** до записи блока спасает от тихой поломки. Чтение `globals.css:130-180` показало конфликт `--muted` и подсказало переименовать ethno-вариант в `--text-muted`. Без сверки коммит на dev-машине вызвал бы перебор всех мест где `text-muted-foreground` Tailwind-utility ссылается на `--muted`.
+- **Заготавливать миграцию текстом, а не файлом** на машине без dev — устойчивый паттерн. Момент «файл миграции попадает в main без сопровождающей коллекции» — скрытая граната под `push: true`. Текст в плане безопасен и одинаково полезен для копирования в PR2.
+- **`var(--font-*), 'Family Name', fallback` в CSS-fonts** — правильный паттерн при `next/font`. CSS-var из `next/font` идёт первой, чтобы преимущественно использовался уже загруженный font-file; literal name — fallback если variable не сработала; system-font — последний fallback.
+
+---
+
 ## 2026-05-24 — ГОНЬБА 24 мая 2026 (Claude session, ч.2) — SSH opt-in (pool #006) + seed-snippet header_nav_items для PR1
 
 **Тема:** короткая сессия с той же Windows-машины (без SSH-ключа `id_ed25519_gonba_deploy`, без `web/.env`/`node_modules`/`payload-types.ts`). Закрыли два не-блокирующих следующего шага этно-модерн нитки: применили pool-идею #006 (Full-session SSH opt-in в `/start`) и заготовили готовый snippet seed-скрипта для `header_nav_items` чтобы dev-машина не сочиняла его с нуля при старте PR1.
