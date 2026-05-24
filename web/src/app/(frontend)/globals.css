@@ -141,6 +141,34 @@
   --brand-sand: oklch(96% 0.02 85deg);
   --brand-olive: oklch(55% 0.08 130deg);
 
+  /* === Ethno-modern tokens (PR1, 2026-05-24) === */
+  --paper: #ede3cf;
+  --paper-deep: #e2d6b8;
+  --paper-light: #f4ecd9;
+  --ink: #1f2418;
+  --forest: #2d4029;
+  --forest-deep: #1e2c1c;
+  --ochre: #a86a1d;
+  --ochre-light: #c98a35;
+  --oxblood: #6e2018;
+
+  --rule: #c9bd9d;
+  --rule-light: #d9cfb0;
+  --text-muted: #6b6450;
+
+  --serif: var(--font-pt-serif), 'PT Serif', Georgia, serif;
+  --sans: var(--font-manrope), 'Manrope', system-ui, sans-serif;
+  --mono: var(--font-jetbrains-mono), 'JetBrains Mono', ui-monospace, monospace;
+
+  --pad-x: clamp(18px, 4vw, 64px);
+  --pad-y: clamp(12px, 3vw, 48px);
+
+  --brand-forest: var(--forest);
+  --brand-amber: var(--ochre);
+  --brand-clay: var(--oxblood);
+  --brand-sand: var(--paper-light);
+  --brand-olive: var(--forest-deep);
+
   --background: oklch(96% 0.03 85deg);
   --foreground: oklch(12% 0.02 50deg);
   --card: oklch(94% 0.03 85deg);
