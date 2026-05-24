@@ -1,7 +1,7 @@
 ---
 description: Открыть новую сессию разработки GONBA — git pull, прочитать source-of-truth доки, отчёт о состоянии.
 argument-hint: (без аргументов)
-allowed-tools: Read, Bash, Glob, Grep, mcp__ccd_session__mark_chapter
+allowed-tools: Read, Bash, Glob, Grep, AskUserQuestion, mcp__ccd_session__mark_chapter
 ---
 
 # /start — открыть новую сессию разработки GONBA
@@ -86,6 +86,45 @@ curl -s -o /dev/null -w 'prod: %{http_code} in %{time_total}s\n' --max-time 10 h
 - Если осталось ≤ 10 дней или дата уже прошла — добавь в отчёт **🟡 Напоминание о ротации SSH-ключа** с конкретными датами и предложи запустить процедуру (она в той же секции PROJECT.md).
 
 Не делай ротацию автоматически — это destructive шаг, всегда с подтверждения пользователя.
+
+## Шаг 5.2. SSH opt-in для сессии (pool-идея #006)
+
+После probe прода (шаг 5) и проверки ротации (шаг 5.1) — спроси пользователя через `AskUserQuestion`, как обрабатывать SSH-вызовы к проду в текущей сессии. Это снимает фрикцию «нажать Allow 20 раз за сессию» при прод-диагностике, миграциях, чтении логов.
+
+**Перед `AskUserQuestion`** проверь окружение (Bash / PowerShell):
+- Существует ли `~/.ssh/id_ed25519_gonba_deploy`.
+- Есть ли алиас `GONBA` в `~/.ssh/config` (`grep -i "Host GONBA" ~/.ssh/config`).
+
+Если ключа или алиаса нет — в варианте опции #3 ниже допиши «(на этой машине ключ не найден — вариант не сработает)» и считай вариант #1 (пропустить) разумным по умолчанию.
+
+**Сам `AskUserQuestion`:**
+
+```yaml
+question: «Нужен ли SSH-доступ к проду в этой сессии?»
+header: «SSH-доступ»
+multiSelect: false
+options:
+  - label: «Нет, пропустить»
+    description: «SSH не использую. Если возникнет нужда — переспрошу конкретно.»
+  - label: «Переспрашивать на каждый»
+    description: «Auto-mode classifier работает как раньше: каждый ssh GONBA — отдельное подтверждение.»
+  - label: «Полный доступ на сессию (Рекомендуется)»
+    description: «Read-only команды (journalctl, systemctl is-active, psql -c 'SELECT', cat, ls) — без переспрашивания. Destructive (ALTER, UPDATE/INSERT/DELETE, restart/stop, rm, sudo-write, scp в системные директории) — всё равно AskUserQuestion.»
+```
+
+**Что Claude делает при выборе #3 «Полный доступ»:**
+
+- В этой сессии запоминает соглашение: read-only SSH-команды (включая `scp` из `/tmp` на локалку) выполняет напрямую через `Bash` без `AskUserQuestion`.
+- При первом SSH-вызове кратко сообщает в чате: «(SSH opt-in активен — выполняю без переспрашивания)» — пользователь видит что соглашение помнится.
+- Перед **любой destructive** командой (ALTER, UPDATE, DELETE, restart, stop, rm, truncate, force-push, sudo write) — всё равно делает паузу и спрашивает через `AskUserQuestion`. Это вопрос здравого смысла, не permissions. Третий вариант **не отменяет** осторожность.
+- Скоуп — только текущая сессия. Следующая `/start` снова задаёт этот вопрос с чистого листа.
+
+**Что Claude делает при выборе #1 «Пропустить» или #2 «Переспрашивать»:**
+
+- Сохраняет дефолтное поведение Auto-mode classifier'а: каждый `ssh GONBA`-вызов проходит через подтверждение.
+- При #1 — дополнительно избегает SSH без явного запроса пользователя.
+
+См. cross-project pool: [`../brain_matrica/cross-project-ideas/ideas/006-full-session-ssh-optin.md`](../../../brain_matrica/cross-project-ideas/ideas/006-full-session-ssh-optin.md). Pioneer — setka.
 
 ## Шаг 6. Отчёт пользователю
 

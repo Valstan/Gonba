@@ -44,7 +44,40 @@
    - `about-project` → «О проекте»
    - `vyatskiy-sbor` → «Вятский сбор»
 
-6. **Глобал `Header` collection** — добавить fixture-набор из 5 групп (`Пожить / Делать / Смотреть / Лавка / О проекте`), убрать старые 10 пунктов. На проде — миграция данных через `payload.update`.
+6. **Глобал `Header` collection** — добавить fixture-набор из 5 групп (`Пожить / Делать / Смотреть / Лавка / О проекте`), убрать старые 10 пунктов. На проде — миграция данных через `payload.updateGlobal` (по аналогии с `web/src/endpoints/seed/index.ts:300`).
+
+   **Готовый snippet (создать как `web/scripts/seed-header-nav-ethno.ts`):**
+
+   ```ts
+   import { getPayload } from 'payload'
+   import config from '@/payload.config'
+
+   const payload = await getPayload({ config })
+
+   await payload.updateGlobal({
+     slug: 'header',
+     data: {
+       navItems: [
+         { link: { type: 'custom', url: '/projects?group=stay', label: 'Пожить' } },
+         { link: { type: 'custom', url: '/projects?group=do', label: 'Делать' } },
+         { link: { type: 'custom', url: '/projects?group=see', label: 'Смотреть' } },
+         { link: { type: 'custom', url: '/projects?group=shop', label: 'Лавка' } },
+         { link: { type: 'custom', url: '/projects/about-project', label: 'О проекте' } },
+       ],
+     },
+   })
+
+   console.log('header.navItems обновлён (5 групп этно-модерна)')
+   process.exit(0)
+   ```
+
+   В `web/package.json` — добавить script: `"seed:header-ethno": "tsx scripts/seed-header-nav-ethno.ts"`. После merge PR1 — запустить локально один раз (`corepack pnpm run seed:header-ethno`) **на dev-БД для проверки**, потом на проде через `ssh GONBA "cd /home/valstan/GONBA/web && corepack pnpm run seed:header-ethno"` после restart (или через локальный запуск с прод-DATABASE_URL — на dev-машине, **не** на Windows).
+
+   **Маршрут `/projects?group=<stay|do|see|shop>`** — query-фильтр. Реализация фильтра на странице `/projects` — это часть PR3 (там же где GroupCards). На момент применения fixture'а в PR1 ссылки будут указывать на `/projects` (фильтр пока игнорируется, страница показывает весь каталог) — не блокер, корректно деградирует.
+
+   **Drawer-подменю в Header** — **хардкод по handoff'у** (`gonba-home.html` строки 191-298), не зависит от Payload. Подзаголовки («над рекой, 6 номеров») тоже в Header-компоненте. Перенос в Payload (через nested array `subItems` или относительный фильтр по `Projects.group` после PR2) — отдельная задача, можно сделать в PR2+ или оставить хардкод до момента когда захочется редактировать через админку.
+
+   **Откат fixture'а** при необходимости — запустить тот же скрипт со старым массивом из `web/src/endpoints/seed/index.ts:300` (5 пунктов: Проекты / События / Сервисы / Магазин / Контакты).
 
 **Smoke:**
 - Открыть `/`, `/projects`, `/posts/<любой>` — везде новая шапка/подвал.
