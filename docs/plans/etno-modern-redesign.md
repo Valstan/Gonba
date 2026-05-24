@@ -16,16 +16,79 @@
 
 **Что в коде:**
 
-1. **`web/src/app/(frontend)/globals.css`** — расширяем CSS-vars:
-   - Палитра: `--paper`, `--paper-deep`, `--paper-light`, `--ink`, `--forest`, `--forest-deep`, `--ochre`, `--ochre-light`, `--oxblood`, `--muted`, `--rule`, `--rule-light` (значения из [`proto-tokens.css`](../design/handoff-2026-05-23/proto-tokens.css))
-   - Шрифты: `--serif: 'PT Serif'`, `--sans: 'Manrope'`, `--mono: 'JetBrains Mono'`
-   - Утилиты `clamp()` для типографики (`--pad-x: clamp(18px, 4vw, 64px)`)
-   - Алиасы для совместимости: `--brand-forest: var(--forest)`, `--brand-amber: var(--ochre)` и т.д.
+1. **`web/src/app/(frontend)/globals.css`** — расширяем CSS-vars значениями из [`proto-tokens.css`](../design/handoff-2026-05-23/proto-tokens.css). Готовый блок ниже **вставить внутрь существующего `:root { ... }` (примерно после `--brand-olive` в `globals.css:142`)**:
 
-2. **`web/src/app/layout.tsx`** (или `(frontend)/layout.tsx`) — подключение шрифтов через `next/font/google`:
+   ```css
+   /* === Ethno-modern tokens (PR1) === */
+
+   /* base palette — paper / forest / ochre / oxblood / ink */
+   --paper: #ede3cf;
+   --paper-deep: #e2d6b8;
+   --paper-light: #f4ecd9;
+   --ink: #1f2418;
+   --forest: #2d4029;
+   --forest-deep: #1e2c1c;
+   --ochre: #a86a1d;
+   --ochre-light: #c98a35;
+   --oxblood: #6e2018;
+
+   /* utility shades */
+   --rule: #c9bd9d;          /* hairline rule on paper */
+   --rule-light: #d9cfb0;    /* lighter hairline */
+   --text-muted: #6b6450;    /* muted body text — NB: --muted уже занят shadcn-токеном (globals.css:154), поэтому используем --text-muted */
+
+   /* typography (значения см. подключение шрифтов через next/font ниже) */
+   --serif: var(--font-pt-serif), 'PT Serif', Georgia, serif;
+   --sans: var(--font-manrope), 'Manrope', system-ui, sans-serif;
+   --mono: var(--font-jetbrains-mono), 'JetBrains Mono', ui-monospace, monospace;
+
+   /* layout */
+   --pad-x: clamp(18px, 4vw, 64px);
+   --pad-y: clamp(12px, 3vw, 48px);
+
+   /* aliases — переопределение старых brand-токенов через ethno-палитру (визуальный шаг к новой эстетике;
+      затронет ВСЕ места которые сейчас используют bg-brand-forest / text-brand-amber / ... — это намеренно) */
+   --brand-forest: var(--forest);
+   --brand-amber: var(--ochre);
+   --brand-clay: var(--oxblood);
+   --brand-sand: var(--paper-light);
+   --brand-olive: var(--forest-deep);
+   ```
+
+   **Внимание для dark-theme:** в `[data-theme='dark']` (`globals.css:193+`) shadcn-токены меняются под тёмную тему, но ethno-палитра здесь **paper-based** (светлый бумажный фон) — выбор страницы. В PR1 dark-вариант ethno-токенов **не делаем**, главная всегда «дневная» (как в handoff-bundle). Если в будущем потребуется dark-mode — добавить в `[data-theme='dark']` блок переопределений `--paper → --ink`, `--forest → --paper`, etc. — задача отдельная.
+
+2. **`web/src/app/layout.tsx` или `web/src/app/(frontend)/layout.tsx`** — подключение шрифтов через `next/font/google`. Готовый snippet:
+
    ```ts
    import { PT_Serif, Manrope, JetBrains_Mono } from 'next/font/google'
+
+   const ptSerif = PT_Serif({
+     subsets: ['cyrillic', 'latin'],
+     weight: ['400', '700'],
+     style: ['normal', 'italic'],
+     variable: '--font-pt-serif',
+     display: 'swap',
+   })
+
+   const manrope = Manrope({
+     subsets: ['cyrillic', 'latin'],
+     weight: ['300', '400', '500', '600', '700', '800'],
+     variable: '--font-manrope',
+     display: 'swap',
+   })
+
+   const jetbrainsMono = JetBrains_Mono({
+     subsets: ['cyrillic', 'latin'],
+     weight: ['400', '500'],
+     variable: '--font-jetbrains-mono',
+     display: 'swap',
+   })
+
+   // в JSX:
+   // <html lang="ru" className={`${ptSerif.variable} ${manrope.variable} ${jetbrainsMono.variable}`}>
    ```
+
+   Подписки PT Serif `italic` нужны для акцентов («*жемчужина*» в hero, italic-oxblood в featured). `display: 'swap'` — стандарт для main-thread blocking-free загрузки.
 
 3. **Хедер** — переписать `web/src/Header/` под новую раскладку:
    - Лого с rhomb-знаком (☖ повёрнутый квадрат с точкой внутри) + текст «Гоньба»
@@ -103,14 +166,71 @@
    - `chapterRoman?: 'I' | 'II' | 'III' | 'IV' | 'V'` (необязательно, для маркера главы в featured/people секциях)
    - `kind: 'project' | 'person' | 'studio' | 'workshop' | 'event' | 'shop'` (radio) — определяет какая карточка-шаблон используется на главной
 
-2. **Миграция** — `web/src/migrations/<timestamp>_add_project_group_fields.ts`:
-   - `ALTER TABLE projects ADD COLUMN group varchar`
-   - `ALTER TABLE projects ADD COLUMN is_hero_of_homepage boolean DEFAULT false`
-   - `ALTER TABLE projects ADD COLUMN is_featured boolean DEFAULT false`
-   - `ALTER TABLE projects ADD COLUMN excerpt varchar(280)`
-   - `ALTER TABLE projects ADD COLUMN chapter_roman varchar(8)`
-   - `ALTER TABLE projects ADD COLUMN kind varchar DEFAULT 'project'`
-   - Зеркало `.sql` для применения через `psql -f` (так делали для миграций по vk_auto_sync, см. `DEVELOPMENT_LOG.md` 2026-05-21)
+2. **Миграция** — `web/src/migrations/<TS>_add_project_group_fields.ts` + зеркало `.sql` (паттерн как `web/src/migrations/20260521_120000.ts` + `.sql`).
+
+   **Важно:** `group` — зарезервированное слово SQL. Drizzle/Payload оборачивает все идентификаторы в `"..."`, поэтому работает, но **в SQL-зеркале писать строго `"group"` с кавычками**. Альтернатива (если не хочется reserved-word) — переименовать поле в Payload в `homepageGroup` → колонка `homepage_group`; решение в начале PR2.
+
+   **Заготовка `.ts`:**
+
+   ```ts
+   import { MigrateDownArgs, MigrateUpArgs, sql } from '@payloadcms/db-postgres'
+
+   export async function up({ db }: MigrateUpArgs): Promise<void> {
+     await db.execute(sql`
+       ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "group" varchar;
+       ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "is_hero_of_homepage" boolean DEFAULT false NOT NULL;
+       ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "is_featured" boolean DEFAULT false NOT NULL;
+       ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "excerpt" varchar;
+       ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "chapter_roman" varchar;
+       ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "kind" varchar DEFAULT 'project' NOT NULL;
+     `)
+   }
+
+   export async function down({ db }: MigrateDownArgs): Promise<void> {
+     await db.execute(sql`
+       ALTER TABLE "projects" DROP COLUMN IF EXISTS "kind";
+       ALTER TABLE "projects" DROP COLUMN IF EXISTS "chapter_roman";
+       ALTER TABLE "projects" DROP COLUMN IF EXISTS "excerpt";
+       ALTER TABLE "projects" DROP COLUMN IF EXISTS "is_featured";
+       ALTER TABLE "projects" DROP COLUMN IF EXISTS "is_hero_of_homepage";
+       ALTER TABLE "projects" DROP COLUMN IF EXISTS "group";
+     `)
+   }
+   ```
+
+   **Заготовка `.sql` (зеркало `up()` для `psql -f`, идемпотентно):**
+
+   ```sql
+   -- Mirror of <TS>_add_project_group_fields.ts up() for direct psql apply.
+   -- Idempotent: safe to run on a database where columns already exist.
+   BEGIN;
+
+   ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "group" varchar;
+   ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "is_hero_of_homepage" boolean DEFAULT false NOT NULL;
+   ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "is_featured" boolean DEFAULT false NOT NULL;
+   ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "excerpt" varchar;
+   ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "chapter_roman" varchar;
+   ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "kind" varchar DEFAULT 'project' NOT NULL;
+
+   COMMIT;
+   ```
+
+   **Регистрация в `web/src/migrations/index.ts`:** добавить import + entry в массив `migrations`:
+
+   ```ts
+   import * as migration_<TS>_add_project_group_fields from './<TS>_add_project_group_fields';
+
+   // ...
+   {
+     up: migration_<TS>_add_project_group_fields.up,
+     down: migration_<TS>_add_project_group_fields.down,
+     name: '<TS>_add_project_group_fields',
+   },
+   ```
+
+   **Timestamp:** при создании на dev-машине — `corepack pnpm payload migrate:create --name add_project_group_fields` сгенерирует актуальный, либо вручную в формате `YYYYMMDD_HHMMSS`. Существующие миграции: `20260521_120000` последняя — должно быть строго позже.
+
+   **Файлы не созданы в `web/src/migrations/` сейчас намеренно** — добавление миграции без сопровождающего изменения коллекции (Payload `push: true` на проде → попытка убрать «лишнюю» колонку при следующем restart) опасно. Создавать на dev-машине **вместе** с изменениями в `web/src/collections/Projects/` (см. §1 выше) одним PR.
 
 3. **`payload generate:types`** — обновить `web/src/payload-types.ts`.
 
