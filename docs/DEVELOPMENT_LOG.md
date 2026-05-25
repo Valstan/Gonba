@@ -6,6 +6,74 @@
 
 ---
 
+## 2026-05-25 — ГОНЬБА 25 мая 2026 (Claude session) — PR3: новая главная (этно-модерн)
+
+**Тема:** четвёртый PR в нитке этно-модерн редизайна. После маппинга 10 проектов на этно-группы (предыдущий блок) — переписываем главную на этно-композицию: Hero + GroupCards + FeaturedChapter + Quote. Orbit-карусель уезжает на `/orbit`.
+
+### Что сделано
+
+- **`web/src/app/(frontend)/orbit/page.tsx`** (новый файл) — копия старой главной с orbit-каруселью. Метаданные обновлены под /orbit. Доступен по URL `/orbit`.
+- **`web/src/app/(frontend)/page.tsx`** — полностью переписан. Композиция: `<EthnoHero/> + <EthnoGroupCards/> + <EthnoFeaturedChapter chapter="I" chapterLabel="село и храм"/> + <EthnoQuoteSection/>`. Hero берёт проект с `isHeroOfHomepage=true` (fallback на slug `village-and-temple`, дальше — первый по сортировке). Featured берёт `isFeatured=true` с `chapterRoman='I'` (fallback на heroProject).
+- **`web/src/components/Home/EthnoHero.tsx`** (новый) — full-bleed hero с фото-фоном (heroImage|logo, fallback — `--forest-deep` плашка), overlay-градиент, заголовок «Гоньба — *жемчужина* Вятки», подзаголовок из `excerpt` или хардкод-fallback.
+- **`web/src/components/Home/EthnoGroupCards.tsx`** (новый) — 4 этно-карточки (Пожить/Делать/Смотреть/Купить) с цветной обводкой forest/ochre/oxblood/#3a5236, ссылки на `/projects?group=<key>`. Subtitle — список проектов группы (топ-3 по `shortLabel`||title, игнорируется default `'Проект'`), fallback на хардкод подписи если группа пустая.
+- **`web/src/components/Home/EthnoFeaturedChapter.tsx`** (новый) — двухколоночная featured-секция: photo в `frame` (paper-deep) слева, chapter-метка («I · село и храм») + h2 с italic-oxblood + excerpt + ghost-btn «Читать главу →» справа.
+- **`web/src/components/Home/EthnoQuoteSection.tsx`** (новый) — цитата Радищева, paper-deep фон, центр, italic serif blockquote, mono cite.
+- **`web/src/app/(frontend)/globals.css`** — секция `ETHNO HOMEPAGE` ~270 строк: eyebrow/chapter/hero/groups/featured/quote/btn-classes. Источник — `gonba-home.html` строки 303-460, 625-647. Также: `--background: var(--paper)`, `--foreground: var(--ink)` (замена oklch), убраны `body::before/::after` deer-overlays и фоны.
+- **`web/src/app/(frontend)/layout.tsx`** — убран wrapping `<div className="site-content-fog">` вокруг children (мешал full-bleed hero и paper-фону этно-секций).
+- **`web/src/app/(frontend)/projects/shared.ts`** — `ProjectRecord` расширен intersection-полями (`kind`/`homepageGroup`/`isHeroOfHomepage`/`isFeatured`/`excerpt`/`chapterRoman`) с union-литералами. Без regenerate `payload-types.ts` локально TS видит новые поля.
+- **`web/src/app/(frontend)/projects/queries.ts`** — `getSelect()` расширен этно-полями через `as unknown as Partial<ProjectsSelect>` cast (бридж до момента когда CI пересгенерирует типы).
+
+### Локальная проверка
+
+- `corepack pnpm --dir web run typecheck` — clean.
+- Восстановлена локальная БД: `ssh GONBA "sudo -u postgres pg_dump --no-owner --no-privileges gonba" > /tmp/gonba-prod.sql` → `dropdb` → `createdb` → `psql -f .sql` → 13 проектов, hero = village-and-temple ✓.
+- `preview_eval` подтвердил: hero h1 = «Гоньба — жемчужина Вятки», PT Serif, body bg = `rgb(237, 227, 207)` (paper), 4 group cards с правильными цветами `rgb(45,64,41)/rgb(168,106,29)/rgb(110,32,24)/rgb(58,82,54)`, featured h2 = «О селе и храмe · стоит с 1808 года», цитата Радищева, footer на месте.
+- Group subtitles: `Бронирование ЭКО-отеля · ЭКО-отель Жемчужина Вятки`, `Экскурсии · Мастерские · Конный клуб г.Малмыж`, `События села · Вятская лепота · Село и храм`, `Вятскiй сборъ` — реальные имена проектов из БД ✓.
+- `preview_screenshot` timeout-ил (как в PR1 §3+§4 — медиа-запросы 401). DOM-inspect компенсировал.
+
+### Что НЕ сделано (намеренно — план PR4)
+
+- **PeopleSection / CraftsSection / ShopBanner / EventsList** — секции II/III/IV/V плана. PR4 отдельным шагом.
+- **Schema.org JSON-LD + OG** — PR4 §6.
+
+### Что НЕ сделано (намеренно — последующие минорные)
+
+- **Удаление `HomeCarouselMenuClient.tsx` и `HomeProjectGridMobile.tsx`** — они теперь используются только в `/orbit/page.tsx`, не удаляем.
+- **Регенерация `payload-types.ts`** — `pnpm payload generate:types` требует БД, CI сам перегенерирует при build. Cast в queries.ts уходит когда тип появится.
+- **Удаление `site-content-fog` CSS-класса** — оставлен в globals.css на случай если используется где-то ещё. Если grep-проверка покажет 0 использований — можно вычистить в отдельном PR.
+- **Удаление `--site-bg-image`/`--site-bg-tint`/`--site-content-fog*` CSS vars** — те же соображения.
+
+### Локальное dev-окружение urok
+
+- **PG16 → PG17 миграция (после удаления PG16)**: на этой dev-машине пользователь снёс PG16 → 5432 пустой, 5433 = PG17. БД `gonba` ушла вместе с PG16. Восстановил через `pg_dump --no-owner` на проде → scp text-format → `psql -f`. **Custom format (`-Fc`)** на этой машине ломался («не удалось определить формат блока: слишком короткий») — text format безопаснее.
+- **pgpass.conf** имеет пароли для обоих портов (5432, 5433). После апгрейда нужно обновлять `.env` под актуальный порт+пароль.
+
+### Уроки
+
+- **`payload-types.ts` cast-bridge** — добавление новых полей в коллекцию без regenerate'а решается через intersection `ProjectRecord & { newField?: ... }` в shared-типах и `as unknown as Partial<...>` в select-options. Не идеально, но устраняет блок на dev-машине без БД.
+- **Удаление layout-обёрток** (deer.jpg + site-content-fog) меняет фон всех маршрутов, не только главной. Это **breaking change** для других страниц — но для этно-модерн это правильно: paper-фон везде. Если на /projects был визуальный effect от fog'а — он пропал. Стоит проверить в админ-сценариях.
+
+---
+
+## 2026-05-25 — ГОНЬБА 25 мая 2026 (Claude session) — SQL маппинг 10 проектов на этно-группы (PR #46)
+
+**Тема:** PR2 §4 применено. Маппинг 10 проектов (точнее — 11 на 13 в БД) на `kind`/`homepageGroup`/`isFeatured`/`isHeroOfHomepage`/`excerpt`/`chapterRoman`.
+
+### Что сделано
+
+- **`scripts/sql/2026-05-25-project-ethno-mapping.sql`** (новый файл) — 9 UPDATE statement'ов по реальным slug'ам в БД (расхождение с baseline'ом плана PR2 §4 — реальные slug'и эволюционировали).
+- Применён 2026-05-25: 13 UPDATE'ов (потому что `eco-hotel` имеет 2 slug-варианта, `vyatskaya-lepota` тоже).
+- **Распределение:** stay×2, do×3, see×5, shop×1 (11 проектов на главной); 2 НЕ на главной (about-project, gonba).
+- **kind:** project×8, studio×3, person×1, shop×1.
+- **Hero+Featured:** village-and-temple (chapter I, excerpt про Покровскую церковь 1808).
+- PR [#46](https://github.com/Valstan/Gonba/pull/46) — версионирование скрипта в git.
+
+### Известный footgun
+
+`versions:{drafts:true}` — прямой UPDATE минует `_projects_v`. При следующем Save в админке Payload может перезаписать. См. warning в SQL-файле.
+
+---
+
 ## 2026-05-25 — ГОНЬБА 25 мая 2026 (Claude session) — SQL prod-redesign-config применён частично
 
 **Тема:** последний пункт плана сессии — применить `scripts/sql/2026-05-23-prod-redesign-config.sql` (хвост brain dispatch'а 2026-05-23, неприменённый из-за отсутствия SSH в полусессиях ч.1-4 на той Windows-машине). На этой dev-машине SSH есть, применил.

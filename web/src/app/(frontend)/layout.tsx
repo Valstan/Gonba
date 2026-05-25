@@ -68,7 +68,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           />
 
           <Header />
-          <div className="site-content-fog">{children}</div>
+          {children}
           <Footer />
         </Providers>
       </body>

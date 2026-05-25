@@ -169,8 +169,8 @@
   --brand-sand: var(--paper-light);
   --brand-olive: var(--forest-deep);
 
-  --background: oklch(96% 0.03 85deg);
-  --foreground: oklch(12% 0.02 50deg);
+  --background: var(--paper);
+  --foreground: var(--ink);
   --card: oklch(94% 0.03 85deg);
   --card-foreground: oklch(12% 0.02 50deg);
   --popover: oklch(96% 0.02 85deg);
@@ -309,42 +309,7 @@ body {
   }
   body {
     @apply bg-background text-foreground min-h-[100dvh] flex flex-col;
-    position: relative;
-    z-index: 0;
-    background-color: var(--background);
-    background-image: var(--site-bg-image);
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    background-attachment: fixed;
-  }
-
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    background-image: var(--site-bg-image);
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    filter: var(--site-bg-filter);
-    opacity: 0.75;
-    pointer-events: none;
-  }
-
-  body::after {
-    content: '';
-    position: fixed;
-    inset: 0;
-    z-index: 1;
-    background: var(--site-bg-tint);
-    pointer-events: none;
-  }
-
-  body > * {
-    position: relative;
-    z-index: 2;
+    background-color: var(--paper);
   }
 }
 
@@ -598,6 +563,296 @@ html {
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
+}
+
+/* ═════════════════════════════════════════════════════════════
+   ETHNO HOMEPAGE — Hero + GroupCards + FeaturedChapter + Quote (PR3, 2026-05-25)
+   Источник: docs/design/handoff-2026-05-23/gonba-home.html строки 303-460, 625-647
+   ═════════════════════════════════════════════════════════════ */
+
+.ethno-eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.ethno-chapter {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ochre);
+}
+.ethno-chapter__num {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 36px;
+  line-height: 1;
+  color: var(--oxblood);
+}
+
+/* HERO */
+.ethno-hero {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100svh;
+  color: #fff;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  background: var(--forest-deep);
+}
+.ethno-hero__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.ethno-hero__bg-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ethno-hero__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(20, 18, 14, 0.45) 0%, rgba(20, 18, 14, 0.05) 30%, rgba(20, 18, 14, 0.85) 100%);
+}
+.ethno-hero__content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  padding: 0 0 80px;
+}
+.ethno-hero h1 {
+  font-family: var(--serif);
+  font-weight: 700;
+  font-size: clamp(48px, 9vw, 110px);
+  line-height: 0.96;
+  letter-spacing: -0.015em;
+  margin: 16px 0 24px;
+  max-width: 9ch;
+}
+.ethno-hero h1 em {
+  font-style: italic;
+  color: var(--ochre);
+  font-weight: 400;
+}
+.ethno-hero p {
+  font-size: clamp(15px, 1.6vw, 19px);
+  line-height: 1.5;
+  color: rgba(237, 227, 207, 0.85);
+  max-width: 44ch;
+}
+@media (min-width: 900px) {
+  .ethno-hero__content {
+    padding-bottom: 100px;
+  }
+}
+
+/* GROUP CARDS */
+.ethno-groups {
+  padding: 60px 0 20px;
+  background: var(--paper);
+}
+.ethno-groups__divider {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 28px;
+}
+.ethno-groups__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (min-width: 900px) {
+  .ethno-groups__grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+}
+.ethno-group-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: transparent;
+  border: 1.5px solid;
+  padding: 22px 18px;
+  min-height: 110px;
+  text-decoration: none;
+  transition: background 0.18s, color 0.18s;
+}
+.ethno-group-card h3 {
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+.ethno-group-card p {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: auto;
+}
+.ethno-group-card:hover {
+  background: var(--paper-deep);
+}
+.ethno-group-card--stay {
+  color: var(--forest);
+  border-color: var(--forest);
+}
+.ethno-group-card--do {
+  color: var(--ochre);
+  border-color: var(--ochre);
+}
+.ethno-group-card--see {
+  color: var(--oxblood);
+  border-color: var(--oxblood);
+}
+.ethno-group-card--shop {
+  color: #3a5236;
+  border-color: #3a5236;
+}
+
+/* FEATURED CHAPTER */
+.ethno-featured {
+  padding: 60px 0;
+  background: var(--paper);
+}
+.ethno-featured__grid {
+  display: grid;
+  gap: 32px;
+}
+@media (min-width: 900px) {
+  .ethno-featured__grid {
+    grid-template-columns: 1.1fr 1fr;
+    gap: 56px;
+    align-items: center;
+  }
+}
+.ethno-featured h2 {
+  font-family: var(--serif);
+  font-size: clamp(32px, 4vw, 52px);
+  font-weight: 700;
+  line-height: 1.05;
+  margin: 14px 0 18px;
+  color: var(--ink);
+}
+.ethno-featured h2 em {
+  display: block;
+  font-style: italic;
+  color: var(--oxblood);
+  font-weight: 400;
+  font-size: 0.65em;
+  margin-top: 4px;
+}
+.ethno-featured p {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  margin-bottom: 24px;
+  max-width: 50ch;
+}
+.ethno-featured__photo {
+  border: 1px solid var(--rule);
+  padding: 8px;
+  background: var(--paper-deep);
+}
+.ethno-featured__photo-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  aspect-ratio: 4/3;
+}
+.ethno-featured__photo-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 4/3;
+  background: linear-gradient(135deg, var(--forest) 0%, var(--forest-deep) 100%);
+  color: var(--paper);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+@media (min-width: 900px) {
+  .ethno-featured__photo-img,
+  .ethno-featured__photo-fallback {
+    aspect-ratio: 3/4;
+  }
+}
+
+/* BUTTONS */
+.ethno-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 22px;
+  background: var(--forest);
+  color: var(--paper);
+  border: 0;
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: background 0.18s;
+  cursor: pointer;
+}
+.ethno-btn:hover {
+  background: var(--forest-deep);
+}
+.ethno-btn--ochre {
+  background: var(--ochre);
+  color: var(--ink);
+}
+.ethno-btn--ochre:hover {
+  background: var(--ochre-light);
+}
+.ethno-btn--ghost {
+  background: transparent;
+  color: var(--forest);
+  border: 1.5px solid var(--forest);
+}
+.ethno-btn--ghost:hover {
+  background: var(--forest);
+  color: var(--paper);
+}
+
+/* QUOTE */
+.ethno-quote {
+  padding: 90px 0;
+  text-align: center;
+  background: var(--paper-deep);
+}
+.ethno-quote .ethno-rhomb {
+  color: var(--ochre);
+}
+.ethno-quote blockquote {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: clamp(20px, 2.4vw, 30px);
+  line-height: 1.4;
+  max-width: 22ch;
+  margin: 22px auto;
+  color: var(--ink);
+}
+.ethno-quote cite {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-style: normal;
 }
 
 .homeOrbitPage__intro {
