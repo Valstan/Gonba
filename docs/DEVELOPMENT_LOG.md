@@ -74,6 +74,36 @@
 
 ---
 
+## 2026-05-25 — ГОНЬБА 25 мая 2026 (Claude session) — SQL backfill 10 непокрытых проектов (PR #48)
+
+**Тема:** доделать data-fill после первого применения `scripts/sql/2026-05-23-prod-redesign-config.sql` (3/13 UPDATE'ов сработали из-за расхождения slug'ов). Этот новый скрипт `scripts/sql/2026-05-25-prod-redesign-config-backfill.sql` адаптирован под реальные slug'и в БД.
+
+### Что сделано
+
+- **`scripts/sql/2026-05-25-prod-redesign-config-backfill.sql`** (новый, 87 строк):
+  - `gallery_yandex_folder` через `COALESCE` (idempotent) для 7 проектов: `eco-hotel-booking`, `eco-hotel-vyatka`, `craft-workshops-gonba`, `district-excursions`, `konnyy-klub-gmalyzh`, `sadovaya-feya-gulfiya-kharisovna`, `village-events`.
+  - `chat_enabled=true` + `chat_placeholder='Напишите нам…'` для 5 «бронирование/запись» проектов (eco-hotel-booking + eco-hotel-vyatka + workshops + excursions + horse-club).
+  - 3 SELECT-проверки в финале.
+
+### Прод-результат после применения
+
+- **gallery_yandex_folder:** 10/13 проектов покрыто. Без — `gonba`, `about-project`, `vyatskaya-lepota-malmyzh` (последний — потенциальный дубликат `vyatskaya-lepota`).
+- **chat_enabled:** 6 проектов (5 новых + 1 был ранее — `village-events`).
+
+### PENDING_FOLLOWUPS обновлены
+
+Добавлены 🟡 техдолги:
+- **VK source #3 (Студия Вятская Лепота)** — `last_error: "Следующее поле недействительно: slug"`, гипотеза — пустой slug при создании поста. Нужен fallback `vk-<source>-<post>` в `web/src/server/integrations/vk-auto-sync.ts`. Блокирует 0 импортов на этой БД.
+- **VK source #5 (Гульфия)** — `group_id IS NULL`, нужно Save с токеном через админку или вручную проставить.
+- **PG16 → PG17 миграция dev-машины** — `web/.env` шаблон не работает (новый пароль для PG17, БД могла остаться в pg_data PG16). Варианты: restore из прод-дампа / пустая+migrate / игнор (тестить через prod+DOM-inspect).
+
+### Уроки
+
+- **COALESCE для idempotent UPDATE'ов** проще и читаемее чем `WHERE column IS NULL`. `SET col = COALESCE(col, 'new_value')` не перезаписывает существующие значения, безопасно повторно.
+- **Дубли проектов** (`eco-hotel-booking` vs `eco-hotel-vyatka`, `vyatskaya-lepota` vs `vyatskaya-lepota-malmyzh`) — артефакт ранних дней проекта. Решение про удаление — пользовательское (требует знания какой актуальный).
+
+---
+
 ## 2026-05-25 — ГОНЬБА 25 мая 2026 (Claude session) — SQL prod-redesign-config применён частично
 
 **Тема:** последний пункт плана сессии — применить `scripts/sql/2026-05-23-prod-redesign-config.sql` (хвост brain dispatch'а 2026-05-23, неприменённый из-за отсутствия SSH в полусессиях ч.1-4 на той Windows-машине). На этой dev-машине SSH есть, применил.
