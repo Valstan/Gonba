@@ -1,56 +1,42 @@
 'use client'
-import { useHeaderTheme } from '@/providers/HeaderTheme'
+
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 
 import type { Header } from '@/payload-types'
 
-import { Logo } from '@/components/Logo/Logo'
-import { HeaderNav } from './Nav'
-import { MobileNavSheet } from './MobileNavSheet'
+import { EthnoDrawer } from './EthnoDrawer.client'
 
 interface HeaderClientProps {
   data: Header
 }
 
-export const HeaderClient: React.FC<HeaderClientProps> = ({ data }) => {
-  /* Storing the value in a useState to avoid hydration errors */
-  const [theme, setTheme] = useState<string | null>(null)
-  const [scrolled, setScrolled] = useState(false)
-  const { headerTheme, setHeaderTheme } = useHeaderTheme()
-  const pathname = usePathname()
+const NAV_ITEMS: { label: string; href: string }[] = [
+  { label: 'Пожить', href: '/projects?group=stay' },
+  { label: 'Делать', href: '/projects?group=do' },
+  { label: 'Смотреть', href: '/projects?group=see' },
+  { label: 'Лавка', href: '/projects?group=shop' },
+  { label: 'О проекте', href: '/projects/about-project' },
+]
 
-  useEffect(() => {
-    setHeaderTheme(null)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname])
-
-  useEffect(() => {
-    if (headerTheme && headerTheme !== theme) setTheme(headerTheme)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [headerTheme])
-
-  // Компактный режим хедера при скролле.
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40)
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
-
+export const HeaderClient: React.FC<HeaderClientProps> = ({ data: _data }) => {
   return (
-    <header
-      className="container relative z-20 transition-[padding] duration-200"
-      data-scrolled={scrolled ? 'true' : 'false'}
-      {...(theme ? { 'data-theme': theme } : {})}
-    >
-      <div className={scrolled ? 'flex items-center justify-between py-3 transition-[padding]' : 'flex items-center justify-between py-8 transition-[padding]'}>
-        <Link href="/" aria-label="На главную">
-          <Logo loading="eager" className="invert dark:invert-0" />
+    <header className="ethno-header">
+      <div className="container ethno-header__inner">
+        <Link href="/" className="ethno-header__logo" aria-label="На главную">
+          <span className="ethno-rhomb" aria-hidden="true" />
+          Гоньба
         </Link>
-        <HeaderNav data={data} />
-        <MobileNavSheet data={data} />
+
+        <nav className="ethno-nav" aria-label="Главная навигация">
+          {NAV_ITEMS.map((item) => (
+            <Link key={item.href} href={item.href}>
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+
+        <EthnoDrawer />
       </div>
     </header>
   )
