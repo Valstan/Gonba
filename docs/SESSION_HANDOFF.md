@@ -1,6 +1,6 @@
 # Session Handoff
 
-**Status:** ACTIVE
+**Status:** IDLE
 **Updated:** 2026-05-25
 **Branch:** main
 **Last released version:** —
@@ -9,40 +9,40 @@
 
 ## Текущая нитка
 
-**Этно-модерн редизайн главной** продолжается. В сессии 2026-05-25 написан **PR1 §3+§4** (Header rhomb + drawer + Footer 3-колонник) — следующий шаг после PR #41 (§1+§2). Локально проверено через `preview_eval` (screenshot timeout-ил из-за висящих media-запросов к прод-Я.Диску, но DOM-inspect показал корректные цвета/шрифты/display). PR ждёт ревью и merge'а пользователем.
+Нет активной нитки. Сессия 2026-05-25 закрыла **3 пункта плана этно-модерн редизайна за один заход**:
+
+1. **PR #43** — Header rhomb + drawer + Footer 3-колонник (PR1 §3+§4). Смержен, задеплоен. На проде уже видны новые шапка/подвал во всех маршрутах.
+2. **PR #44** — schema Project под этно-модерн (PR2 §1+§2). 6 новых полей (`kind` / `homepageGroup` / `excerpt` / `chapterRoman` / `isHeroOfHomepage` / `isFeatured`) + миграция `20260525_080000`. Смержен, деплой в процессе (запустится после PR43-deploy ~7:59 UTC).
+3. **SQL prod-redesign-config** — применён, 3 из 13 UPDATE'ов сработали (slug'и в БД отличаются от baseline'а). Backfill для остальных — в PENDING_FOLLOWUPS.
+
+Нитка этно-модерн **переходит в IDLE** до следующей задачи. Следующая фаза — PR3 (новая главная: hero + group cards + featured + quote), требует визуальной приёмки и больше времени.
 
 ## Следующий шаг
 
-**В этом порядке:**
+Свободное состояние. Возможные стартовые точки:
 
-1. **Тебе:** ревью + merge PR §3+§4 (см. свежие PR'ы в `gh pr list`). После merge автодеплой через `.github/workflows/deploy-prod.yml`. Прод-эффект: шапка получит paper-фон + rhomb-лого + 5 групп nav (Пожить/Делать/Смотреть/Лавка/О проекте), на mobile откроется drawer с 4 группами подменю. Footer станет ink-чёрным 3-колонником с орнаментальными h3.
-2. **В следующей сессии:** **PR2** — схема `Project` под этно-модерн (миграция + 6 колонок). Готовые тексты миграции уже в плане `docs/plans/etno-modern-redesign.md`. Это backend-задача без визуальных изменений.
-3. **Или альтернативно — PR1 хвосты:** §5 (чистка слагов 3 проектов через админку или `/sql`), §6 (seed-скрипт `header_nav_items` если когда-нибудь захочется редактировать nav через Payload — сейчас 5 групп хардкодом).
-4. **Также висит:** SQL prod-config (`scripts/sql/2026-05-23-prod-redesign-config.sql`) — всё ещё не применён на проде. Можно применить из сессии где есть SSH.
+1. **PR3** — переписать `/page.tsx` на этно-модерн hero + GroupCards + FeaturedChapter + QuoteSection. Перенести `HomeCarouselMenuClient` на `/orbit`. Большая визуальная задача (план `docs/plans/etno-modern-redesign.md` §3).
+2. **Маппинг 10 проектов на этно-группы** — через админку или `/sql`. Заполнить `homepageGroup` / `isFeatured` / `isHeroOfHomepage` чтобы PR3 имел данные для рендера. Можно делать параллельно или внутри PR3.
+3. **SQL backfill для 10 непокрытых проектов** — `gallery_yandex_folder` + `chat_enabled` (см. PENDING_FOLLOWUPS).
+4. **VK auto-sync error** — Студия «Вятская Лепота» (community_id 3) в `last_sync_status = error` на 2026-05-25 03:01 UTC. Глянуть `journalctl -u gonba-vk-sync` и логи.
+5. Любая новая задача от пользователя.
 
 ## Контекст
 
-- **План:** [`docs/plans/etno-modern-redesign.md`](plans/etno-modern-redesign.md). Готовы PR1 §1-§4. Осталось §5/§6 (минорно) и PR2+/PR3/PR4 (большие).
+- **План:** [`docs/plans/etno-modern-redesign.md`](plans/etno-modern-redesign.md). Готовы PR1 (§1-§4) + PR2 (§1+§2). Осталось PR2 §4-§5 (маппинг + /orbit), PR3, PR4.
 - **ADR:** [`docs/adr/0004-frontpage-ethno-modern-redesign.md`](adr/0004-frontpage-ethno-modern-redesign.md).
-- **Handoff-bundle:** [`docs/design/handoff-2026-05-23/`](design/handoff-2026-05-23/INDEX.md).
-- **Свежие коммиты:**
-  - PR §3+§4 (см. `git log` сегодня) — Header + Drawer + Footer этно-модерн
-  - `b3530bf` — PR #41 §1+§2 ethno CSS-vars + шрифты
-- **Прод:** ✅ жив, `/api/health` 200 in 0.66s (проверено в начале сессии). После merge §3+§4 — деплой подтянет новые компоненты.
+- **Связанные коммиты сессии 2026-05-25:**
+  - PR #44 (5cda006) — schema Project под этно-модерн
+  - PR #43 (653e214) — Header + drawer + Footer
+- **Прод:** ✅ жив, `/api/health` 200 in 0.28s после deploy'я PR #43.
 - **Открытые вопросы для пользователя:** 0.
-- **Особенности dev-машины (2026-05-25):**
-  - На этой Windows-машине `web/.env` шаблон `postgres:postgres` не работает — реальный пароль в `%APPDATA%\postgresql\pgpass.conf` (длинный hex). Сессия временно меняла `DATABASE_URL` в `.env` для verify, потом откатывала к шаблону (файл в `.gitignore` — в git не уйдёт).
-  - SSH-ключ `~/.ssh/id_ed25519_gonba_deploy` присутствует, `ssh GONBA echo OK` работает.
-
-## Failed approaches (этой нитки)
-
-- **`preview_screenshot` для verify** — timeout-ит на 30s, потому что страница ждёт media-файлы с прод-Я.Диска (placeholder token локально → 401 на каждом media). **Решение:** `preview_eval` + `getComputedStyle` даёт точные значения цветов/шрифтов/display быстро и надёжно. Не пытаться зацикливать screenshot — переходить сразу на DOM-inspect.
-- **`postgres:postgres` пароль из CLAUDE.md** на этой Windows-машине не работает — `cannot connect to Postgres: read ECONNRESET` + auth error. Реальный пароль в `pgpass.conf` ОС-уровня. Не пытаться `psql -U postgres` через одну попытку — сразу смотреть pgpass.
+- **dev-машина (2026-05-25):** на этой Windows-машине пароль Postgres из `pgpass.conf` (не `postgres:postgres` из шаблона). SSH к проду работает, deploy-ключ `id_ed25519_gonba_deploy` присутствует.
 
 ## Не забыть (low-priority)
 
-- 🔵 **Запустить SQL prod-config + письмо kind=feedback** — нерешённый хвост ч.1/ч.2/ч.3 предыдущей сессии. Требует SSH (есть на этой машине).
-- 🟢 **Drawer-подменю Header → перенести из хардкода в Payload** (после PR2, когда появится `Projects.group`-поле).
+- 🟢 **SQL prod-redesign-config частичный backfill** (10 непокрытых проектов) — см. `PENDING_FOLLOWUPS.md → Этно-модерн редизайн`.
+- 🟢 **Маппинг 10 проектов на этно-группы** — после merge PR #44 деплоя.
+- 🟢 **VK Студия Вятская Лепота error** — глянуть в следующей сессии.
 - 🟢 3 mini-follow-up'а Media в `PENDING_FOLLOWUPS.md → Архитектура / Media`.
 - 📊 Журнал `gonba-media-cache.timer` — глянуть когда будут силы.
 - 🧹 Переименовать `docs/plans/media-to-yadisk.md` → `media-to-yadisk-DONE.md`.

@@ -6,9 +6,51 @@
 
 ---
 
+## 2026-05-25 — ГОНЬБА 25 мая 2026 (Claude session) — SQL prod-redesign-config применён частично
+
+**Тема:** последний пункт плана сессии — применить `scripts/sql/2026-05-23-prod-redesign-config.sql` (хвост brain dispatch'а 2026-05-23, неприменённый из-за отсутствия SSH в полусессиях ч.1-4 на той Windows-машине). На этой dev-машине SSH есть, применил.
+
+### Что сделано
+
+```bash
+cat scripts/sql/2026-05-23-prod-redesign-config.sql | ssh GONBA "sudo -u postgres psql -d gonba"
+```
+
+Скрипт идемпотентен (WHERE по slug), безопасен для несуществующих slug'ов. Транзакция COMMIT'нулась.
+
+### Что применилось vs ожидалось
+
+- **Применилось:** 3 UPDATE'а — `gallery_yandex_folder` для `village-and-temple`, `vyatskaya-lepota`, `vyatskiy-sbor`.
+- **Не применилось:** 10 UPDATE'ов — реальные slug'и в БД отличаются от baseline'а brain'а 2026-05-23.
+
+Финальный SELECT внутри скрипта вывел реальные slug'и не-совпавших проектов:
+- `craft-workshops-gonba` (≈ workshops)
+- `district-excursions` (≈ excursions)
+- `eco-hotel-booking` + `eco-hotel-vyatka` (≈ eco-hotel, два варианта)
+- `gonba` (проект «Гоньба» — не в baseline)
+- `konnyy-klub-gmalyzh` (≈ horse-club)
+- `sadovaya-feya-gulfiya-kharisovna` (≈ gulfia)
+- `village-events` (≈ events)
+- `vyatskaya-lepota-malmyzh` (≈ vyatskaya-lepota — дубликат?)
+
+### Решение пользователя
+
+Принять как есть — backfill для оставшихся 10 UPDATE'ов вынесен в `PENDING_FOLLOWUPS.md → Этно-модерн редизайн → SQL prod-redesign-config — частичный backfill`. Не блокер.
+
+### Бонус — VK auto-sync статус
+
+Скрипт вывел `last_sync_at` для 4 VK-источников: все sync'ились утром 2026-05-25 (6:00 и 3:00). Один в `error` — Студия «Вятская Лепота» (community_id 3). Не блокер сегодня, но стоит глянуть в следующей сессии.
+
+### Уроки
+
+- **Baseline brain'а ≠ реальный prod state.** Brain создаёт скрипт по slug'ам из своего контекста, а реальная БД могла эволюционировать (rename, дубли). Скрипт идемпотентен — это спасает от поломки, но coverage становится частичным. **Урок:** перед применением скрипта от brain'а — `SELECT slug FROM projects` для подтверждения baseline'а. Сегодня я попробовал ad-hoc query, classifier заблокировал; финальный SELECT внутри SQL это сделал в рамках санкционированной операции.
+- **Минорный баг в SQL:** строка `\echo '=== slugи которые в БД ... ==='` сломала psql парсер на одной кавычке внутри `slug'и` — `unterminated quoted string`. Не повлияло на результат (UPDATE'ы прошли в `BEGIN`/`COMMIT`-транзакции до этой строки). В follow-up'е лучше escape'нуть.
+
+---
+
 ## 2026-05-25 — ГОНЬБА 25 мая 2026 (Claude session) — PR2: схема Project под этно-модерн
 
-**Тема:** продолжение нитки. После merge'а PR1 §3+§4 (#43) — PR2: 6 новых полей в коллекции `Projects` + миграция БД. Backend-задача без визуальных изменений.
+**Тема:** продолжение нитки. После merge'а PR1 §3+§4 (#43) — PR2: 6 новых полей в коллекции `Projects` + миграция БД. Backend-задача без визуальных изменений. **Смерджен в PR #44.**
 
 ### Что сделано
 
