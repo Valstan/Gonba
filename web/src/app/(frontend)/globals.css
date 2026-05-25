@@ -388,6 +388,218 @@ html {
   -webkit-backdrop-filter: blur(3px);
 }
 
+/* ═════════════════════════════════════════════════════════════
+   ETHNO HEADER + DRAWER + FOOTER (PR1 §3+§4, 2026-05-25)
+   Источник: docs/design/handoff-2026-05-23/gonba-home.html
+   ═════════════════════════════════════════════════════════════ */
+
+.ethno-rhomb {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  background: currentColor;
+  transform: rotate(45deg);
+  position: relative;
+}
+.ethno-rhomb::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  background: var(--paper);
+  border-radius: 1px;
+}
+
+.ethno-header {
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+  padding: 18px 0;
+}
+.ethno-header__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.ethno-header__logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--serif);
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.ethno-header__logo .ethno-rhomb { color: var(--ochre); }
+.ethno-header__logo .ethno-rhomb::after { background: var(--paper); }
+
+.ethno-nav { display: none; }
+@media (min-width: 900px) {
+  .ethno-nav {
+    display: flex;
+    gap: 28px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink);
+  }
+  .ethno-nav a {
+    color: inherit;
+    text-decoration: none;
+    transition: color .18s;
+  }
+  .ethno-nav a:hover { color: var(--ochre); }
+}
+
+.ethno-header__menu-btn {
+  width: 42px;
+  height: 42px;
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background .18s;
+}
+.ethno-header__menu-btn:hover { background: var(--paper-deep); }
+@media (min-width: 900px) {
+  .ethno-header__menu-btn { display: none; }
+}
+
+/* Drawer (mobile) — рендерится внутри shadcn Sheet (он даёт overlay, scroll-lock, Esc) */
+.ethno-drawer {
+  background: var(--paper);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+}
+.ethno-drawer__group { padding: 16px 22px 8px; }
+.ethno-drawer__group h3 {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ochre);
+  margin-bottom: 8px;
+}
+.ethno-drawer__group--see h3 { color: var(--oxblood); }
+.ethno-drawer__group--stay h3 { color: var(--forest); }
+.ethno-drawer__group--shop h3 { color: #3a5236; }
+.ethno-drawer__group a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rule-light);
+  gap: 12px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.ethno-drawer__group a:last-child { border-bottom: 0; }
+.ethno-drawer__group a strong {
+  font-family: var(--serif);
+  font-size: 15px;
+  font-weight: 700;
+  display: block;
+}
+.ethno-drawer__group a span {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: block;
+}
+.ethno-drawer__group a .ethno-arrow {
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.ethno-drawer__footer {
+  margin-top: auto;
+  padding: 22px;
+  background: var(--forest);
+  color: var(--paper);
+}
+.ethno-drawer__footer h3 {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ochre-light);
+  margin-bottom: 10px;
+}
+.ethno-drawer__footer p {
+  font-family: var(--serif);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.ethno-footer {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 60px 0 40px;
+  margin-top: auto;
+}
+.ethno-footer__grid {
+  display: grid;
+  gap: 32px;
+}
+@media (min-width: 700px) {
+  .ethno-footer__grid {
+    grid-template-columns: 1.2fr 1fr 1fr;
+    gap: 48px;
+  }
+}
+.ethno-footer h3 {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ochre);
+  margin-bottom: 14px;
+}
+.ethno-footer__brand h2 {
+  font-family: var(--serif);
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.ethno-footer__brand p {
+  color: rgba(237, 227, 207, 0.7);
+  max-width: 36ch;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.ethno-footer ul { list-style: none; padding: 0; margin: 0; }
+.ethno-footer ul li {
+  padding: 7px 0;
+  font-family: var(--serif);
+  font-size: 14.5px;
+}
+.ethno-footer a {
+  color: inherit;
+  text-decoration: none;
+  transition: color .18s;
+}
+.ethno-footer a:hover { color: var(--ochre-light); }
+.ethno-footer__legal {
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(237, 227, 207, 0.15);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  color: rgba(237, 227, 207, 0.45);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .homeOrbitPage__intro {
   text-align: center;
   margin-bottom: 2rem;

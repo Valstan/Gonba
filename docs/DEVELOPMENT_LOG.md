@@ -6,6 +6,43 @@
 
 ---
 
+## 2026-05-25 — ГОНЬБА 25 мая 2026 (Claude session) — PR1 §3+§4: Header rhomb + drawer + Footer 3-колонник
+
+**Тема:** продолжение нитки этно-модерн редизайна. После того как PR #41 (§1+§2 — CSS-vars и шрифты) был смержен пользователем, эта сессия пишет следующие два визуальных параграфа PR1 — новый Header с rhomb-логотипом и mobile drawer на 4 группы + новый Footer как 3-колонник на `--ink`.
+
+### Что сделано
+
+- **`web/src/app/(frontend)/globals.css`** — добавлен блок этно-классов (~170 строк): `.ethno-rhomb`, `.ethno-header*`, `.ethno-nav`, `.ethno-drawer*`, `.ethno-footer*`. Полный набор стилей из [`gonba-home.html`](design/handoff-2026-05-23/gonba-home.html) строк 191-298 (Header+Drawer) и 651-701 (Footer), адаптированный под Tailwind v4 / shadcn-stack.
+- **`web/src/Header/Component.client.tsx`** — переписан: rhomb-лого (CSS-square + rotate 45° + inner paper-square для эффекта точки), 5 фиксированных пунктов nav (Пожить / Делать / Смотреть / Лавка / О проекте) с mono-uppercase стилем, импорт нового `EthnoDrawer.client`. Header data из глобала больше не используется — 5 групп хардкодом по §3 плана («переопределяем как 5 фиксированных групп»). `HeaderTheme` provider тоже выпилен — он был нужен для tailwind dark-mode логики, в этно-модерн дизайне всё на paper-фоне.
+- **`web/src/Header/EthnoDrawer.client.tsx`** (новый файл) — drawer через shadcn `Sheet` (даёт overlay, scroll-lock, Esc-close). Контент drawer'а: 4 группы (Пожить/Делать/Смотреть/Лавка) с цветовой кодировкой заголовков (forest/ochre/oxblood/#3a5236 по handoff'у), 9 пунктов меню с title+subtitle, footer-блок на `--forest` с контактами. Drawer-подменю **хардкод** по handoff'у (план §6: «не зависит от Payload»).
+- **`web/src/Header/Nav/index.tsx`, `web/src/Header/MobileNavSheet.tsx`** — удалены. Старые компоненты, заменены новыми. Папка `Nav/` удалена.
+- **`web/src/Footer/Component.tsx`** — переписан как 3-колонник: brand-колонка (rhomb-логотип + описание «Жемчужина Вятки. Этно-усадьба...»), «· Разделы ·» с 5 пунктами те же что в nav, «· Контакты ·» с адресом/телефоном/email. `--ink` фон, `--paper` текст, орнаментальные h3 в JetBrains Mono uppercase + ochre. Legal-строка снизу с border-top. `ThemeSelector` выпилен — нет dark-варианта в этно-модерн.
+
+### Локальная проверка
+
+- `corepack pnpm --dir web run typecheck` — clean
+- Dev-сервер поднят, `/` рендерится. Проверено через `preview_eval` (`getComputedStyle`):
+  - Header: `background: rgb(237, 227, 207)` (= `--paper`) ✓, `font-family: "PT Serif"` ✓, logo color `rgb(31, 36, 24)` (= `--ink`) ✓
+  - Nav на десктопе (1280px): `display: flex`, font `JetBrains Mono 11px uppercase`, color `--ink` ✓
+  - Nav на mobile (375px): `display: none`, menu-button виден ✓
+  - Drawer: открывается по клику, `body.overflow = hidden` (scroll-lock работает), 4 группы с правильными цветами заголовков (`#2d4029` / `#a86a1d` / `#6e2018` / `#3a5236`), 9 пунктов меню с title+subtitle, footer на `--forest` ✓
+  - Footer: `background: rgb(31, 36, 24)` (= `--ink`) ✓, орнаментальные h3 «· РАЗДЕЛЫ ·» / «· КОНТАКТЫ ·», 5 пунктов разделов, 3 контакт-ссылки, legal-строка с copyright ✓
+
+### Что НЕ сделано (намеренно)
+
+- **Header `position: absolute` поверх hero** — оставлено на PR3. Сейчас hero ещё нет (главная — orbit-карусель), поэтому absolute-positioning сломал бы layout. В PR1 §3+§4 хедер в normal flow с paper-фоном — это transitional state. Когда в PR3 появится hero, переключим Header на absolute+transparent с белым текстом по `pathname === '/'`.
+- **§5 — чистка слагов** (eco-hotel-booking, about-project, vyatskiy-sbor) — требует доступа к админке Payload или прямого `UPDATE` в БД через `/sql`. Можно сделать отдельной мини-задачей.
+- **§6 — seed-скрипт `header_nav_items`** — план есть, но Header теперь не читает из глобала (5 групп хардкодом), поэтому seed не критичен. Можно сделать когда захочется редактировать nav через админку.
+- **Скриншот dev'а в PR** — `preview_screenshot` timeout-ил из-за висящих media-запросов к прод-Я.Диску (placeholder token локально). Verify через DOM-inspect показал что все стили применились.
+
+### Уроки
+
+- **`preview_eval` + `getComputedStyle` — мощнее screenshot'а** для проверки CSS-стилей. Когда screenshot ломается (медленная сеть, висящие запросы), inspect через JS даёт точные значения цветов/шрифтов/display прямо из браузера. Это особенно ценно когда verify-mode видит ~30 секунд ожидания.
+- **Postgres-auth на dev-машине не всегда `postgres:postgres`** — реальный пароль лежит в `~/AppData/Roaming/postgresql/pgpass.conf`. `.env` шаблон в CLAUDE.md упоминает дефолтные значения, но на конкретной dev-машине могут быть другие. Не критично — `.env` в `.gitignore`, но для следующих сессий стоит иметь в виду.
+- **shadcn `Sheet` достаточно для drawer'а** — даёт overlay + scroll-lock + Esc-close из коробки, не нужно писать custom JS. Стилизация чистая через `className` на `SheetContent` + кастомный div внутри.
+
+---
+
 ## 2026-05-24 — ГОНЬБА 24 мая 2026 (Claude session, ч.4) — PR1 §1+§2 написан и в PR + setup Windows-машины с нуля
 
 **Тема:** четвёртая полусессия 24 мая на той же Windows-машине, которую три предыдущие полусессии отбрасывали как «без dev-окружения». В этой сессии пользователь переубедил Claude (вначале выводившего «всё ждёт dev-машины») попробовать setup на месте — и это сработало. За одну сессию: Postgres 16 portable установлен, dev-окружение поднято, реальный код PR1 §1+§2 написан/проверен/в PR.
