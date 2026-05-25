@@ -417,8 +417,42 @@ export async function syncVkSource(
 
     // Формируем заголовок из первых 80 символов текста
     const title = newPost.text.length > 80 ? newPost.text.substring(0, 80).trim() + '...' : newPost.text
-    const slugBase = generateSlug(title) || `vk-post`
-    const slug = `${slugBase}-${newPost.id}`.substring(0, 100).replace(/-+$/, '')
+
+    // Slug: стабильный префикс `vk-<groupId>-<postId>` гарантирует уникальность
+    // между группами и между постами одной группы, даже если text-suffix пуст
+    // (emoji-only / только пунктуация). Text-suffix добавляется для читаемости URL.
+    const textSuffix = generateSlug(title)
+    const slugStable = `vk-${groupId}-${newPost.id}`
+    const slug = textSuffix
+      ? `${slugStable}-${textSuffix}`.substring(0, 100).replace(/-+$/, '')
+      : slugStable
+
+    // Idempotency: если пост с таким slug уже есть (повторный запуск, ручной
+    // импорт через vk-import.ts с тем же ownerId+postId), не создаём дубль —
+    // просто двигаем lastSyncedPostId, чтобы следующий запуск перешёл дальше.
+    const existing = await payload.find({
+      collection: 'posts',
+      overrideAccess: true,
+      limit: 1,
+      where: { slug: { equals: slug } },
+    })
+    if (existing.docs[0]) {
+      await payload.update({
+        collection: 'vk-auto-sync',
+        id: sourceId,
+        overrideAccess: true,
+        data: {
+          lastSyncedPostId: newPost.id,
+          lastSyncStatus: 'success',
+          lastSyncAt: new Date().toISOString(),
+        },
+      })
+      return {
+        success: true,
+        message: `Пост vk_id=${newPost.id} уже импортирован ранее (slug=${slug})`,
+        postId: newPost.id,
+      }
+    }
 
     // Создаём пост
     const postDoc = await payload.create({
@@ -467,7 +501,20 @@ export async function syncVkSource(
       newPostId: createdPostId,
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const baseMessage = error instanceof Error ? error.message : String(error)
+
+    // Payload ValidationError кладёт детальный per-field разбор в `error.data.errors`
+    // (см. web/node_modules/payload/dist/errors/ValidationError.js). Без этого в
+    // lastError остаётся только "Следующее поле недействительно: slug" без причины
+    // (required / unique / minLength / ...).
+    let details = ''
+    const data = (error as { data?: { errors?: Array<{ path?: string; message?: string }> } })?.data
+    if (Array.isArray(data?.errors) && data.errors.length > 0) {
+      details = ' | ' + data.errors
+        .map((e) => `${e.path ?? '?'}: ${e.message ?? '?'}`)
+        .join('; ')
+    }
+    const errorMessage = (baseMessage + details).substring(0, 500)
 
     try {
       await payload.update({

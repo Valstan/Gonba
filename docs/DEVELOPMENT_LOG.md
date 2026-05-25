@@ -6,6 +6,38 @@
 
 ---
 
+## 2026-05-25 — ГОНЬБА 25 мая 2026 (Claude session, вечер) — VK auto-sync: устойчивый slug + idempotency + детальные ValidationError
+
+**Тема:** закрытие 🟡-техдолга «VK source #3 (Студия Вятская Лепота) — `last_error: "Следующее поле недействительно: slug"`». Заодно — расширенное логирование ValidationError, чтобы в будущем не гадать «какое поле почему упало». Bonus: уточнение про VK #5 (это user page, не group — отдельный PR).
+
+### Что сделано
+
+- **`web/src/server/integrations/vk-auto-sync.ts`** — три точечные правки в `syncVkSource`:
+  - **Устойчивый slug.** Было: `${generateSlug(title) || 'vk-post'}-${newPost.id}` — теоретически валидно, но реальная причина "недействительно" в `last_error` неизвестна (Payload съедает детали в общую обёртку). Стало: префикс `vk-<groupId>-<postId>` всегда стабилен, text-suffix добавляется для читаемости URL только если непуст. Гарантирует уникальность между группами **и** между постами одной группы.
+  - **Idempotency.** Перед `payload.create({ collection: 'posts' })` теперь `find` по slug — если уже есть (например, ручной импорт `vk-import.ts` оставил `<ownerId>-<postId>-text` или предыдущий запуск частично прошёл), двигаем `lastSyncedPostId` и возвращаем `success`. Не дублируем.
+  - **Детальные ValidationError.** В `catch` распаковываем `error.data.errors` (массив `{ path, message }`) и appendим в `lastError`. Теперь вместо «Следующее поле недействительно: slug» будет «… | slug: Value must be unique» (или whatever — true cause). Cap 500 chars чтобы поле БД не разрастания.
+- **`docs/PENDING_FOLLOWUPS.md`:**
+  - VK #3 — отмечен «в работе» (strikethrough + ссылка на PR).
+  - **VK #5 (Гульфия) переписан:** это user page, не group. `parseVkCommunityIdentifier` + `fetchVkGroupMeta` только для групп; `wall.get` для user'ов использует **положительный** `owner_id`. Расширение на user'ов — отдельный PR.
+
+### Локальная проверка
+
+- `corepack pnpm --dir web run typecheck` — clean.
+- Триггер sync локально невозможен (БД на этой dev-машине не работает после PG16→PG17, см. `PENDING_FOLLOWUPS.md → Windows dev-setup`). Verify — после merge на проде через `POST /api/vk-auto-sync/trigger`.
+
+### Что НЕ сделано (намеренно)
+
+- **VK #5 (user page support)** — отдельный PR. Не блокер прода.
+- **Обратно совместимый migrate** старых slug'ов (`<ownerId>-<postId>-text` → `vk-<ownerId>-<postId>-text`) — не нужен, idempotency-check находит existing slug в любом формате и переходит дальше.
+
+### Уроки
+
+- **Payload ValidationError режет детали в `error.message`**, оставляя только массив failed paths. Реальные причины (required / unique / minLength / regex) живут в `error.data.errors[i].message`. Любой catch вокруг payload-операций должен распаковывать это — иначе тратится сессия на гадание.
+- **Стабильный префикс slug'а лучше «генеримого из title»**, когда внешний источник может прислать что угодно (emoji-only / только пунктуация / кириллица). Text-suffix для читаемости, префикс для гарантии валидности+уникальности.
+- **Idempotency полезен даже когда «по логике повторов не должно быть»** — `lastSyncedPostId` мог не обновиться из-за прерванного запроса, а ручной `vk-import.ts` мог оставить пост раньше с другим slug'ом.
+
+---
+
 ## 2026-05-25 — ГОНЬБА 25 мая 2026 (Claude session) — PR3: новая главная (этно-модерн)
 
 **Тема:** четвёртый PR в нитке этно-модерн редизайна. После маппинга 10 проектов на этно-группы (предыдущий блок) — переписываем главную на этно-композицию: Hero + GroupCards + FeaturedChapter + Quote. Orbit-карусель уезжает на `/orbit`.
