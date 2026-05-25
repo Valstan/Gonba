@@ -57,6 +57,24 @@ _Сейчас нет — `authorized_keys` cleanup закрыт 2026-05-22 (см
 
 - **Drawer-подменю Header → перенести из хардкода в Payload** (после PR2, когда появится поле `Projects.group`). Сейчас в PR1 drawer и подзаголовки (`«над рекой, 6 номеров»`) — хардкод по [`gonba-home.html`](design/handoff-2026-05-23/gonba-home.html) строки 191-298. Альтернативы: nested array `subItems` в `Header` global (расширение схемы в `web/src/Header/config.ts`), либо динамика — рендер по `Projects` с фильтром `where.group.equals.<...>`. Не блокер — кодить через хардкод проще, перенос делается когда захочется редактировать структуру drawer'а через админку.
 
+- 🟢 **SQL prod-redesign-config — частичный backfill** — скрипт `scripts/sql/2026-05-23-prod-redesign-config.sql` применён 2026-05-25 (см. DEV_LOG), но только 3 из 13 ожидаемых UPDATE'ов сработали из-за расхождения slug'ов с baseline'ом brain'а. Маппинг:
+  | Baseline (brain 2026-05-23) | Реально в БД на 2026-05-25 |
+  |---|---|
+  | `eco-hotel` | `eco-hotel-booking` + `eco-hotel-vyatka` (дубль?) |
+  | `workshops` | `craft-workshops-gonba` |
+  | `excursions` | `district-excursions` |
+  | `horse-club` | `konnyy-klub-gmalyzh` |
+  | `gulfia` | `sadovaya-feya-gulfiya-kharisovna` |
+  | `events` | `village-events` |
+  | `vyatskaya-lepota` | `vyatskaya-lepota-malmyzh` |
+  | `village-and-temple` | ✓ совпало |
+  | `vyatskiy-sbor` | ✓ совпало |
+  | `about-project` | ✓ совпало |
+
+  Что осталось backfill'ить: `gallery_yandex_folder` для 6 проектов + `chat_enabled = true` для 4 «бронирование» проектов. Не блокер. Решено: оставить как есть (см. сессия 2026-05-25 DEV_LOG).
+
+- 🟢 **Маппинг 10 проектов на этно-группы** — PR #44 миграция применена, поля `kind` / `homepageGroup` / `isFeatured` / `isHeroOfHomepage` доступны в админке. Default `kind = 'project'` стоит на всех проектах через миграцию (`DEFAULT 'project'`). Заполнение `homepageGroup` / `isFeatured` / `isHeroOfHomepage` — через админку или `/sql`. До PR3 (новая главная) не блокирует.
+
 ### Windows-dev quirks (нашли в сессии 2026-05-24 ч.4)
 
 - 🟡 **`spawn UNKNOWN` в Payload на Windows + Node 22** — `getPayload({ config })` падает после 1-2 запросов. Проверено 3 раза, не лечится restart'ом. Гипотезы: sharp child-process, drizzle migrations, или Yandex trash cleanup (последнее — самое подозрительное при `YANDEX_DISK_TOKEN=placeholder`). **Что попробовать:** (a) downgrade Node до 20 (как на проде), (b) убрать `YANDEX_DISK_TOKEN` совсем, (c) запустить через docker-compose из `web/docker-compose.yml`. Не блокер — первый запрос всегда успешен, для разовых проверок достаточно cold-restart. Чинить когда будет регулярная dev-работа с этой машины.
