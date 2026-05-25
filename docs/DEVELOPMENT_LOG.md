@@ -6,6 +6,52 @@
 
 ---
 
+## 2026-05-25 — ГОНЬБА 25 мая 2026 (Claude session) — PR2: схема Project под этно-модерн
+
+**Тема:** продолжение нитки. После merge'а PR1 §3+§4 (#43) — PR2: 6 новых полей в коллекции `Projects` + миграция БД. Backend-задача без визуальных изменений.
+
+### Что сделано
+
+- **`web/src/collections/Projects/index.ts`** — добавлены 6 полей сразу после `projectType`:
+  - **`kind`** (select, required, default `'project'`): `project` / `person` / `studio` / `workshop` / `event` / `shop` — определяет какая карточка-шаблон используется на главной (PeopleSection / CraftsSection / ShopBanner / ...).
+  - **`homepageGroup`** (select, optional): `stay` / `do` / `see` / `shop` — какая из 4 этно-карточек на главной. Имя `homepageGroup` вместо `group` (план §1 предлагал обе опции) **намеренно** — избегаем reserved-word SQL footgun, плюс консистентно с `isHeroOfHomepage`.
+  - **`excerpt`** (textarea, maxLength 160): выжимка под заголовком в hero/featured. Дополнительно может содержать формат «2ч · 1800₽» для CraftsSection (план PR4 §2).
+  - **`chapterRoman`** (select, optional): `I` / `II` / `III` / `IV` / `V` — маркер главы в featured/people/crafts-секциях с человеческими лейблами «I — главная история» etc.
+  - **`isHeroOfHomepage`** (checkbox, sidebar, default false): фото проекта как hero на главной.
+  - **`isFeatured`** (checkbox, sidebar, default false): попадает в FeaturedChapter.
+- **`web/src/migrations/20260525_080000.ts`** (новый файл) — миграция `up()`/`down()` через `db.execute(sql\`...\`)` по паттерну [`20260521_120000.ts`](../web/src/migrations/20260521_120000.ts). Все `ADD COLUMN IF NOT EXISTS` — идемпотентна. `homepage_group` / `is_hero_of_homepage` / `is_featured` / `excerpt` / `chapter_roman` / `kind`.
+- **`web/src/migrations/20260525_080000.sql`** (новый файл) — зеркало `up()` для `psql -f` на проде. `BEGIN`/`COMMIT`, идемпотентно. С комментарием как применять + `INSERT INTO payload_migrations`.
+- **`web/src/migrations/index.ts`** — добавлены import + entry в массив `migrations`.
+
+### Локальная проверка
+
+- `corepack pnpm --dir web run typecheck` — clean
+- **`payload generate:types` НЕ запускался** — на этой dev-машине требует реального пароля Postgres из `pgpass.conf`, а `.env` шаблон `postgres:postgres`. `payload-types.ts` обновится автоматически на проде при build (или ручным запуском в следующей сессии). **Не блокер** — добавляемые поля не используются в коде сессии, только декларируются в коллекции.
+
+### Применение на проде
+
+После merge PR — автодеплой через `.github/workflows/deploy-prod.yml`. Если workflow гонит `pnpm payload migrate` — миграция применится. **Если нет** — ручное применение:
+
+```bash
+ssh GONBA "cd /home/valstan/GONBA/web && bash scripts/run-migrate.sh"
+# fallback (если drizzle подвисает на y/N):
+ssh GONBA "psql -U gonba -d gonba -f /home/valstan/GONBA/web/src/migrations/20260525_080000.sql"
+ssh GONBA "psql -U gonba -d gonba -c \"INSERT INTO payload_migrations (name, batch) VALUES ('20260525_080000', (SELECT COALESCE(MAX(batch), 0) + 1 FROM payload_migrations));\""
+ssh GONBA "sudo systemctl restart gonba"
+```
+
+### Что НЕ сделано (намеренно)
+
+- **Маппинг 10 проектов на группы** — план PR2 §4 (таблица slug → kind/group/featured/hero). Это data-fill, требует доступа к админке или прямого `UPDATE` в БД. Можно сделать через `/sql` или через админку после деплоя. Не блокирует следующую визуальную фазу (PR3 рендерит fallback'и для пустых полей).
+- **`/orbit` страница** — план PR2 §5. Перенос `HomeCarouselMenuClient` на `/orbit` нужен только когда главная (`/page.tsx`) переключится на этно-модерн hero — это PR3. До PR3 orbit живёт на `/`. Делать сейчас — преждевременно.
+
+### Уроки
+
+- **`group` — reserved SQL word**, лучше избегать в имени поля даже если Drizzle/Payload оборачивает в кавычки. `homepageGroup` чище и не требует объяснений будущим разработчикам. План оставлял выбор — я выбрал безопасный путь.
+- **Миграция без `NOT NULL`** на новых колонках — безопаснее для существующих строк. `DEFAULT false` на boolean'ах применяется к существующим, но `NOT NULL` без backfill ломает rows. `IF NOT EXISTS` плюс отсутствие `NOT NULL` = идемпотентность.
+
+---
+
 ## 2026-05-25 — ГОНЬБА 25 мая 2026 (Claude session) — PR1 §3+§4: Header rhomb + drawer + Footer 3-колонник
 
 **Тема:** продолжение нитки этно-модерн редизайна. После того как PR #41 (§1+§2 — CSS-vars и шрифты) был смержен пользователем, эта сессия пишет следующие два визуальных параграфа PR1 — новый Header с rhomb-логотипом и mobile drawer на 4 группы + новый Footer как 3-колонник на `--ink`.

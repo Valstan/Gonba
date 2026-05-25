@@ -86,6 +86,76 @@ export const Projects: CollectionConfig<'projects'> = {
       options: ['deerFarm', 'ecoHotel', 'craftStudio', 'travelClub', 'productLine', 'other'],
     },
     {
+      name: 'kind',
+      type: 'select',
+      required: true,
+      defaultValue: 'project',
+      options: [
+        { label: 'Проект', value: 'project' },
+        { label: 'Человек', value: 'person' },
+        { label: 'Студия', value: 'studio' },
+        { label: 'Мастерская', value: 'workshop' },
+        { label: 'Событие', value: 'event' },
+        { label: 'Лавка', value: 'shop' },
+      ],
+      admin: {
+        description: 'Этно-модерн редизайн: определяет какая карточка-шаблон используется на главной (PeopleSection / CraftsSection / ShopBanner / ...).',
+      },
+    },
+    {
+      name: 'homepageGroup',
+      type: 'select',
+      options: [
+        { label: 'Пожить', value: 'stay' },
+        { label: 'Делать', value: 'do' },
+        { label: 'Смотреть', value: 'see' },
+        { label: 'Лавка', value: 'shop' },
+      ],
+      admin: {
+        description: 'Этно-модерн редизайн: к какой группе главной относится проект (4 ethno-карточки). Не на главной — оставь пустым.',
+      },
+    },
+    {
+      name: 'excerpt',
+      type: 'textarea',
+      maxLength: 160,
+      admin: {
+        description: 'Этно-модерн редизайн: короткая выжимка под заголовком в hero/featured-секции (до 160 символов). Также используется для длительности+цены мастерских (формат «2ч · 1800₽»).',
+      },
+    },
+    {
+      name: 'chapterRoman',
+      type: 'select',
+      options: [
+        { label: 'I — главная история', value: 'I' },
+        { label: 'II — люди села', value: 'II' },
+        { label: 'III — ремёсла', value: 'III' },
+        { label: 'IV — лавка', value: 'IV' },
+        { label: 'V — события', value: 'V' },
+      ],
+      admin: {
+        description: 'Этно-модерн редизайн: маркер главы в featured/people/crafts-секциях. Необязательно.',
+      },
+    },
+    {
+      name: 'isHeroOfHomepage',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        position: 'sidebar',
+        description: 'Этно-модерн редизайн: использовать фото проекта как hero на главной. Только один проект может быть hero — если их несколько, берётся первый.',
+      },
+    },
+    {
+      name: 'isFeatured',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        position: 'sidebar',
+        description: 'Этно-модерн редизайн: попадает в FeaturedChapter-секцию главной.',
+      },
+    },
+    {
       name: 'summary',
       type: 'textarea',
     },
