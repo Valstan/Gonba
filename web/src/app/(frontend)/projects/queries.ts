@@ -26,6 +26,16 @@ const getSelect = (): ProjectsSelect => ({
   sortOrder: true,
   galleryYandexFolder: true,
   chat: true,
+  // Этно-модерн поля (миграция 20260525_080000). Cast — пока локальный
+  // payload-types.ts не пересгенерирован; CI на сборке регенерирует.
+  ...({
+    kind: true,
+    homepageGroup: true,
+    isHeroOfHomepage: true,
+    isFeatured: true,
+    excerpt: true,
+    chapterRoman: true,
+  } as unknown as Partial<ProjectsSelect>),
 })
 
 export const queryProjectBySlug = cache(async ({ slug }: { slug: string }) => {

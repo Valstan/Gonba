@@ -4,6 +4,18 @@ export type ProjectSectionKey = 'feed' | 'lavka' | 'gallery' | 'contacts' | 'cha
 export type LegacyProjectSectionKey = 'posts' | 'events' | 'services' | 'shop'
 export type AnyProjectSectionKey = ProjectSectionKey | LegacyProjectSectionKey
 
+export type EthnoHomepageGroup = 'stay' | 'do' | 'see' | 'shop'
+export type EthnoProjectKind = 'project' | 'person' | 'studio' | 'workshop' | 'event' | 'shop'
+export type EthnoChapterRoman = 'I' | 'II' | 'III' | 'IV' | 'V'
+
+/**
+ * Базовый record проекта для frontend-рендера.
+ *
+ * Этно-модерн поля (`kind` / `homepageGroup` / `isHeroOfHomepage` / `isFeatured` /
+ * `excerpt` / `chapterRoman`) добавлены в коллекцию миграцией 20260525_080000 (PR2).
+ * Здесь они дублируются через intersection, чтобы TS работал и до регенерации
+ * `payload-types.ts` (она происходит при `payload generate:types`).
+ */
 export type ProjectRecord = Pick<
   Project,
   | 'id'
@@ -23,7 +35,14 @@ export type ProjectRecord = Pick<
   | 'sortOrder'
   | 'galleryYandexFolder'
   | 'chat'
->
+> & {
+  kind?: EthnoProjectKind | null
+  homepageGroup?: EthnoHomepageGroup | null
+  isHeroOfHomepage?: boolean | null
+  isFeatured?: boolean | null
+  excerpt?: string | null
+  chapterRoman?: EthnoChapterRoman | null
+}
 
 export const DEFAULT_PROJECT_SECTIONS: ProjectSectionKey[] = ['feed', 'lavka', 'gallery', 'contacts', 'chat']
 
