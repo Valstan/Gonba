@@ -73,7 +73,25 @@ _Сейчас нет — `authorized_keys` cleanup закрыт 2026-05-22 (см
 
   Что осталось backfill'ить: `gallery_yandex_folder` для 6 проектов + `chat_enabled = true` для 4 «бронирование» проектов. Не блокер. Решено: оставить как есть (см. сессия 2026-05-25 DEV_LOG).
 
-- 🟢 **Маппинг 10 проектов на этно-группы** — PR #44 миграция применена, поля `kind` / `homepageGroup` / `isFeatured` / `isHeroOfHomepage` доступны в админке. Default `kind = 'project'` стоит на всех проектах через миграцию (`DEFAULT 'project'`). Заполнение `homepageGroup` / `isFeatured` / `isHeroOfHomepage` — через админку или `/sql`. До PR3 (новая главная) не блокирует.
+- ~~**Маппинг 10 проектов на этно-группы**~~ **Сделано 2026-05-25** — см. PR #46 (`scripts/sql/2026-05-25-project-ethno-mapping.sql`). 11 проектов получили `homepage_group`, hero+featured = `village-and-temple`. Поля `kind` распределены (project×8, studio×3, person×1, shop×1).
+
+### VK auto-sync (не блокер, обнаружено 2026-05-25)
+
+- 🟡 **VK source #3 (Студия «Вятская Лепота»)** — `last_sync_status = error`, `last_error = "Следующее поле недействительно: slug"`. Payload validation падает при создании поста — пустой/невалидный slug. **Гипотеза:** заголовок VK-поста не передаётся в slugField (или передаётся пустая строка), `slugify(title)` → пустой результат. **Где смотреть:** `web/src/server/integrations/vk-auto-sync.ts` (создание поста), `web/src/collections/Posts/` (slug field config). **Quick fix:** fallback slug = `vk-<source_id>-<vk_post_id>` если из title не получается. **0 импортов** — всё блокировано этой ошибкой.
+
+- 🟡 **VK source #5 (Садовая Фея Гульфия Харисовна)** — `group_id IS NULL`, `last_sync_status = pending`, ошибка «Не указан ID группы VK. Добавьте токен и сохраните источник, чтобы система подтянула ID автоматически.» Источник сконфигурирован без `access_token` или с просроченным/неработающим, поэтому `groups.getById` не отдал ID. **Решение:** в админке /admin → VkAutoSync → #5 → Save с актуальным токеном (или установить group_id вручную как другие источники: `screen_name` уже есть — `feya`, можно найти group_id через VK API).
+
+### Windows dev-setup (обнаружено 2026-05-25)
+
+- 🟡 **Postgres 16 → 17 миграция на dev-машине** — пользователь снёс PG16, на компе теперь PG17. `web/.env` шаблон `postgres:postgres@127.0.0.1:5432/gonba` не работает потому что:
+  1. На 5432 теперь PG17 с другим паролем (не `postgres`)
+  2. БД `gonba` могла остаться в pg_data PG16 (удалена), на PG17 её может не быть
+  3. `pgpass.conf` содержит два пароля: для 5432 (старый PG16, не работает) и 5433 (другой инстанс)
+
+  **Варианты:**
+  - **(а)** Restore из прод-дампа: `ssh GONBA "sudo -u postgres pg_dump -Fc gonba" > prod-gonba.dump`, потом `pg_restore -h 127.0.0.1 -U postgres -d gonba_new prod-gonba.dump` на локальный PG17. Обновить `.env` с актуальным паролем PG17.
+  - **(б)** Пустая БД + `pnpm payload migrate` — для smoke-тестов кода без данных.
+  - **(в)** Игнорировать локалку, тестить только через `preview_eval` / DOM-inspect / прод.
 
 ### Windows-dev quirks (нашли в сессии 2026-05-24 ч.4)
 
