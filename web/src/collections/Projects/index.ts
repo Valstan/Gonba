@@ -88,7 +88,6 @@ export const Projects: CollectionConfig<'projects'> = {
     {
       name: 'kind',
       type: 'select',
-      required: true,
       defaultValue: 'project',
       options: [
         { label: 'Проект', value: 'project' },
@@ -99,7 +98,7 @@ export const Projects: CollectionConfig<'projects'> = {
         { label: 'Лавка', value: 'shop' },
       ],
       admin: {
-        description: 'Этно-модерн редизайн: определяет какая карточка-шаблон используется на главной (PeopleSection / CraftsSection / ShopBanner / ...).',
+        description: 'Этно-модерн редизайн: определяет какая карточка-шаблон используется на главной (PeopleSection / CraftsSection / ShopBanner / ...). Default — "project".',
       },
     },
     {
