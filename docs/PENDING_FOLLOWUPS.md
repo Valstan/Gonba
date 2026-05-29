@@ -26,7 +26,7 @@ _Сейчас нет — все начатые задачи в текущей с
 
 ## 🟡 Техдолги
 
-_Сейчас нет — `authorized_keys` cleanup закрыт 2026-05-22 (см. DEVELOPMENT_LOG, dispatch #0007)._
+- ⚠️ **Директива brain #008 — секреты вне дерева репо** (`from-brain/2026-05-28-secrets-outside-repo.md`, `compliance=recommend` = SHOULD). Перенести прод-секреты из `/home/valstan/GONBA/web/.env` (внутри clone репо) в `/etc/gonba/gonba.env` (root, `0640`) + systemd `EnvironmentFile=` в трёх юнитах (`gonba-web` / `gonba-vk-sync` / `gonba-media-cache`). В репо — только `*.env.example`. Решить вопрос docker-compose (systemd prod vs docker prod — зафиксировать в ADR). Отдельная feat-ветка + PR; при применении — письмо `mailbox/to-brain/` (kind=feedback). **Актуально:** 2026-05-29 трогали `web/.env` (обновляли VK-токен) — секрет лежит именно там. Pool [#008](../../brain_matrica/cross-project-ideas/ideas/008-secrets-outside-repo.md).
 
 ---
 
@@ -77,9 +77,15 @@ _Сейчас нет — `authorized_keys` cleanup закрыт 2026-05-22 (см
 
 ### VK auto-sync (не блокер, обнаружено 2026-05-25)
 
-- ~~**VK source #3 (Студия «Вятская Лепота»)** — `last_error = "Следующее поле недействительно: slug"`~~ **В работе 2026-05-25** — `fix/vk-auto-sync-slug-resilience` (PR pending): (а) стабильный slug `vk-<groupId>-<postId>[-<textSuffix>]`, (б) idempotency-check (skip если slug уже в БД, двигаем `lastSyncedPostId`), (в) детальная распаковка `error.data.errors` в `lastError`. После merge — триггерить sync, проверить.
+- ~~**VK source #3 (Студия «Вятская Лепота»)** — `last_error = "Следующее поле недействительно: slug"`~~ **✅ Закрыто 2026-05-29** (PR [#50](https://github.com/Valstan/Gonba/pull/50) + verify) — slug-фикс DB-подтверждён рабочим: источник #3 (группа 229392127) импортирует с устойчивым slug `vk-229392127-414-...`, `last_sync_status=success`. Дубль поста 414 (старый id 154) удалён. См. DEV_LOG 2026-05-29.
 
 - 🟡 **VK source #5 (Садовая Фея Гульфия Харисовна)** — **это личная страничка (user page), не группа** (уточнено 2026-05-25). Текущий код (`web/src/server/integrations/vk-auto-sync-resolve.ts` + `vk-auto-sync.ts`) умеет работать только с группами: `parseVkCommunityIdentifier` распознаёт user-URL'ы (например `https://vk.com/id86086407`) как `groupId` если число, или как `screenName`, но `fetchVkGroupMeta` вызывает только `groups.getById` — для user'ов нужно `users.get`. И `wall.get` использует `owner_id: -groupId` (отрицательный для групп) — для user'ов нужен **положительный** `user_id`. **Решение** (отдельным PR): (а) расширить `parseVkCommunityIdentifier` чтобы возвращать `kind: 'group' | 'user'`, (б) добавить `fetchVkUserMeta` через `users.get`, (в) в `fetchVkPosts` использовать `owner_id: ${kind === 'user' ? '' : '-'}${id}`. Не блокер — источник просто не работает, ошибок прода не вызывает.
+
+- 🟡 **Мониторинг протухания VK-токенов.** Токены в env (`VK_TOKEN_VALSTAN`/`VK_TOKEN_VITA`) сдохли 27 мая и auto-sync молча не работал **2.5 дня** — заметили только при verify. `last_sync_status=error` пишется в БД, но никто не смотрит. Идея: при `error` на всех источниках подряд N раз — алерт (письмо/лог-маркер/health-флаг). Токены VK периодически истекают, это будет повторяться.
+
+- 🟢 **`last_error` не очищается при `success`.** После успешного sync в `vk_auto_sync.last_error` висит старый текст ошибки (например «Все VK-токены исчерпаны») рядом со `status=success` — путает при диагностике. Мини-фикс в `syncVkSource`: на success-ветке писать `lastError: null`.
+
+- 🟢 **Idempotency VK-постов по `(ownerId, postId)`, а не по slug.** Текущий idempotency-check PR #50 ищет существующий пост по новому slug'у — при смене формата slug'а (как 19→25 мая) старый импорт не находится и создаётся дубль. Корневой фикс: дедуп по стабильному внешнему ключу `(ownerId, postId)` (хранить в поле Post или искать по префиксу slug `vk-<groupId>-<postId>`). Тогда смена формата текст-суффикса не плодит дубли. Отложено пользователем 2026-05-29.
 
 ### Windows dev-setup (обнаружено 2026-05-25)
 
