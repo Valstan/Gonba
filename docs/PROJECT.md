@@ -290,6 +290,16 @@ gh secret set SSH_PRIVATE_KEY --repo Valstan/Gonba < ~/.ssh/id_ed25519_gonba_dep
 
 Команда `/start` проверяет возраст ключа: если осталось < 10 дней до дедлайна — выводит **🟡 напоминание о ротации** в отчёте сессии.
 
+> Таблица выше — **основной** ключ (домашняя машина + GH Action secret `SSH_PRIVATE_KEY`), которым ходит CI-деплой. Создан 2026-05-22.
+
+**Доп. авторизованные ключи dev-машин** (отдельные keypair'ы с тем же именем файла, каждый — свой, в `authorized_keys` прода):
+
+| Машина | comment в `.pub` | Авторизован | Примечание |
+|---|---|---|---|
+| Windows-dev (`HOME-PC`) | `gonba-deploy@HOME-PC-20260529` | 2026-05-29 | passphraseless, alias `GONBA` через `IdentityFile ~/.ssh/id_ed25519_gonba_deploy` + `IdentitiesOnly yes`. **НЕ** в GH secret (только локальный SSH). На этой машине generic `id_ed25519` — ключ MatricaRMZ-сервера, для GONBA не авторизован. |
+
+Если при security-аудите в `authorized_keys` встретится `gonba-deploy@HOME-PC-*` — это легитимный dev-ключ, не компрометация (ср. cleanup dispatch #0007).
+
 **Процедура ротации** (примерно 10 минут):
 
 ```bash

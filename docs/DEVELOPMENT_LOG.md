@@ -6,6 +6,34 @@
 
 ---
 
+## 2026-05-29 — ГОНЬБА 29 мая 2026 (Claude session) — VK auto-sync восстановлен: verify slug-фикса + токен-блокер + dedup + SSH-ключ
+
+**Тема:** закрытие handoff-нитки (verify фикса источника #3 «Вятская Лепота», PR [#50](https://github.com/Valstan/Gonba/pull/50)). По ходу verify обнаружен и устранён более крупный блокер: **все VK-токены сдохли с 27 мая** — auto-sync не работал 2.5 дня.
+
+### Что сделано
+
+- **Verify slug-фикса PR #50 — подтверждён рабочим (сначала по публичным данным, потом DB).** Источник #3 = VK-группа `229392127`, импортировал пост 414 с устойчивым slug `vk-229392127-414-...`. Ошибка `"Следующее поле недействительно: slug"` устранена. Изначально verify сделан **без prod-SSH** — через публичный `/api/posts` (нашёл 3 поста с новым slug-форматом, созданных после деплоя), затем подтверждён прямым SELECT по `vk_auto_sync`.
+- **Токен-блокер устранён.** Логи `gonba-vk-sync.timer` показали: с **27 мая 09:04 UTC** все три токен-источника (#2/#3/#4) падали с `"Все VK-токены исчерпаны или заблокированы"` (VK error 5/8/14 на всех токенах пула — истёк/заблокирован). Пользователь дал свежий токен → обновил `VK_TOKEN_VALSTAN` в prod `/home/valstan/GONBA/web/.env` (бэкап `.env.bak-vk-20260530`, права 600), `systemctl restart gonba`, re-trigger. Результат: все 3 источника `success`, 2.5-дневный backlog подобран (импортированы посты 415→CMS#190 для #3 и 7330→CMS#191 для #2).
+- **Дубль поста 414 удалён.** Пост существовал дважды: id 154 (19 мая, старый slug `druzya-...-414`) и id 188 (25 мая, новый `vk-229392127-414-...`). Idempotency-check PR #50 ищет по новому slug'у → не нашёл старый формат → создал дубль. Удалён старый id 154 транзакционно (`DELETE FROM _posts_v WHERE parent_id=154; DELETE FROM posts WHERE id=154`), остался канонический id 188. Скан 80 свежих постов: дубль был ровно один.
+- **SSH-доступ к проду с этой Windows-машины настроен.** На машине не было GONBA-авторизованного ключа (generic `id_ed25519` — это ключ MatricaRMZ-сервера `valstan@a6fd55b8e0ae`, намеренно удалён из prod authorized_keys в cleanup #0007). Сгенерён **отдельный** `~/.ssh/id_ed25519_gonba_deploy` (passphraseless), alias `GONBA` в `~/.ssh/config` дополнен `IdentityFile` + `IdentitiesOnly yes`. Пользователь добавил pubkey (`gonba-deploy@HOME-PC-20260529`) в prod authorized_keys.
+
+### Как верифицировано
+
+- Публичный `/api/posts` (PowerShell `Invoke-RestMethod`) — нашёл новый slug-формат и дубль 414.
+- `SELECT ... FROM vk_auto_sync` — источник #3 `success`, `total_imported=2`, `last_synced_post_id=415`, без slug-ошибки.
+- `systemctl start gonba-vk-sync.service` → JSON `successCount:3, importedCount:2`.
+- Свежий токен провалидирован до записи: `wall.get owner_id=-229392127` с прода вернул `count:188` без `error_code`.
+
+### Уроки
+
+- **Verify прод-фичи возможен без SSH** — публичный Payload REST (`/api/posts`) read-public, slug/createdAt/категории дают почти всё. SSH понадобился только для `last_sync_status`/`last_error` и cleanup.
+- **`fetchVkPosts` использует токен источника (preferred) + env-пул (fallback).** Поэтому обновления одного env-токена (`VK_TOKEN_VALSTAN`) достаточно — пул пропускает дохлые токены (error 5/8/14 → `continue`).
+- **3h-throttle в `syncVkSource` не имеет force-флага** — для немедленного verify пришлось `UPDATE vk_auto_sync SET last_sync_at=NULL` (поле само перезапишется при sync).
+- **Смена формата slug ретроспективно ломает idempotency-by-slug** — посты, импортированные под старым форматом, не находятся → дубль. Корневой фикс (дедуп по `(ownerId, postId)`) вынесен в followup.
+- **Generic `id_ed25519` на dev-машине может быть ключом ДРУГОГО сервера** (тут — MatricaRMZ). Проверять comment в `.pub` перед тем как полагаться на него для GONBA. Изолированный per-project ключ (#001) — правильный паттерн и для dev-машин.
+
+---
+
 ## 2026-05-25 — ГОНЬБА 25 мая 2026 (Claude session, вечер) — VK auto-sync: устойчивый slug + idempotency + детальные ValidationError
 
 **Тема:** закрытие 🟡-техдолга «VK source #3 (Студия Вятская Лепота) — `last_error: "Следующее поле недействительно: slug"`». Заодно — расширенное логирование ValidationError, чтобы в будущем не гадать «какое поле почему упало». Bonus: уточнение про VK #5 (это user page, не group — отдельный PR).
