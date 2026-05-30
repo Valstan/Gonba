@@ -155,6 +155,16 @@ export const Projects: CollectionConfig<'projects'> = {
       },
     },
     {
+      name: 'showInOrbit',
+      type: 'checkbox',
+      defaultValue: true,
+      admin: {
+        position: 'sidebar',
+        description:
+          'Показывать кружком в орбит-карусели на главной. Снимите для дублей и служебных страниц, чтобы в орбите был ровно один кружок на реальный проект.',
+      },
+    },
+    {
       name: 'summary',
       type: 'textarea',
     },

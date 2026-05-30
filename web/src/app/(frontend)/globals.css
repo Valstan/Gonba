@@ -855,20 +855,35 @@ html {
   font-style: normal;
 }
 
+.homeOrbitPage {
+  padding-block: clamp(1.25rem, 3.5vw, 2.75rem);
+}
+
 .homeOrbitPage__intro {
   text-align: center;
-  margin-bottom: 2rem;
+  margin-bottom: clamp(0.75rem, 2vw, 1.5rem);
 }
 
 .homeOrbitPage__title {
-  font-size: clamp(1.9rem, 2.9vw, 3rem);
+  font-family: var(--serif, 'PT Serif', Georgia, serif);
+  font-size: clamp(1.7rem, 2.6vw, 2.6rem);
   font-weight: 700;
+  line-height: 1.1;
+}
+
+.homeOrbitPage__title em {
+  font-style: italic;
+  color: var(--oxblood, #6e2018);
 }
 
 .homeOrbitPage__subtitle {
-  margin: 0.85rem auto 0;
-  max-width: 50rem;
-  color: var(--color-muted-foreground);
+  margin: 0.6rem auto 0;
+  max-width: 40rem;
+  font-family: var(--mono, 'JetBrains Mono', monospace);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, var(--color-muted-foreground));
 }
 
 .homeOrbit {
@@ -877,7 +892,7 @@ html {
 
 .homeOrbit__stage {
   position: relative;
-  min-height: 76rem;
+  min-height: clamp(33rem, 46vw, 40rem);
   overflow: hidden;
 }
 
@@ -885,7 +900,7 @@ html {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: min(22rem, 62vw);
+  width: min(12.5rem, 24vw);
   transform: translate(-50%, -50%);
   z-index: 3;
   transition: width 0.35s ease;
@@ -909,9 +924,9 @@ html {
     box-shadow 0.2s ease,
     width 0.35s ease,
     height 0.35s ease;
-  width: min(22rem, 62vw);
-  height: min(22rem, 62vw);
-  padding: 0.6rem;
+  width: min(12.5rem, 24vw);
+  height: min(12.5rem, 24vw);
+  padding: 0.45rem;
 }
 
 .homeOrbit__center:hover,
@@ -924,20 +939,21 @@ html {
   position: absolute;
   inset: 0;
   z-index: 2;
-  animation: orbit-spin 140s linear infinite;
+  transform: rotate(var(--orbit-rot, 0deg));
+  will-change: transform;
 }
 
 .homeOrbit__itemWrap {
   position: absolute;
   left: 50%;
   top: 50%;
-  transform: translate(-50%, -50%) rotate(var(--orbit-angle)) translateX(clamp(16rem, 19.5vw, 20rem));
+  transform: translate(-50%, -50%) rotate(var(--orbit-angle)) translateX(clamp(11rem, 17vw, 14.5rem));
   transition: transform 0.35s ease;
 }
 
 .homeOrbit__item {
-  width: clamp(11rem, 13.5vw, 13.3rem);
-  height: clamp(11rem, 13.5vw, 13.3rem);
+  width: clamp(5.8rem, 9vw, 7.2rem);
+  height: clamp(5.8rem, 9vw, 7.2rem);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -963,7 +979,7 @@ html {
   position: relative;
   width: 100%;
   height: 100%;
-  animation: orbit-counter-spin 140s linear infinite;
+  transform: rotate(calc(-1 * var(--orbit-rot, 0deg)));
 }
 
 .homeOrbit__item:hover,
@@ -1005,20 +1021,20 @@ html {
 .homeOrbit__centerTitle {
   position: absolute;
   left: 50%;
-  bottom: 1.45rem;
+  bottom: 0.85rem;
   transform: translateX(-50%);
   z-index: 2;
   display: -webkit-box;
   text-align: center;
-  min-width: 6rem;
-  padding: 0.35rem 0.9rem;
+  min-width: 5rem;
+  padding: 0.3rem 0.85rem;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.65);
+  background: rgba(20, 28, 18, 0.88);
   color: #fff;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 700;
-  max-width: calc(100% - 0.9rem);
-  max-height: 3.2rem;
+  max-width: calc(100% - 0.7rem);
+  max-height: 3rem;
   overflow: hidden;
   text-overflow: ellipsis;
   -webkit-line-clamp: 2;
@@ -1034,19 +1050,19 @@ html {
 .homeOrbit__itemTitle {
   position: absolute;
   left: 50%;
-  bottom: 0.9rem;
+  bottom: 0.4rem;
   transform: translateX(-50%);
   z-index: 2;
-  max-width: calc(100% - 14px);
+  max-width: calc(100% - 0.4rem);
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.62);
+  background: rgba(20, 28, 18, 0.85);
   color: #fff;
-  padding: 0.2rem 0.6rem;
-  font-weight: 600;
-  font-size: 1.02rem;
-  line-height: 1.2;
+  padding: 0.16rem 0.5rem;
+  font-weight: 700;
+  font-size: 0.8rem;
+  line-height: 1.12;
   text-align: center;
-  max-height: 2.4rem;
+  max-height: 2.3rem;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
@@ -1329,37 +1345,12 @@ html {
   }
 }
 
-@media (max-width: 1100px) {
+/* Орбита показывается только на десктопе/планшете (>=768px, hidden md:block).
+   Базовые vw-clamp'ы покрывают весь диапазон; для узких десктопов чуть ужимаем stage. */
+@media (max-width: 1024px) {
   .homeOrbit__stage {
-    min-height: 58rem;
+    min-height: clamp(30rem, 48vw, 36rem);
   }
-
-  .homeOrbit__centerWrap {
-    width: min(16rem, 56vw);
-  }
-
-  .homeOrbit__center {
-    width: min(16rem, 56vw);
-    height: min(16rem, 56vw);
-  }
-
-  .homeOrbit__itemWrap {
-    transform: translate(-50%, -50%) rotate(var(--orbit-angle)) translateX(clamp(10rem, 16vw, 12rem));
-  }
-
-  .homeOrbit__item {
-    width: clamp(8rem, 11.5vw, 9.3rem);
-    height: clamp(8rem, 11.5vw, 9.3rem);
-  }
-
-  .homeOrbit__itemInner {
-    animation: orbit-counter-spin 75s linear infinite;
-  }
-
-  .homeOrbit__media {
-    border-radius: 999px;
-  }
-
 }
 
 @media (max-width: 620px) {

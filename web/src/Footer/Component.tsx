@@ -14,6 +14,7 @@ const COLUMNS: FooterColumn[] = [
       { label: 'Делать', href: '/projects?group=do' },
       { label: 'Смотреть', href: '/projects?group=see' },
       { label: 'Лавка', href: '/projects?group=shop' },
+      { label: 'Усадьба', href: '/usadba' },
       { label: 'О проекте', href: '/projects/about-project' },
     ],
   },

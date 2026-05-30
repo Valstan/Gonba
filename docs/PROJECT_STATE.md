@@ -57,8 +57,10 @@ scripts/                      — общие deploy/dev помощники
 ## Frontend (публичный сайт)
 
 - Маршруты:
-  - `/` — orbit-карусель проектов (`HomeCarouselMenuClient` + `HomeProjectGridMobile`)
-  - `/projects` — адаптивная сетка цветных плашек (`EditableProjectsGrid`)
+  - `/` — orbit-карусель проектов (`HomeCarouselMenuClient` + `HomeProjectGridMobile`), ADR-0006. Кружки курируются полем `Projects.showInOrbit` (1:1, без дублей; центр — `gonba`). Вращение — единая `--orbit-rot` через rAF.
+  - `/usadba` — этно-модерн лендинг (Hero / 4 группы / Глава / Цитата), ADR-0004 → переехал сюда с `/` (ADR-0006).
+  - `/orbit` — `redirect('/')` (legacy, орбита теперь на главной).
+  - `/projects` — адаптивная сетка цветных плашек (`EditableProjectsGrid`); поддерживает фильтр `?group=stay|do|see|shop` (по `homepageGroup`).
   - `/projects/[slug]/` — страница проекта с табами `feed | lavka | gallery | chat | contacts`
   - `/posts/[slug]/`, `/events/[slug]/`, `/services/[slug]/`, `/shop/[slug]/`
   - `/search`, `/contact`

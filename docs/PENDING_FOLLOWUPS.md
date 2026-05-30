@@ -59,7 +59,13 @@ _Сейчас нет — все начатые задачи в текущей с
 
 ### Этно-модерн редизайн (нитка с 2026-05-23)
 
-- **Drawer-подменю Header → перенести из хардкода в Payload** (после PR2, когда появится поле `Projects.group`). Сейчас в PR1 drawer и подзаголовки (`«над рекой, 6 номеров»`) — хардкод по [`gonba-home.html`](design/handoff-2026-05-23/gonba-home.html) строки 191-298. Альтернативы: nested array `subItems` в `Header` global (расширение схемы в `web/src/Header/config.ts`), либо динамика — рендер по `Projects` с фильтром `where.group.equals.<...>`. Не блокер — кодить через хардкод проще, перенос делается когда захочется редактировать структуру drawer'а через админку.
+- 🟢 **Главная вернулась к орбит-карусели** (ADR-0006, 2026-05-30) — этно-лендинг переехал на `/usadba`. PR4 (PeopleSection/CraftsSection/ShopBanner/EventsList) теперь относится к странице `/usadba`, не к `/`. Карусель переписана (rAF + единая `--orbit-rot`), кружки 1:1 через `Projects.showInOrbit`. См. DEV_LOG 2026-05-30.
+
+- 🟢 **`/projects?group=` фильтр — реализован** 2026-05-30 (`projects/page.tsx` читает `searchParams`, фильтрует по `homepageGroup`). Раньше пункты шапки/футера/EthnoGroupCards вели в полный каталог.
+
+- 🟢 **Чистка мёртвого admin-CSS орбиты** в `globals.css` (`.homeOrbit__editPanel`, `__reorder*`, `__mediaModal*`, `__adminFooter/__adminButton`, `.homeOrbit.is-editing`, `@keyframes orbit-spin/orbit-counter-spin`) — это CSS для inline-редактора карусели, который никогда не был реализован (нет компонента). Удалить в отдельном cleanup-PR (~260 строк). Обнаружено 2026-05-30.
+
+- **Drawer-подменю Header → перенести из хардкода в Payload** (актуально — 2026-05-30 чинили битые слаги в drawer'е вручную; data-driven решил бы дрейф навсегда). Сейчас drawer и подзаголовки (`«над рекой, 6 номеров»`) — хардкод по [`gonba-home.html`](design/handoff-2026-05-23/gonba-home.html) строки 191-298. Альтернативы: nested array `subItems` в `Header` global (расширение схемы в `web/src/Header/config.ts`), либо динамика — рендер по `Projects` с фильтром `where.homepageGroup.equals.<...>`. Не блокер — кодить через хардкод проще, перенос делается когда захочется редактировать структуру drawer'а через админку. Сейчас в PR1 drawer и подзаголовки (`«над рекой, 6 номеров»`) — хардкод по [`gonba-home.html`](design/handoff-2026-05-23/gonba-home.html) строки 191-298. Альтернативы: nested array `subItems` в `Header` global (расширение схемы в `web/src/Header/config.ts`), либо динамика — рендер по `Projects` с фильтром `where.group.equals.<...>`. Не блокер — кодить через хардкод проще, перенос делается когда захочется редактировать структуру drawer'а через админку.
 
 - 🟢 **SQL prod-redesign-config — частичный backfill** — скрипт `scripts/sql/2026-05-23-prod-redesign-config.sql` применён 2026-05-25 (см. DEV_LOG), но только 3 из 13 ожидаемых UPDATE'ов сработали из-за расхождения slug'ов с baseline'ом brain'а. Маппинг:
   | Baseline (brain 2026-05-23) | Реально в БД на 2026-05-25 |
