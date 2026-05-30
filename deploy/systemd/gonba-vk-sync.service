@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 User=valstan
-EnvironmentFile=-/home/valstan/GONBA/web/.env
+EnvironmentFile=-/etc/gonba/gonba.env
 ExecStart=/usr/bin/curl --fail --silent --show-error --max-time 600 -X POST \
   -H "Authorization: Bearer ${CRON_SECRET}" \
   -H "Content-Type: application/json" \

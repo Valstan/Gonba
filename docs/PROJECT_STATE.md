@@ -123,6 +123,7 @@ scripts/                      — общие deploy/dev помощники
 - VPS `831d0ce99bdf.vps.myjino.ru`, Ubuntu 24.04, доступ по SSH alias `GONBA` (ключ `id_ed25519`), `sudo` без пароля.
 - Сервис: `gonba.service` (`npm run start` от пользователя `valstan`).
 - Папка проекта: `/home/valstan/GONBA/`, web в `/home/valstan/GONBA/web/`.
+- **Секреты/конфиг — `/etc/gonba/gonba.env`** (root:valstan, `0640`), **вне дерева репо** (ADR-0005 / pool #008). Читаются тремя юнитами через `EnvironmentFile=` и build'ом через `systemd-run -p EnvironmentFile=`. В репо — только `web/.env.example`. Изменение секрета на проде = правка этого файла (нужен root) + `systemctl restart gonba`.
 - Build: `corepack pnpm run build:raw` (НЕ через watchdog `pnpm run build` — он умирает по idle-timeout). Запускается через `systemd-run --uid=valstan --gid=valstan` (см. `scripts/safe-build.sh`), потому что SSH-disconnect убивает прямой процесс посреди prerender'а.
 - Nginx терминирует TLS, проксирует на `127.0.0.1:3000`. Публичный домен — `гоньба.рф` (`xn--80abf4be9f.xn--p1ai`).
 - systemd таймер `gonba-vk-sync.timer` каждые 3 часа дёргает `POST /api/vk-auto-sync/trigger`.

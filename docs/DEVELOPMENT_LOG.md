@@ -6,6 +6,43 @@
 
 ---
 
+## 2026-05-30 — ГОНЬБА 30 мая 2026 (Claude session) — Секреты вне дерева репо: `/etc/gonba/gonba.env` (директива brain #008)
+
+**Тема:** применение SHOULD-директивы brain `from-brain/2026-05-28-secrets-outside-repo.md` (pool #008, pioneer — setka) в окне between threads. Прод-секреты переехали из `web/.env` (внутри clone репо) во внешний `/etc/gonba/gonba.env` под root-защитой.
+
+### Что сделано (прод-ops)
+
+- **`/etc/gonba/gonba.env`** создан через `install -o root -g valstan -m 0640` из текущего `web/.env`. Группа `valstan` = группа сервиса → читается и runtime'ом, и build'ом.
+- **3 systemd-юнита** (`gonba.service`, `gonba-vk-sync.service`, `gonba-media-cache.service`) переключены `EnvironmentFile=` на новый путь хирургическим `sed`'ом in-place в `/etc/systemd/system/` (установленные юниты — копии, дрейфанули от репо: на проде `gonba.service` имеет inline `Environment=` домен-vars, которых нет в репо-`gonba-web.service` → `cp` из репо перезатёр бы их).
+- `daemon-reload` + `restart gonba` → `active`, local `/api/health` 200, `/projects` (DB-backed) 200.
+- Старый `web/.env` убран из дерева в бэкап `/home/valstan/gonba.env.bak-20260530` (вне дерева, для отката; удалить после периода уверенности).
+
+### Что сделано (repo, PR chore/secrets-outside-repo)
+
+- **`deploy/systemd/gonba-web.service` + `gonba-vk-sync.service` + `gonba-media-cache.service`** — `EnvironmentFile=` → `/etc/gonba/gonba.env`.
+- **`scripts/safe-build.sh`** — добавлен `-p EnvironmentFile=/etc/gonba/gonba.env` в `systemd-run`. **Критично:** раньше build полагался на автозагрузку `web/.env` средствами Next.js из cwd (там пекутся `NEXT_PUBLIC_*` + prerender с подключением к БД). После выноса `.env` автозагрузка ломается → нужен явный `EnvironmentFile`.
+- **ADR-0005** (`docs/adr/0005-secrets-outside-repo-tree.md`) — решение + альтернативы (symlink / docker-secrets / bash-source отброшены). Заодно `docs/adr/README.md` индекс дополнен пропущенными 0004 + новым 0005.
+- **`docs/PROJECT_STATE.md` + `docs/PROJECT.md`** — секция прода и env-переменных: секреты в `/etc/gonba/gonba.env`, install-шаг, VK-trigger comment.
+- **`mailbox/to-brain/2026-05-30-secrets-outside-repo-done.md`** (kind=feedback) — отчёт brain'у + adaptation notes для pool #008.
+
+### Как верифицировано
+
+- Перед переключением юнитов — throwaway `systemd-run -p EnvironmentFile=... --wait --pipe` напечатал `${VAR:+set}` (без значений — секреты не в логах): подтвердил что build-путь увидит env. (`DATABASE_URI` оказался пуст — реальное имя `DATABASE_URL`, false alarm.)
+- После рестарта: `gonba active` + health 200 + `/projects` 200 ⇒ Payload init прочитал `DATABASE_URL`+`PAYLOAD_SECRET` из нового файла (иначе сервис бы не поднялся).
+
+### Уроки
+
+- **Вынос `.env` из дерева у Next.js-проекта ломает build, а не только runtime.** Next.js автозагружает `.env` из cwd на build'е — после переноса нужен явный `EnvironmentFile` для build-процесса (`systemd-run -p`). Проверять оба пути (runtime юнитов + build), не только сервис. → adaptation note в pool #008.
+- **Установленные systemd-юниты дрейфуют от репо.** На проде `gonba.service` ≠ репо-`gonba-web.service` (имя + inline `Environment=`). Правил `sed`'ом одну строку, не `cp`. Репо — source of truth, но прод-копии правятся осознанно.
+- **`${VAR:+set}` в проверочном выводе** — печатает `set`/пусто, не значение. Безопасный способ проверить наличие секрета в env, не светя его в журналах.
+
+### Хвосты
+
+- После следующего деплоя (где build впервые пойдёт с новым `safe-build.sh`) — подтвердить успешную сборку, затем удалить `/home/valstan/gonba.env.bak-20260530`.
+- Дрейф репо↔прод юнитов (`gonba-web.service` vs `gonba.service`, inline домен-vars) — отдельный 🟡 на синхронизацию (см. PENDING).
+
+---
+
 ## 2026-05-29 — ГОНЬБА 29 мая 2026 (Claude session) — VK auto-sync восстановлен: verify slug-фикса + токен-блокер + dedup + SSH-ключ
 
 **Тема:** закрытие handoff-нитки (verify фикса источника #3 «Вятская Лепота», PR [#50](https://github.com/Valstan/Gonba/pull/50)). По ходу verify обнаружен и устранён более крупный блокер: **все VK-токены сдохли с 27 мая** — auto-sync не работал 2.5 дня.

@@ -7,9 +7,11 @@ Type=simple
 User=valstan
 WorkingDirectory=/home/valstan/GONBA/web
 Environment=NODE_ENV=production
-# Domain values are now configured in /home/valstan/GONBA/web/.env:
-# NEXT_PUBLIC_SERVER_URL and PAYLOAD_PUBLIC_SERVER_URL
-EnvironmentFile=-/home/valstan/GONBA/web/.env
+# Secrets and config are loaded from /etc/gonba/gonba.env (root:valstan, 0640),
+# kept outside the repo tree for security (pool #008 / ADR-0005). In the repo only
+# web/.env.example. Domain values (NEXT_PUBLIC_SERVER_URL / PAYLOAD_PUBLIC_SERVER_URL)
+# may also be set inline via Environment= on prod (baked at build time).
+EnvironmentFile=-/etc/gonba/gonba.env
 Environment=PORT=3000
 ExecStart=/usr/bin/npm run start -- --hostname 127.0.0.1 --port 3000
 Restart=on-failure
