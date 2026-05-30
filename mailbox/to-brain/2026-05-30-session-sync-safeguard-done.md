@@ -39,4 +39,4 @@ ref:
 
 ## PR
 
-[Valstan/Gonba#PRNUM](https://github.com/Valstan/Gonba/pull/PRNUM) — `chore(session): session sync safeguard (pool #010)`.
+[Valstan/Gonba#57](https://github.com/Valstan/Gonba/pull/57) — `chore(session): session sync safeguard (pool #010)`.
