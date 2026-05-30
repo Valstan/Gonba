@@ -3,36 +3,31 @@
 **Status:** IDLE
 **Updated:** 2026-05-30
 **Branch:** main
-**Last released version:** PR #55 (commit `bdca1fa`) на проде — орбит-карусель на главной; этно-лендинг → `/usadba`. Прод визуально подтверждён (8 кружков, без дублей).
+**Last released version:** PR #58 (commit `e355df1`) на проде — deploy guard против stale-prerender (контент-маркер в smoke-check + `.next`-guard). Прод verified: health 200, `/` = карусель (8 кружков), новый guard прошёл end-to-end на собственном деплое.
 
 ---
 
 ## Состояние
 
-**Свободно — активной нитки нет.** Большая сессия 2026-05-30, три темы закрыты и задеплоены:
+**Свободно — активной нитки нет.** Вечерняя сессия 2026-05-30, between-threads окно. Закрыто:
 
-1. ✅ **Директива brain #008** — секреты вне репо (`/etc/gonba/gonba.env`), [PR #53](https://github.com/Valstan/Gonba/pull/53), ADR-0005.
-2. ✅ **Директива brain #009** — рефлекс шеринга находок в `/close_session`, [PR #54](https://github.com/Valstan/Gonba/pull/54). **Сработал в этой же сессии** — отправлены 3 письма в `mailbox/to-brain/` (включая `2026-05-30-orbit-raf-and-stale-prerender.md` с двумя Next.js-находками).
-3. ✅ **Орбит-карусель назад на главную** + допил, [PR #55](https://github.com/Valstan/Gonba/pull/55), ADR-0006. Карусель переписана (rAF + единая `--orbit-rot`, ноль дрожания, компактнее), кружки 1:1 (`showInOrbit`), `/usadba` = этно, `/orbit` → redirect; попутно реализован `/projects?group=` фильтр и исправлены битые слаги в drawer'е.
+1. ✅ **Директива brain #010** — session sync safeguard (mandate). `scripts/git_sync_check.sh` (`--warn`/`--gate`), SessionStart-хук в коммитимом `.claude/settings.json`, sync-гейт в `/close_session`, правило в `CLAUDE.md`, NL-триггеры. [PR #57](https://github.com/Valstan/Gonba/pull/57). +2 находки (`.gitignore`-исключение `!.claude/settings.json`, `.gitattributes` `*.sh eol=lf`). Gate догфуднут.
+2. ✅ **Deploy guard (stale-prerender)** — высокоприоритетный 🟡-техдолг закрыт. [PR #58](https://github.com/Valstan/Gonba/pull/58). Контент-маркер `homeOrbit__itemWrap` в `deploy-prod.yml` (локальный эндпоинт) + `[ -d .next ] && exit 1` в `safe-build.sh`. Провалидирован на деплое (`8 вхождений → OK`).
+3. ✅ **3 owed-ответа brain закрыты** — ack-письма #010, #006 (ssh-opt-in), #prod-redesign-config (галереи 10/13, chat 6, VK healthy) в `mailbox/to-brain/`.
 
-⚠️ **При деплое #55 был инцидент** — Next.js отдал устаревший prerender `/` (этно вместо карусели), несмотря на `rm -rf .next`. Лечилось ручной чистой пересборкой. Детали — DEV_LOG 2026-05-30; followup — 🟡 deploy guard в PENDING.
+## Кандидаты на следующую нитку (из PENDING)
 
-## Кандидаты на следующую нитку
-
-**Предложенные владельцу варианты развития карусели/главной (ждут выбора):**
-- Drag-to-spin орбиты с инерцией · центр-ротатор (смена featured) · цветные бейджи групп (stay/do/see/shop) · перф картинок (убрать `unoptimized` + next/image) · поиск на главной · чистка дублей в БД (удалить/слить, не только скрыть) · drawer → в Payload.
-- 🟢 Уборка ~260 строк мёртвого admin-CSS орбиты (`globals.css`).
-
-**Из техдолгов (PENDING):**
-- 🟡 **Deploy guard по содержимому** (stale-prerender — см. инцидент выше). Высокий приоритет — прямой риск тихого «успешного» деплоя со старой страницей.
-- 🟡 Дрейф репо↔прод systemd-юнитов · мониторинг VK-токенов · VK source #5 (user-page).
-- 🟢 Удалить прод-бэкап `/home/valstan/gonba.env.bak-20260530` (build с новым `safe-build.sh` подтверждён деплоями).
+- 🟡 **Дрейф репо↔прод systemd-юнитов** (`gonba-web.service` vs установленный `gonba.service` + inline домен-vars).
+- 🟡 **Мониторинг протухания VK-токенов** (молча не работал 2.5 дня в мае — нужен алерт при `error` на всех источниках).
+- 🟡 **VK source #5 (Садовая Фея)** — user page, не группа: `pending` навсегда, пока код не научится `users.get` + положительный `owner_id`. Отдельный PR.
+- 🟢 Уборка ~260 строк мёртвого admin-CSS орбиты в `globals.css` · drawer-подменю Header → в Payload · `last_error` не очищается при success · idempotency VK по `(ownerId, postId)`.
+- 🟢 **Node 20 actions deprecation** — `actions/checkout@v4`/`setup-node@v4` (дедлайн GitHub июнь 2026). Бамп до v5 в CI + deploy workflow.
 
 ## Контекст
 
-- **Прод:** ✅ `гоньба.рф/` = карусель (8 кружков), `/api/health` 200, секреты в `/etc/gonba/`.
-- **Локально:** dev-БД пересоздана пустой (PG16→17), засеяна 11 тестовыми проектами для verify (фейковые — при следующей local-работе восстановить из прод-дампа). `.claude/launch.json` создан (gitignored).
-- **Открытые вопросы для пользователя:** какие dev-варианты брать следующими.
+- **Прод:** ✅ `гоньба.рф/` = карусель (8 кружков), `/api/health` 200, секреты в `/etc/gonba/`, новый deploy-guard активен.
+- **Локально:** dev-БД — фейковые тестовые проекты (при следующей local-работе восстановить из прод-дампа). SSH opt-in (вариант #3) отработал без фрикции весь прод-verify.
+- **Новое в процессе:** `git_sync_check.sh` SessionStart-хук теперь предупреждает о несинхроне при входе; `/close_session` гейтит на «всё на GitHub».
 - **Открытые PR:** этот session-close PR.
 
 ---
