@@ -121,6 +121,25 @@ jobs:
             [ "${STATUS}" = "200" ] || { echo "::error::CDN ${path} = ${STATUS}, ожидался 200"; exit 1; }
           done
 
+      - name: Smoke checks — контент-маркер на / (anti-stale-prerender)
+        # Lesson 2026-05-30: HTTP 200 != правильная страница. Next.js может отдать
+        # УСТАРЕВШИЙ ISR-prerender (тогда `/` вернул этно-лендинг вместо карусели,
+        # деплой выглядел успешным — все 200). Проверяем что в ответе локального
+        # эндпоинта (authoritative, минует CDN-кэш) есть маркер актуального
+        # компонента главной. Если главная меняется по дизайну — ОБНОВИТЬ MARKER.
+        run: |
+          set -e
+          MARKER='homeOrbit__itemWrap'   # маркер орбит-карусели на / (ADR-0006)
+          BODY=$(ssh GONBA "curl -s --max-time 20 http://127.0.0.1:3000/")
+          COUNT=$(printf '%s' "${BODY}" | grep -o "${MARKER}" | wc -l | tr -d ' ')
+          echo "Маркер '${MARKER}' на / (local): ${COUNT} вхождений"
+          if [ "${COUNT}" -lt 1 ]; then
+            echo "::error::На / нет маркера '${MARKER}' — вероятно отдан УСТАРЕВШИЙ prerender (stale .next), хотя код был 200. Деплой НЕуспешен."
+            echo "::error::Чистая пересборка: ssh GONBA 'rm -rf /home/valstan/GONBA/web/.next' && ssh GONBA '/home/valstan/GONBA/scripts/safe-build.sh' && ssh GONBA '/home/valstan/GONBA/scripts/wait-build.sh' && ssh GONBA 'sudo systemctl restart gonba'"
+            exit 1
+          fi
+          echo "OK: главная отдаёт актуальный карусель-prerender (не stale)."
+
       - name: On failure — дамп журналов прода
         if: failure()
         run: |
