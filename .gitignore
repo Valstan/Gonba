@@ -2,10 +2,12 @@
 # Игнорируем всё, кроме того что должно жить в репо вместе с проектом:
 # - .claude/commands/    — slash-команды (/start, /reliz, /check, ...)
 # - .claude/agents/      — кастомные субагенты
+# - .claude/settings.json — SessionStart-хук git_sync_check (pool #010), общий для всех машин
 # Остальное (worktrees, локальная сессия, launch.json конкретного компа) — локально.
 .claude/*
 !.claude/commands/
 !.claude/agents/
+!.claude/settings.json
 
 # Dependencies
 node_modules/
