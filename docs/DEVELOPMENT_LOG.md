@@ -6,6 +6,35 @@
 
 ---
 
+## 2026-05-30 — ГОНЬБА 30 мая 2026 (Claude session, вечер) — Session sync safeguard #010 + deploy guard (stale-prerender)
+
+**Тема:** between-threads окно. (1) применение mandate-директивы brain #010 «сессия не закрыта пока всё не на GitHub»; (2) закрытие высокоприоритетного 🟡-техдолга «deploy guard по содержимому» — прямой урок из инцидента того же дня (PR #55 отдал stale-prerender при зелёном CI и 200).
+
+### Что сделано — директива brain #010 (PR [#57](https://github.com/Valstan/Gonba/pull/57), merged, прод verified)
+
+- **`scripts/git_sync_check.sh`** — детектор синхронизации с GitHub: `--warn` (всегда `exit 0`, best-effort `git fetch` 5s, офлайн не ломает) / `--gate` (`exit 1` пока не чисто+запушено). Взят у setka дословно (git-агностичен, имя репо из `git toplevel`).
+- **`.claude/settings.json`** (новый, теперь коммитится) — SessionStart-хук `startup|resume` → `git_sync_check.sh --warn`.
+- **`.gitignore`** — исключение `!.claude/settings.json` (был под blanket `.claude/*` → хук бы молча не закоммитился). **Поймал тем, что `--warn` показал «1 файл» вместо 2.**
+- **`.gitattributes`** (новый) — `*.sh text eol=lf`; CRLF на Windows ломает `[ "$MODE" = "--gate" ]` в самом хуке (setka тоже добавил). Заодно защищает `safe-build.sh`.
+- **`/close_session`** — жёсткий sync-гейт (Шаг 5.6, `--gate` ≠ 0 → не закрывать), Шаг 5 расширен на коммит+пуш ВСЕГО через PR-flow (убран устаревший direct push в main), NL-триггеры, Cowork-footer.
+- **`CLAUDE.md`** — правило «GitHub источник истины между машинами» + lifecycle п.5.
+- **`mailbox/to-brain/2026-05-30-session-sync-safeguard-done.md`** — ack brain'у (kind=feedback) + adaptation notes.
+- Догфуд: после merge на чистом main `git_sync_check.sh --gate` → `exit 0` ✅.
+
+### Что сделано — deploy guard (PR fix/deploy-stale-prerender-guard)
+
+- **`scripts/safe-build.sh`** — после `rm -rf .next` добавлен guard `if [ -d .next ]; then exit 1`: если каталог не удалился (lock/права/гонка), падаем громко, а не собираем поверх stale prerender.
+- **`.github/workflows/deploy-prod.yml`** — новый smoke-шаг «контент-маркер на /»: проверяет наличие `homeOrbit__itemWrap` в ответе **локального** `http://127.0.0.1:3000/` (authoritative, минует CDN-кэш). HTTP 200 больше не считается достаточным признаком успешного деплоя. При отсутствии маркера — `::error::` + инструкция чистой пересборки + дамп журналов (`on: failure()`).
+- Де-риск перед правкой прод-гейта: прогнал точную логику guard'а против live-прода через SSH — `COUNT=8`, guard passes (карусель на месте). Marker задокументирован как обновляемая константа на случай редизайна главной.
+
+### Уроки
+
+- **Коммитимый `settings.json` под blanket `.claude/*`-ignore — молчаливая ловушка.** Хук «разъезжается на машины» только если файл реально в git. Любой проект с `.claude/*` в `.gitignore` обязан добавить `!.claude/settings.json`. → adaptation note в pool #010.
+- **CRLF ломает bash-хук кросс-платформенно.** `*.sh text eol=lf` в `.gitattributes` — обязателен, если шелл-скрипт запускается и на Windows (Git Bash), и на Linux.
+- **HTTP 200 ≠ правильный контент** (повтор урока из инцидента). Деплой-гейт должен проверять *маркер актуального компонента*, и именно на **локальном** эндпоинте — CDN-кэш может маскировать server-side stale prerender.
+
+---
+
 ## 2026-05-30 — ГОНЬБА 30 мая 2026 (Claude session) — Орбит-карусель назад на главную + допил (ADR-0006)
 
 **Тема:** по запросу владельца главная вернулась к интерактивной орбит-карусели проектов (этно-шапка сверху осталась), этно-модерн лендинг сохранён на `/usadba`. Карусель переписана (плавность/компактность/читаемость/контр-вращение), кружки приведены 1:1 к реальным проектам. Попутно — два хвоста про «пустые переходы».

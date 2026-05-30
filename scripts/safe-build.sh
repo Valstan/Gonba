@@ -41,6 +41,17 @@ sudo systemctl stop "${UNIT_NAME}" 2>/dev/null || true
 echo "[safe-build] Чистим ${WEB_DIR}/.next…"
 rm -rf "${WEB_DIR}/.next"
 
+# Guard (lesson 2026-05-30): если .next не удалился (busy/права/гонка), Next.js
+# может переиспользовать УСТАРЕВШИЙ prerender (инцидент со stale `/` — карусель
+# vs этно). Сборка поверх живого .next = тихий деплой старой страницы. Лучше
+# упасть здесь громко, чем отдать stale prerender.
+if [ -d "${WEB_DIR}/.next" ]; then
+  echo "[safe-build] ОШИБКА: ${WEB_DIR}/.next всё ещё существует после rm -rf —" >&2
+  echo "[safe-build] прерываю билд, иначе возможен stale prerender. Проверь права/lock." >&2
+  exit 1
+fi
+echo "[safe-build] .next удалён — чистая пересборка гарантирована."
+
 echo "[safe-build] Запускаем build:raw через systemd-run --uid=${USER_NAME}…"
 sudo systemd-run \
   --unit="${UNIT_NAME}" \
