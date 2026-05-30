@@ -6,6 +6,22 @@
 
 ---
 
+## 2026-05-30 — ГОНЬБА 30 мая 2026 (Claude session) — Рефлекс шеринга находок в /close_session (директива brain #009)
+
+**Тема:** применение SHOULD-директивы brain `from-brain/2026-05-29-share-findings-reflex.md` (pool #009) тем же заходом, что #008. Цель — проекты сами делятся переносимыми находками с мозгом, а не только по явной просьбе.
+
+### Что сделано (PR [#54](https://github.com/Valstan/Gonba/pull/54))
+
+- **`.claude/commands/close_session.md`** — новый **«Шаг 4.5. Шеринг находки в мозг (условный)»** между Шаг 4 (PENDING) и Шаг 5 (Commit): 3-фильтр (значимость / переносимость / неочевидность), тишина = норма, калибровка ✅/❌, формат письма `kind=idea`, образец-письмо. Вставлен как 4.5 (не сдвиг нумерации) — консистентно с `/start` (5.1/5.2).
+- **`CLAUDE.md`** — подраздел «Проактивный шеринг находок (pool #009)» в блоке про связь с brain.
+- **`mailbox/to-brain/2026-05-30-share-reflex-adopted.md`** (kind=feedback) — отчёт brain'у.
+
+### Первое применение рефлекса
+
+Письмо #008 (`2026-05-30-secrets-outside-repo-done.md`, секция adaptation notes) — фактически первое срабатывание: Next.js build-time gotcha при выносе `.env` из дерева — переносимый урок для любого Next.js-проекта. Прошёл 3-фильтр.
+
+---
+
 ## 2026-05-30 — ГОНЬБА 30 мая 2026 (Claude session) — Секреты вне дерева репо: `/etc/gonba/gonba.env` (директива brain #008)
 
 **Тема:** применение SHOULD-директивы brain `from-brain/2026-05-28-secrets-outside-repo.md` (pool #008, pioneer — setka) в окне between threads. Прод-секреты переехали из `web/.env` (внутри clone репо) во внешний `/etc/gonba/gonba.env` под root-защитой.
