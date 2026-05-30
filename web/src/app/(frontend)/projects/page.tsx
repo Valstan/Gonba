@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import React from 'react'
 
 import { Breadcrumbs } from '@/components/Breadcrumbs'
@@ -67,9 +68,9 @@ export default async function ProjectsPage({
         ) : (
           <p className="text-sm text-muted-foreground">
             В этом разделе пока нет проектов.{' '}
-            <a href="/projects" className="underline">
+            <Link href="/projects" className="underline">
               Посмотреть все
-            </a>
+            </Link>
             .
           </p>
         )}
