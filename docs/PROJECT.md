@@ -101,6 +101,8 @@ curl -X POST http://127.0.0.1:3000/api/vk-auto-sync/trigger \
 
 ## Переменные окружения
 
+**На проде секреты живут в `/etc/gonba/gonba.env`** (root:valstan, `0640`, вне дерева репо — ADR-0005 / pool #008). Локально для разработки — `web/.env` (шаблон `web/.env.example`). В git коммитится только `web/.env.example`.
+
 Обязательные:
 
 - `DATABASE_URL` — строка подключения Postgres
@@ -224,7 +226,7 @@ ssh GONBA "cd /home/valstan/GONBA && git pull && /home/valstan/GONBA/scripts/saf
 # Снять дамп БД prod в локальный файл
 ssh GONBA "sudo -u postgres pg_dump -Fc gonba" > prod-gonba.dump
 
-# Триггернуть VK auto-sync вручную (используй $CRON_SECRET из /home/valstan/GONBA/web/.env)
+# Триггернуть VK auto-sync вручную (используй $CRON_SECRET из /etc/gonba/gonba.env)
 ssh GONBA "sudo systemctl start gonba-vk-sync.service && journalctl -u gonba-vk-sync -n 20 --no-pager"
 ```
 
@@ -238,12 +240,13 @@ ssh GONBA "sudo systemctl start gonba-vk-sync.service && journalctl -u gonba-vk-
 
 1. `corepack pnpm install`
 2. `scripts/safe-build.sh` (или `systemd-run --uid=valstan --gid=valstan --working-directory=/home/valstan/GONBA/web -- /bin/bash -lc "corepack pnpm run build:raw"`)
-3. `sudo cp deploy/systemd/gonba-web.service /etc/systemd/system/gonba.service`
-4. `sudo systemctl daemon-reload`
-5. `sudo systemctl enable --now gonba`
-6. Перезапуск: `sudo systemctl restart gonba`
-7. Логи: `journalctl -u gonba -f`
-8. Переменные окружения на проде: `EnvironmentFile=-/home/valstan/GONBA/web/.env`
+3. Создать секреты вне дерева репо (ADR-0005): `sudo mkdir -p /etc/gonba && sudo install -o root -g valstan -m 0640 <env-source> /etc/gonba/gonba.env`
+4. `sudo cp deploy/systemd/gonba-web.service /etc/systemd/system/gonba.service`
+5. `sudo systemctl daemon-reload`
+6. `sudo systemctl enable --now gonba`
+7. Перезапуск: `sudo systemctl restart gonba`
+8. Логи: `journalctl -u gonba -f`
+9. Переменные окружения на проде: `EnvironmentFile=-/etc/gonba/gonba.env` (build читает через `systemd-run -p EnvironmentFile=`, см. `scripts/safe-build.sh`)
 
 **Важно:**
 - Не использовать `pnpm run build` (под watchdog) и тем более `npm run build` — задача про правильный watchdog есть в `PENDING_FOLLOWUPS.md`. Прямой путь — `build:raw` через safe-build.sh.

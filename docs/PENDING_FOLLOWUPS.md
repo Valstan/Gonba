@@ -26,7 +26,11 @@ _Сейчас нет — все начатые задачи в текущей с
 
 ## 🟡 Техдолги
 
-- ⚠️ **Директива brain #008 — секреты вне дерева репо** (`from-brain/2026-05-28-secrets-outside-repo.md`, `compliance=recommend` = SHOULD). Перенести прод-секреты из `/home/valstan/GONBA/web/.env` (внутри clone репо) в `/etc/gonba/gonba.env` (root, `0640`) + systemd `EnvironmentFile=` в трёх юнитах (`gonba-web` / `gonba-vk-sync` / `gonba-media-cache`). В репо — только `*.env.example`. Решить вопрос docker-compose (systemd prod vs docker prod — зафиксировать в ADR). Отдельная feat-ветка + PR; при применении — письмо `mailbox/to-brain/` (kind=feedback). **Актуально:** 2026-05-29 трогали `web/.env` (обновляли VK-токен) — секрет лежит именно там. Pool [#008](../../brain_matrica/cross-project-ideas/ideas/008-secrets-outside-repo.md).
+- ~~⚠️ **Директива brain #008 — секреты вне дерева репо**~~ **✅ Сделано 2026-05-30** (PR chore/secrets-outside-repo) — прод-секреты в `/etc/gonba/gonba.env` (root:valstan `0640`), 3 юнита + `scripts/safe-build.sh` через `EnvironmentFile=`, [ADR-0005](adr/0005-secrets-outside-repo-tree.md), feedback brain'у. См. DEV_LOG 2026-05-30. Pool [#008](../../brain_matrica/cross-project-ideas/ideas/008-secrets-outside-repo.md).
+
+- 🟡 **Дрейф репо↔прод systemd-юнитов** (обнаружено 2026-05-30 при #008). Установленный `/etc/systemd/system/gonba.service` ≠ репо `deploy/systemd/gonba-web.service`: (а) имя файла, (б) на проде есть inline `Environment=NEXT_PUBLIC_SERVER_URL/PAYLOAD_PUBLIC_SERVER_URL`, которых нет в репо-версии. Установленные юниты — копии, синхронизируются вручную. Варианты: переименовать репо-файл `gonba-web.service` → `gonba.service` под прод + задокументировать маппинг; решить судьбу inline домен-vars (перенести в `/etc/gonba/gonba.env` или оставить inline в юните). Не блокер.
+
+- 🟢 **Удалить бэкап `/home/valstan/gonba.env.bak-20260530`** после того как следующий деплой подтвердит успешный build с новым `safe-build.sh` (`-p EnvironmentFile=`). До этого — оставить как путь отката для #008.
 
 ---
 

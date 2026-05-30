@@ -27,6 +27,10 @@ set -euo pipefail
 WEB_DIR="/home/valstan/GONBA/web"
 UNIT_NAME="gonba-build"
 USER_NAME="valstan"
+# Секреты/конфиг живут вне дерева репо (pool #008 / ADR-0005). Раньше Next.js
+# автозагружал web/.env из cwd на build'е; после переноса в /etc/gonba/gonba.env
+# его больше нет в дереве — поэтому EnvironmentFile передаём явно в transient unit.
+ENV_FILE="/etc/gonba/gonba.env"
 
 echo "[safe-build] Сбрасываем failed-state ${UNIT_NAME} (если есть)…"
 sudo systemctl reset-failed "${UNIT_NAME}" 2>/dev/null || true
@@ -43,6 +47,7 @@ sudo systemd-run \
   --uid="${USER_NAME}" \
   --gid="${USER_NAME}" \
   --working-directory="${WEB_DIR}" \
+  -p "EnvironmentFile=${ENV_FILE}" \
   -- /bin/bash -lc "corepack pnpm run build:raw"
 
 echo ""

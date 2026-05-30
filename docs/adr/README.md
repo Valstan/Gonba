@@ -37,6 +37,8 @@
 | [0001](0001-yandex-disk-as-media-storage.md) | Yandex.Disk как хранилище медиа вместо S3 | Accepted |
 | [0002](0002-push-true-dev-migrations-prod.md) | Гибридная стратегия миграций: `push:true` на dev, миграции на проде | Accepted |
 | [0003](0003-build-via-systemd-run-on-prod.md) | Build на проде через `systemd-run` вместо прямого SSH | Accepted |
+| [0004](0004-frontpage-ethno-modern-redesign.md) | Редизайн главной в стиле «этно-модерн» (направление B) | Accepted |
+| [0005](0005-secrets-outside-repo-tree.md) | Прод-секреты вне дерева репо (`/etc/gonba/gonba.env`) | Accepted |
 
 ---
 
