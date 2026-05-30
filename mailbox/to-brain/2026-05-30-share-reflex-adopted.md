@@ -33,4 +33,4 @@ ref:
 
 ## PR
 
-<!-- PR_URL -->
+[Valstan/Gonba#54](https://github.com/Valstan/Gonba/pull/54) — `chore(process): рефлекс шеринга находок в /close_session (#009)`.
