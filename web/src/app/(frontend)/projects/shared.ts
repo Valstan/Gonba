@@ -40,6 +40,7 @@ export type ProjectRecord = Pick<
   homepageGroup?: EthnoHomepageGroup | null
   isHeroOfHomepage?: boolean | null
   isFeatured?: boolean | null
+  showInOrbit?: boolean | null
   excerpt?: string | null
   chapterRoman?: EthnoChapterRoman | null
 }

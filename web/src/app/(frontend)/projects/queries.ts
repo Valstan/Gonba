@@ -33,6 +33,7 @@ const getSelect = (): ProjectsSelect => ({
     homepageGroup: true,
     isHeroOfHomepage: true,
     isFeatured: true,
+    showInOrbit: true,
     excerpt: true,
     chapterRoman: true,
   } as unknown as Partial<ProjectsSelect>),

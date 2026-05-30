@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-05-30 — ГОНЬБА 30 мая 2026 (Claude session) — Орбит-карусель назад на главную + допил (ADR-0006)
+
+**Тема:** по запросу владельца главная вернулась к интерактивной орбит-карусели проектов (этно-шапка сверху осталась), этно-модерн лендинг сохранён на `/usadba`. Карусель переписана (плавность/компактность/читаемость/контр-вращение), кружки приведены 1:1 к реальным проектам. Попутно — два хвоста про «пустые переходы».
+
+### Что сделано (PR feat/homepage-orbit-return)
+
+- **Роутинг (своп):** `web/src/app/(frontend)/page.tsx` → орбит-карусель (логика из `orbit/page.tsx` + фильтр `showInOrbit` + brand-h1). Новый `usadba/page.tsx` — этно-секции (`EthnoHero/GroupCards/FeaturedChapter/QuoteSection`, компоненты не тронуты). `orbit/page.tsx` → `redirect('/')`.
+- **Карусель переписана** (`HomeCarouselMenuClient.tsx`): единый источник вращения — `requestAnimationFrame` пишет одну CSS-переменную `--orbit-rot` на кольце; кольцо вращается `rotate(var(--orbit-rot))`, `.homeOrbit__itemInner` контр-вращается `rotate(calc(-1*var(--orbit-rot)))`, читая ту же inherited-переменную → **подписи всегда горизонтальны, без дрожания**. Пауза на hover/focus/touch, `prefers-reduced-motion` → статика.
+- **CSS** (`globals.css` `.homeOrbit*`): заменены две CSS-анимации (`orbit-spin`/`orbit-counter-spin`) на transform от `--orbit-rot`; компактность (stage `76rem` → `clamp(33rem,46vw,40rem)`, центр `min(12.5rem,24vw)`, кружки `clamp(5.8rem,9vw,7.2rem)`, радиус `clamp(11rem,17vw,14.5rem)`); подписи — контрастные пилюли; убран tablet-медиазапрос, который повторно включал анимацию контр-вращения (источник дрожания на 768–1100px).
+- **Курация 1:1:** поле `Projects.showInOrbit` (checkbox, sidebar, default true) + `getSelect()`/`ProjectRecord` += `showInOrbit`. Прод-колонка — `scripts/sql/2026-05-30-show-in-orbit.sql` (ALTER `projects` + `_projects_v` + curation UPDATE), применяется вручную до мержа (без `migrations/*.ts`, чтобы не уронить safety-net). Дефолт — 8 кружков: ЭКО-отель Жемчужина Вятки, Студия Вятская Лепота, Конный клуб, Садовая фея, Вятскiй сборъ, Мастерские, Экскурсии, События. Выключены дубли (`eco-hotel-booking`, `vyatskaya-lepota-malmyzh`) и инфо (`about-project`, `village-and-temple`).
+- **Хвост 1 — `/projects?group=` фильтр** (`projects/page.tsx`): принимает `searchParams`, фильтрует по `homepageGroup`, заголовок под группу. Пункты шапки/футера (Пожить/Делать/Смотреть/Лавка) перестали вести в полный каталог.
+- **Хвост 2 — битые слаги в мобильном drawer'е** (`EthnoDrawer.client.tsx`): `workshops`/`excursions`/`horse-club`/`gulfia`/`events` вели в 404 (плейсхолдеры из handoff'а) → исправлены на реальные `craft-workshops-gonba`/`district-excursions`/`konnyy-klub-gmalyzh`/`sadovaya-feya-gulfiya-kharisovna`/`village-events`. ЭКО-отель → канонический `eco-hotel-vyatka`. Добавлены ссылки «Усадьба» + «Все проекты».
+- **Навигация:** пункт «Усадьба» (`/usadba`) в шапку (`Header/Component.client.tsx`) и футер.
+- **Docs:** ADR-0006 (главная = орбита; 0004 → «Superseded in part by 0006»), README-индекс, PROJECT_STATE маршруты.
+
+### Уроки
+
+- **Две независимые CSS-анимации для «вращай кольцо / контр-вращай подписи» дрейфуют** и дают дрожание текста. Надёжно — один источник угла (rAF → одна inherited CSS-переменная `--orbit-rot`), которую читают и кольцо, и подписи: математически 0 рассинхрона. Переносимо на любую orbit/carousel-анимацию. → кандидат в pool.
+- **Хардкод-слаги из дизайн-handoff'а легко расходятся с реальной БД** (drawer вёл 5/9 ссылок в 404, никто не замечал — мобильное меню). Любые хардкод-ссылки на сущности стоит свести с `SELECT slug` хотя бы раз. Drawer → в Payload остаётся 🟢-followup'ом.
+
+---
+
 ## 2026-05-30 — ГОНЬБА 30 мая 2026 (Claude session) — Рефлекс шеринга находок в /close_session (директива brain #009)
 
 **Тема:** применение SHOULD-директивы brain `from-brain/2026-05-29-share-findings-reflex.md` (pool #009) тем же заходом, что #008. Цель — проекты сами делятся переносимыми находками с мозгом, а не только по явной просьбе.
