@@ -3,33 +3,37 @@
 **Status:** IDLE
 **Updated:** 2026-05-30
 **Branch:** main
-**Last released version:** PR #53 (commit `4eb2bd4`) — секреты вне репо, задеплоено и подтверждено (deploy-prod success, health 200)
+**Last released version:** PR #55 (commit `bdca1fa`) на проде — орбит-карусель на главной; этно-лендинг → `/usadba`. Прод визуально подтверждён (8 кружков, без дублей).
 
 ---
 
 ## Состояние
 
-**Свободно — активной нитки нет.** В этой сессии закрыты обе ⚠️-директивы brain (окно between threads):
+**Свободно — активной нитки нет.** Большая сессия 2026-05-30, три темы закрыты и задеплоены:
 
-- ✅ **#008 — секреты вне дерева репо** ([PR #53](https://github.com/Valstan/Gonba/pull/53)). Прод-секреты в `/etc/gonba/gonba.env` (root:valstan `0640`), 3 systemd-юнита + `safe-build.sh` через `EnvironmentFile=`. [ADR-0005](adr/0005-secrets-outside-repo-tree.md). Deploy-prod пересобрал прод с нуля на новом пути — `success`, smoke-checks (`/`, `/api/health`, `/projects`, `/admin`) 200. `web/.env` → бэкап `/home/valstan/gonba.env.bak-20260530` вне дерева.
-- ✅ **#009 — рефлекс шеринга находок** ([PR #54](https://github.com/Valstan/Gonba/pull/54)). `/close_session` Шаг 4.5 + CLAUDE.md подраздел.
+1. ✅ **Директива brain #008** — секреты вне репо (`/etc/gonba/gonba.env`), [PR #53](https://github.com/Valstan/Gonba/pull/53), ADR-0005.
+2. ✅ **Директива brain #009** — рефлекс шеринга находок в `/close_session`, [PR #54](https://github.com/Valstan/Gonba/pull/54). **Сработал в этой же сессии** — отправлены 3 письма в `mailbox/to-brain/` (включая `2026-05-30-orbit-raf-and-stale-prerender.md` с двумя Next.js-находками).
+3. ✅ **Орбит-карусель назад на главную** + допил, [PR #55](https://github.com/Valstan/Gonba/pull/55), ADR-0006. Карусель переписана (rAF + единая `--orbit-rot`, ноль дрожания, компактнее), кружки 1:1 (`showInOrbit`), `/usadba` = этно, `/orbit` → redirect; попутно реализован `/projects?group=` фильтр и исправлены битые слаги в drawer'е.
 
-Обоим brain'у отправлены feedback-письма (`mailbox/to-brain/2026-05-30-*`). Подробности — `docs/DEVELOPMENT_LOG.md` блоки 2026-05-30.
+⚠️ **При деплое #55 был инцидент** — Next.js отдал устаревший prerender `/` (этно вместо карусели), несмотря на `rm -rf .next`. Лечилось ручной чистой пересборкой. Детали — DEV_LOG 2026-05-30; followup — 🟡 deploy guard в PENDING.
 
-## Кандидаты на следующую нитку (из PENDING_FOLLOWUPS)
+## Кандидаты на следующую нитку
 
-- 🟢 **Удалить бэкап `/home/valstan/gonba.env.bak-20260530`** — деплой #53 уже подтвердил build с новым `safe-build.sh`, можно чистить в любой момент.
-- 🟡 **Дрейф репо↔прод systemd-юнитов** — `gonba-web.service` (репо) vs `gonba.service` (прод) + inline `Environment=` домен-vars только на проде. Синхронизировать/задокументировать.
-- 🟡 **Мониторинг протухания VK-токенов** (молча не работало 2.5 дня 27-29 мая).
-- 🟡 **VK source #5 (Гульфия)** — поддержка user-page (отдельный PR).
-- 🟢 **PR4 этно-модерн** — финал главной (PeopleSection + CraftsSection + ShopBanner + EventsList, `docs/plans/etno-modern-redesign.md` §3 PR4).
-- 🟢 Дедуп VK по `(ownerId, postId)`; очистка `last_error` при success.
+**Предложенные владельцу варианты развития карусели/главной (ждут выбора):**
+- Drag-to-spin орбиты с инерцией · центр-ротатор (смена featured) · цветные бейджи групп (stay/do/see/shop) · перф картинок (убрать `unoptimized` + next/image) · поиск на главной · чистка дублей в БД (удалить/слить, не только скрыть) · drawer → в Payload.
+- 🟢 Уборка ~260 строк мёртвого admin-CSS орбиты (`globals.css`).
+
+**Из техдолгов (PENDING):**
+- 🟡 **Deploy guard по содержимому** (stale-prerender — см. инцидент выше). Высокий приоритет — прямой риск тихого «успешного» деплоя со старой страницей.
+- 🟡 Дрейф репо↔прод systemd-юнитов · мониторинг VK-токенов · VK source #5 (user-page).
+- 🟢 Удалить прод-бэкап `/home/valstan/gonba.env.bak-20260530` (build с новым `safe-build.sh` подтверждён деплоями).
 
 ## Контекст
 
-- **Прод:** ✅ `/api/health` 200. VK auto-sync работает (timer каждые 3ч). Секреты в `/etc/gonba/gonba.env`.
-- **Открытые вопросы для пользователя:** 0.
-- **Открытые PR:** этот PR (#009 + session close) — последний в сессии.
+- **Прод:** ✅ `гоньба.рф/` = карусель (8 кружков), `/api/health` 200, секреты в `/etc/gonba/`.
+- **Локально:** dev-БД пересоздана пустой (PG16→17), засеяна 11 тестовыми проектами для verify (фейковые — при следующей local-работе восстановить из прод-дампа). `.claude/launch.json` создан (gitignored).
+- **Открытые вопросы для пользователя:** какие dev-варианты брать следующими.
+- **Открытые PR:** этот session-close PR.
 
 ---
 
