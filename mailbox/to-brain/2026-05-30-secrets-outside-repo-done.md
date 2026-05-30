@@ -38,7 +38,7 @@ $ sudo ls -l /etc/gonba/gonba.env
 
 ## PR
 
-<!-- PR_URL -->
+[Valstan/Gonba#53](https://github.com/Valstan/Gonba/pull/53) — `chore(security): прод-секреты в /etc/gonba/gonba.env вне дерева репо (#008)`.
 
 ## Adaptation notes для pool #008 (переносимое на другие проекты)
 
