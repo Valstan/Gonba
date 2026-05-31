@@ -6,6 +6,29 @@
 
 ---
 
+## 2026-05-31 — ГОНЬБА 31 мая 2026 (Claude session) — Орбит-карусель: вращение + дуговые подписи + 2x кружки
+
+**Тема:** по запросу владельца — редизайн орбит-карусели на главной (десктоп): (1) медленное плавное вращение; (2) фото и подписи держатся горизонтально при вращении; (3) периферийные кружки ~2x больше; (4) подписи **дугой под кружком** (SVG `textPath`), а не пилюлей внутри; (5) подписи разного цвета, без фона, с белой обводкой + тенью для контраста.
+
+### Что сделано (PR feat/orbit-carousel-arc-labels)
+
+- **`HomeCarouselMenuClient.tsx`** — пилюля-подпись заменена на `<ArcLabel>` (SVG `textPath` по нижней дуге). Один общий `<path id="homeOrbitArcPath">` в `<defs>`, переиспользуется всеми подписями через `href`. `textLength` + `lengthAdjust="spacingAndGlyphs"` — любой заголовок вписывается в дугу. Палитра `LABEL_COLORS` (8 насыщённых цветов) задаётся per-item через `--orbit-label-color`. `SPIN_MS` 96000 → 90000.
+- **`globals.css`** — геометрия вынесена в CSS-vars на `.homeOrbit` (`--orbit-item-size` clamp(11rem,16vw,13.5rem) ≈2x; `--orbit-radius` clamp(17rem,28vw,24rem); `--orbit-center-size`). Stage `min-height` ↑ под бóльшую орбиту, `overflow: visible`. `.homeOrbit__media` → `position:absolute; inset:0` (фото заполняет кружок). Удалены пилюли `.homeOrbit__itemTitle`/`__centerTitle`, добавлены `.homeOrbit__arc`/`__arcText` (fill=`var(--orbit-label-color)`, белая обводка `paint-order: stroke`, `drop-shadow`).
+- **Вращение/контр-вращение** — архитектура та же: rAF пишет одну `--orbit-rot` на кольце, `.homeOrbit__itemInner` контр-вращается на `-rot` → фото И дуговая подпись остаются горизонтальными (подпись всегда снизу кружка). Маркер `homeOrbit__itemWrap` сохранён (deploy-guard не ломается).
+
+### Как верифицировано
+
+- **Статический прототип** (`tmp-orbit-proto`, удалён) через preview + SVG glyph-API (`getStartPositionOfChar`/`getRotationOfChar` + `getScreenCTM`): дуга снизу кружка (середина ~14px ниже края, rot 0 — ровно по центру), подпись остаётся под кружком при `--orbit-rot=40deg` (контр-вращение работает), кружки 2x (205px) без наложения (зазор 69px). **Скриншоты в этом окружении висят** (renderer hang + media-401) — геометрия проверена **численно**, не визуально.
+- Реальная `/` (dev) рендерит **200**; SSR-HTML содержит 8 `itemWrap` + 9 `arcText` + общий path-def + 9 `--orbit-label-color`; подписи = реальные shortLabel'ы.
+- `typecheck` чистый.
+
+### Известные ограничения
+
+- **Вращение уважает `prefers-reduced-motion`** (как и раньше): при включённом в ОС «уменьшении движения» карусель статична. Если владелец не видит вращения — вероятнее всего эта системная настройка, а не баг. По запросу — убрать guard, чтобы крутилось всегда.
+- Финальная **визуальная** проверка (цвета/тени/вращение) — на проде после деплоя (локальный preview в этом окружении не скриншотится).
+
+---
+
 ## 2026-05-31 — ГОНЬБА 31 мая 2026 (Claude session) — Pool #007: авто-мерж + sync веток в /close_session (консервативно)
 
 **Тема:** применение pool-идеи [#007](../../brain_matrica/cross-project-ideas/ideas/007-close-session-auto-merge.md) (`/close_session` auto-merge готовых PR + финальный sync/prune локальных веток) — непрерывность multi-machine workflow. У GONBA идея была `❓ кандидат`; применили **консервативный** вариант из-за GONBA-специфики «merge в `main` = авто-деплой» (`deploy-prod.yml`).
