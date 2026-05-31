@@ -129,14 +129,22 @@ echo ""
 
 # --- Git hooks ---
 echo "[Git hooks]"
-if [ -d "${REPO_ROOT}/.git/hooks" ]; then
-  if [ -x "${REPO_ROOT}/.git/hooks/prepare-commit-msg" ]; then
-    ok "prepare-commit-msg установлен (напоминает про DEVELOPMENT_LOG)"
-  else
-    warn "prepare-commit-msg не установлен — запусти 'bash scripts/install-git-hooks.sh'"
-  fi
-else
+HOOK_SRC="${REPO_ROOT}/scripts/git-hooks"
+if [ ! -d "${REPO_ROOT}/.git/hooks" ]; then
   warn "Это не git-репозиторий?"
+elif [ ! -d "${HOOK_SRC}" ] || [ -z "$(ls -A "${HOOK_SRC}" 2>/dev/null)" ]; then
+  ok "проектных git-хуков нет (норма — DEVELOPMENT_LOG-хук упразднён, ADR-0007)"
+else
+  missing=0
+  for src in "${HOOK_SRC}"/*; do
+    name="$(basename "${src}")"
+    [ -x "${REPO_ROOT}/.git/hooks/${name}" ] || missing=$((missing + 1))
+  done
+  if [ "${missing}" -eq 0 ]; then
+    ok "проектные git-хуки установлены"
+  else
+    warn "${missing} проектных хук(ов) не установлено — запусти 'bash scripts/install-git-hooks.sh'"
+  fi
 fi
 echo ""
 

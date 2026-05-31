@@ -36,5 +36,3 @@ fi
 
 echo ""
 echo "Установлено хуков: ${installed}"
-echo "Проверить — закомить с префиксом feat:/fix:/refactor: без правок docs/DEVELOPMENT_LOG.md."
-echo "Hook не блокирует, только предупреждает."

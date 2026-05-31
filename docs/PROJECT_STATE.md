@@ -1,6 +1,6 @@
 # Project state — архитектурное состояние
 
-Этот документ описывает текущее состояние проекта: что есть, где лежит, как связано. Здесь — стабильная картина «как устроено», а не «что менялось» (для истории — `DEVELOPMENT_LOG.md`).
+Этот документ описывает текущее состояние проекта: что есть, где лежит, как связано. Здесь — стабильная картина «как устроено», а не «что менялось» (для истории — `git log` + тела PR, [ADR-0007](adr/0007-archive-development-log.md)).
 
 При значимых архитектурных изменениях — обновлять здесь.
 
@@ -20,7 +20,6 @@
 ```
 docs/
 ├── PROJECT.md                — функциональная документация (env, скрипты, интеграции)
-├── DEVELOPMENT_LOG.md        — хронология изменений (свежее сверху)
 ├── PENDING_FOLLOWUPS.md      — открытые задачи и техдолги
 ├── PROJECT_STATE.md          — этот файл (архитектура)
 └── RELEASE_STABILITY_CHECKLIST.md — pre-release checklist
@@ -139,7 +138,7 @@ scripts/                      — общие deploy/dev помощники
 
 ## Slash-команды
 
-- `/start` — открытие сессии: git pull, прочесть `DEVELOPMENT_LOG.md` + `PENDING_FOLLOWUPS.md` + `PROJECT_STATE.md`, отчёт о состоянии.
+- `/start` — открытие сессии: git pull, прочесть `PENDING_FOLLOWUPS.md` + `PROJECT_STATE.md` (+ `git log` для хронологии), отчёт о состоянии.
 - `/reliz` — релизный flow: commit → push → PR → merge → safe-build на проде → restart → проверки.
 - `/check` — health-check: dev local + prod endpoints + git ahead/behind + lint/typecheck (быстро).
 - `/sql` — выполнение SQL на проде с диалогом-подтверждением (для миграций / data fix).

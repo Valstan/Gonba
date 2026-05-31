@@ -40,6 +40,7 @@
 | [0004](0004-frontpage-ethno-modern-redesign.md) | Редизайн главной в стиле «этно-модерн» (направление B) | Superseded in part by 0006 |
 | [0005](0005-secrets-outside-repo-tree.md) | Прод-секреты вне дерева репо (`/etc/gonba/gonba.env`) | Accepted |
 | [0006](0006-homepage-orbit-usadba.md) | Главная — орбит-карусель; этно-лендинг → `/usadba` | Accepted |
+| [0007](0007-archive-development-log.md) | Упразднение `DEVELOPMENT_LOG.md` (минималистичный AI-docs) | Accepted |
 
 ---
 

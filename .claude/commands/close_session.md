@@ -38,7 +38,7 @@ allowed-tools: Read, Bash, Glob, Grep, Edit, Write, AskUserQuestion
 - **Какая текущая нитка?** Если из аргумента команды уже понятно — пропустить. Иначе — короткое описание (1-3 предложения).
 - **Следующий шаг?** Конкретно: первое действие следующей сессии, file paths + команды.
 - **Status:** `ACTIVE` (есть нитка) или `IDLE` (всё закрыто, ждём следующих задач)?
-- **Failed approaches?** Только при `Status: ACTIVE` — были ли в этой сессии подходы, которые пробовали и отвергли (PoC не взлетел, обсудили и отбросили)? Если да — кратко перечислить с причиной отказа. Если нет — пропустить. (При `Status: IDLE` спрашивать не нужно — переноси предыдущие failed approaches в DEV_LOG, если были, при перезаписи handoff.)
+- **Failed approaches?** Только при `Status: ACTIVE` — были ли в этой сессии подходы, которые пробовали и отвергли (PoC не взлетел, обсудили и отбросили)? Если да — кратко перечислить с причиной отказа. Если нет — пропустить. (При `Status: IDLE` спрашивать не нужно — durable-уроки из предыдущих failed approaches graduate в `CLAUDE.md`/ADR при перезаписи handoff, эфемерные просто отпускаем — они остаются в `git log` + теле PR.)
 
 Если пользователь ничего не передал и из истории сессии всё ясно — можно действовать без вопросов, **показав** Claude'у драфт и попросив подтверждения.
 
@@ -79,7 +79,7 @@ allowed-tools: Read, Bash, Glob, Grep, Edit, Write, AskUserQuestion
 
 <если не было отвергнутых — оставить «_Не было — все попробованные подходы сработали или ещё в работе._»>
 <если Status: IDLE — всю секцию можно убрать (нет нитки → нет failed approaches).>
-<eternal-уроки уровня проекта → CLAUDE.md, architectural alternatives → ADR в docs/adr/, post-mortem конкретной сессии → блок «Уроки» в DEVELOPMENT_LOG.md.>
+<eternal-уроки уровня проекта → CLAUDE.md, architectural alternatives → ADR в docs/adr/, post-mortem конкретной сессии → тело close-PR + git log (отдельного журнала нет, ADR-0007).>
 
 ## Не забыть (low-priority)
 
@@ -92,18 +92,18 @@ allowed-tools: Read, Bash, Glob, Grep, Edit, Write, AskUserQuestion
 
 **Важно про «Failed approaches»:**
 
-- Секция **только для текущей нитки** (`Status: ACTIVE`). Если нитка закрывается (`Status: IDLE`) — секция убирается, а отвергнутые подходы переносятся в блок «Уроки» соответствующего блока `DEVELOPMENT_LOG.md`.
+- Секция **только для текущей нитки** (`Status: ACTIVE`). Если нитка закрывается (`Status: IDLE`) — секция убирается: durable-уроки graduate в `CLAUDE.md`/ADR, эфемерные отпускаем (остаются в `git log` + теле close-PR).
 - **Grade'ы (где что фиксируем):**
   - `CLAUDE.md → Технические уроки` — **вечные уроки** уровня проекта (build только через safe-build.sh и т.п.)
   - `docs/adr/NNNN-*.md → Alternatives considered` — **архитектурные** отвергнутые альтернативы
   - `docs/SESSION_HANDOFF.md → Failed approaches` — **failed approaches в активной нитке** (живёт пока нитка идёт)
-  - `DEVELOPMENT_LOG.md → блок сессии → Уроки` — **session post-mortem** (когда нитка закрылась)
-- При `/close_session ACTIVE` — спроси пользователя «были ли отвергнутые подходы за эту сессию?». При `Status: IDLE` — перенеси failed approaches из старого SESSION_HANDOFF в DEV_LOG, если они там были.
+  - **тело close-PR + `git log`** — **session post-mortem** (когда нитка закрылась; отдельного журнала нет — [ADR-0007](../../docs/adr/0007-archive-development-log.md))
+- При `/close_session ACTIVE` — спроси пользователя «были ли отвергнутые подходы за эту сессию?». При `Status: IDLE` — durable failed approaches из старого SESSION_HANDOFF подними в `CLAUDE.md`/ADR (если ещё не там), остальные отпусти.
 
 ## Шаг 4. Обновить PENDING_FOLLOWUPS.md (если нужно)
 
 Если в сессии:
-- Закрыли какие-то открытые задачи — снять их из списка (перенести в `DEVELOPMENT_LOG.md` если ещё не записано).
+- Закрыли какие-то открытые задачи — отметить `✅ Сделано` (с PR/коммитом) или снять из списка (хронология — `git log` + тело PR).
 - Появились новые техдолги / идеи — добавить с приоритетом 🔴⏳🟡🟢.
 - Изменился приоритет существующих — обновить.
 
