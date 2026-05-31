@@ -1,8 +1,6 @@
-'use client'
-
 import Image from 'next/image'
 import Link from 'next/link'
-import React, { useEffect, useRef } from 'react'
+import React from 'react'
 
 type OrbitImage = {
   id: string
@@ -37,14 +35,12 @@ const normalizeImageSrc = (src: string) => {
   return `/media/${normalized}`
 }
 
-// Полный оборот за SPIN_MS. Линейно — субъективно ровно и плавно.
-const SPIN_MS = 90000
-
 // Дуга-подпись под кружком (SVG textPath). Одна общая геометрия для всех кружков:
-// viewBox 150×150, центр (75,75), фото-радиус 50, текст по нижней дуге радиуса 58
-// (на ~8 ед. ниже края фото), разворот ±60° от низа. sweep=0 → дуга снизу, текст «улыбкой».
+// viewBox 150×150, центр (75,75), фото-радиус 50, текст по нижней дуге радиуса 55
+// (на ~5 ед. ниже края фото — тесно прижата, чтобы соседние подписи не наезжали),
+// разворот ±58° от низа. sweep=0 → дуга снизу, текст «улыбкой».
 const ARC_PATH_ID = 'homeOrbitArcPath'
-const ARC_PATH_D = 'M 24.8 104 A 58 58 0 0 0 125.2 104'
+const ARC_PATH_D = 'M 28.4 104.1 A 55 55 0 0 0 121.6 104.1'
 
 // Разноцветные подписи (req: разный цвет, без фона, с тенью/обводкой для контраста).
 // Насыщённые, читаемые на песочном фоне; белая обводка + тень добавляются в CSS.
@@ -63,7 +59,7 @@ const CENTER_LABEL_COLOR = '#23351f'
 type ArcLabelProps = { title: string; center?: boolean }
 
 // Подпись дугой под кружком. textLength + lengthAdjust гарантируют, что любой
-// заголовок впишется в дугу (короткие — мягко растягиваются, длинные — слегка сжимаются).
+// заголовок вписывается в дугу (короткие — мягко растягиваются, длинные — слегка сжимаются).
 const ArcLabel: React.FC<ArcLabelProps> = ({ title, center }) => (
   <svg
     className={`homeOrbit__arc${center ? ' homeOrbit__arc--center' : ''}`}
@@ -76,7 +72,7 @@ const ArcLabel: React.FC<ArcLabelProps> = ({ title, center }) => (
         href={`#${ARC_PATH_ID}`}
         startOffset="50%"
         textAnchor="middle"
-        textLength={center ? 104 : 108}
+        textLength={center ? 96 : 100}
         lengthAdjust="spacingAndGlyphs"
       >
         {title}
@@ -86,50 +82,6 @@ const ArcLabel: React.FC<ArcLabelProps> = ({ title, center }) => (
 )
 
 export const HomeCarouselMenuClient: React.FC<Props> = ({ centerItem, items }) => {
-  const ringRef = useRef<HTMLDivElement>(null)
-  const pausedRef = useRef(false)
-
-  // Единый источник вращения: rAF пишет ОДНУ переменную --orbit-rot на кольце.
-  // Кольцо крутится на +rot (CSS: transform: rotate(var(--orbit-rot))), а
-  // .homeOrbit__itemInner контр-вращается на -rot, читая ТУ ЖЕ inherited-переменную.
-  // → фото и подписи всегда горизонтальны (подпись остаётся снизу кружка), без дрожания.
-  useEffect(() => {
-    const ring = ringRef.current
-    if (!ring) return
-
-    const reduced =
-      typeof window !== 'undefined' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (reduced) {
-      ring.style.setProperty('--orbit-rot', '0deg')
-      return
-    }
-
-    let raf = 0
-    let angle = 0
-    let last = performance.now()
-    const speed = 360 / SPIN_MS // градусов в мс
-
-    const tick = (now: number) => {
-      const dt = now - last
-      last = now
-      if (!pausedRef.current) {
-        angle = (angle + dt * speed) % 360
-        ring.style.setProperty('--orbit-rot', `${angle}deg`)
-      }
-      raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [])
-
-  const pause = () => {
-    pausedRef.current = true
-  }
-  const resume = () => {
-    pausedRef.current = false
-  }
-
   const count = items.length || 1
 
   return (
@@ -141,17 +93,12 @@ export const HomeCarouselMenuClient: React.FC<Props> = ({ centerItem, items }) =
         </defs>
       </svg>
 
-      <div
-        className="homeOrbit__stage"
-        onMouseEnter={pause}
-        onMouseLeave={resume}
-        onFocusCapture={pause}
-        onBlurCapture={resume}
-        onTouchStart={pause}
-        onTouchEnd={resume}
-      >
+      <div className="homeOrbit__stage">
         {/* Центр — не вращается. */}
-        <div className="homeOrbit__centerWrap" style={{ '--orbit-label-color': CENTER_LABEL_COLOR } as React.CSSProperties}>
+        <div
+          className="homeOrbit__centerWrap"
+          style={{ '--orbit-label-color': CENTER_LABEL_COLOR } as React.CSSProperties}
+        >
           <Link
             className="homeOrbit__center"
             href={centerItem.link}
@@ -176,8 +123,8 @@ export const HomeCarouselMenuClient: React.FC<Props> = ({ centerItem, items }) =
           </Link>
         </div>
 
-        {/* Кольцо — вращается через --orbit-rot (rAF). */}
-        <div className="homeOrbit__ring" ref={ringRef}>
+        {/* Кольцо — вращается CSS-анимацией orbit-spin (90s linear). */}
+        <div className="homeOrbit__ring">
           {items.map((item, index) => {
             const orbitStyle = {
               '--orbit-angle': `${index * (360 / count)}deg`,
@@ -196,7 +143,7 @@ export const HomeCarouselMenuClient: React.FC<Props> = ({ centerItem, items }) =
                   className="homeOrbit__item"
                   aria-label={`Открыть раздел: ${item.title}`}
                 >
-                  {/* Контр-вращается: фото и подпись остаются горизонтальными при вращении кольца. */}
+                  {/* Контр-вращается (orbit-counter-spin): фото и подпись горизонтальны. */}
                   <div className="homeOrbit__itemInner">
                     <div className="homeOrbit__media">
                       {item.image && normalizeImageSrc(item.image.url) ? (

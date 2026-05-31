@@ -888,15 +888,17 @@ html {
 
 .homeOrbit {
   position: relative;
-  /* Геометрия орбиты. Кружки увеличены ~2x, радиус и сцена выросли под них. */
+  /* Геометрия орбиты. Кружки ~2x; радиус подобран так, чтобы кружки стояли
+     компактно (почти впритык), но дуговые подписи не наезжали друг на друга
+     (radius ≈ 1.45 × диаметр — проверено численно на прототипе). */
   --orbit-item-size: clamp(11rem, 16vw, 13.5rem);
-  --orbit-radius: clamp(17rem, 28vw, 24rem);
+  --orbit-radius: clamp(16rem, 23vw, 19.5rem);
   --orbit-center-size: min(15rem, 24vw);
 }
 
 .homeOrbit__stage {
   position: relative;
-  min-height: clamp(46rem, 78vw, 70rem);
+  min-height: clamp(40rem, 62vw, 55rem);
   overflow: visible;
 }
 
@@ -937,7 +939,10 @@ html {
   position: absolute;
   inset: 0;
   z-index: 2;
-  transform: rotate(var(--orbit-rot, 0deg));
+  /* Вращение — CSS keyframes (надёжно крутится в браузере; JS-rAF через var
+     не перерисовывал transform — был баг «не крутится»). Контр-вращение
+     itemInner той же длительностью 90s linear → фото/подписи без дрейфа. */
+  animation: orbit-spin 90s linear infinite;
   will-change: transform;
 }
 
@@ -970,7 +975,16 @@ html {
   position: relative;
   width: 100%;
   height: 100%;
-  transform: rotate(calc(-1 * var(--orbit-rot, 0deg)));
+  /* Контр-вращение той же длительностью → фото и дуговая подпись горизонтальны. */
+  animation: orbit-counter-spin 90s linear infinite;
+}
+
+/* Пауза при наведении/фокусе — удобно прицелиться в кружок. */
+.homeOrbit__stage:hover .homeOrbit__ring,
+.homeOrbit__stage:hover .homeOrbit__itemInner,
+.homeOrbit__stage:focus-within .homeOrbit__ring,
+.homeOrbit__stage:focus-within .homeOrbit__itemInner {
+  animation-play-state: paused;
 }
 
 .homeOrbit__item:hover,
@@ -1022,18 +1036,18 @@ html {
 
 .homeOrbit__arcText {
   font-weight: 800;
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 0.2px;
   fill: var(--orbit-label-color, #20281a);
   stroke: rgba(255, 255, 255, 0.82);
-  stroke-width: 1.7px;
+  stroke-width: 1.6px;
   stroke-linejoin: round;
   paint-order: stroke fill;
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
 }
 
 .homeOrbit__arc--center .homeOrbit__arcText {
-  font-size: 9px;
+  font-size: 8.5px;
 }
 
 .homeOrbit.is-editing .homeOrbit__ring,
