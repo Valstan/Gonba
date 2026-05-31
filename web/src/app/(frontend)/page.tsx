@@ -14,7 +14,15 @@ export const metadata: Metadata = {
     'Интерактивная карта проектов Жемчужины Вятки: эко-отель, ремесленные мастерские, конный клуб, экскурсии и вятские сборы — выберите проект в орбит-карусели.',
 }
 
-export const revalidate = 600
+// Динамический рендер главной (не ISR-prerender).
+// Причина: Next.js дважды отдавал УСТАРЕВШИЙ статический prerender `/` после деплоя
+// (2026-05-30 — этно вместо карусели; 2026-05-31 — старый CSS-бандл вместо нового
+// orbit-spin/компактной геометрии), несмотря на чистый `rm -rf .next` в safe-build.
+// app-build-manifest был верный, но пререндеренный index.html ссылался на фантомный
+// (отсутствующий на диске) CSS-хэш. force-dynamic рендерит `/` по текущему манифесту
+// на каждый запрос → всегда свежие контент и CSS. Главная делает 1 запрос к БД —
+// для этого сайта приемлемо. См. DEVELOPMENT_LOG 2026-05-31.
+export const dynamic = 'force-dynamic'
 
 type MediaDoc = { id?: string | number; url?: string | null; alt?: string | null }
 type HomeCarouselGlobal = {
