@@ -6,6 +6,25 @@
 
 ---
 
+## 2026-05-31 — ГОНЬБА 31 мая 2026 (Claude session) — Pool #007: авто-мерж + sync веток в /close_session (консервативно)
+
+**Тема:** применение pool-идеи [#007](../../brain_matrica/cross-project-ideas/ideas/007-close-session-auto-merge.md) (`/close_session` auto-merge готовых PR + финальный sync/prune локальных веток) — непрерывность multi-machine workflow. У GONBA идея была `❓ кандидат`; применили **консервативный** вариант из-за GONBA-специфики «merge в `main` = авто-деплой» (`deploy-prod.yml`).
+
+### Что сделано (PR chore/close-session-auto-merge-007)
+
+- **`.claude/commands/close_session.md`** — два новых шага + переименование:
+  - **Шаг 6 «Auto-merge готовых PR» (Шаг A #007)** — консервативный: auto-merge **только doc/process-PR** (изменения исключительно в `docs/` / `mailbox/` / `.claude/` / корневых `*.md`) при выполнении ВСЕХ условий (base=main, CI зелёный, `MERGEABLE`, не draft, явное одобрение пользователя в сессии, нет un-resolved review) и через **один** `AskUserQuestion` с предупреждением «merge запустит прод-пересбор». **Код-PR** (`web/`/`scripts/`/`deploy/`/`.github/`) — всегда через `/reliz`, не auto-merge.
+  - **Шаг 7 «Финальный sync локальных веток» (Шаг B #007)** — `fetch --prune` → `pull main` → удалить смерженные локальные ветки, оставить WIP/un-pushed (+ продублировать в handoff).
+  - Гейт переименован 5.6 → **Шаг 8**, отчёт 6 → **Шаг 9** (+ строка про auto-merge/ветки). Frontmatter, интро (две вещи → три), 5c, «Что НЕ делать» — обновлены.
+- **`mailbox/to-brain/2026-05-31-close-session-auto-merge-applied.md`** (kind=feedback) — отчёт brain'у + 2 adaptation notes.
+
+### Уроки / adaptation notes (переносимое → pool #007)
+
+- **На проектах где merge = деплой** (GONBA: `deploy-prod.yml` на `workflow_run` CI/main, без path-фильтра) Шаг A #007 нельзя применять «как у MatricaRMZ/setka». Адаптация: auto-merge **только doc/process-PR** (прод пересоберётся, но рантайм не меняется), код-PR — через контролируемый деплой-flow (`/reliz`). Без этого `/close_session` молча выкатил бы непроверенный код на прод.
+- **Squash-merge ломает детекцию смерженных веток.** GONBA мержит `--squash` → squash создаёт новый коммит на `main`, коммиты ветки не его предки → `git branch --merged origin/main` **НЕ** видит squash-смерженные ветки, `git branch -d` отказывается удалять. Признак смерженности при squash-flow — **не** `--merged`, а «ветка, которую сам только что смержил» + `git branch -vv | grep ': gone]'` (upstream снесён при prune) с подтверждением `gh pr view <branch> --json state` = `MERGED` → `git branch -D`. MatricaRMZ-pioneer этот gotcha в #007 не описал (зависит от merge-стратегии проекта).
+
+---
+
 ## 2026-05-30 — ГОНЬБА 30 мая 2026 (Claude session, вечер) — Session sync safeguard #010 + deploy guard (stale-prerender)
 
 **Тема:** between-threads окно. (1) применение mandate-директивы brain #010 «сессия не закрыта пока всё не на GitHub»; (2) закрытие высокоприоритетного 🟡-техдолга «deploy guard по содержимому» — прямой урок из инцидента того же дня (PR #55 отдал stale-prerender при зелёном CI и 200).
