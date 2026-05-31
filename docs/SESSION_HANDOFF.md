@@ -1,35 +1,42 @@
 # Session Handoff
 
-**Status:** IDLE
-**Updated:** 2026-05-30
-**Branch:** main
-**Last released version:** PR #58 (commit `e355df1`) на проде — deploy guard против stale-prerender (контент-маркер в smoke-check + `.next`-guard). Прод verified: health 200, `/` = карусель (8 кружков), новый guard прошёл end-to-end на собственном деплое.
+**Status:** ACTIVE
+**Updated:** 2026-05-31
+**Branch:** fix/orbit-reduced-motion-gentle
+**Last released version:** на проде #64–#67 (orbit-CSS cleanup, actions v5, VK last_error, упразднён DEVELOPMENT_LOG). Деплой verified: health 200, orbit-маркер ×16. **#68 ещё НЕ на проде.**
 
 ---
 
-## Состояние
+## Текущая нитка
 
-**Свободно — активной нитки нет.** Вечерняя сессия 2026-05-30, between-threads окно. Закрыто:
+Орбита-меню «не крутилась в браузере» — **разгадано**: причина не в коде карусели (его зря переписывали), а в `@media (prefers-reduced-motion: reduce) { animation: none }` + у владельца в Windows включено «уменьшить движение». PR **#68** меняет `animation: none` → `animation-duration: 180s` (мягкое вращение под reduced-motion, базовые 90s без изменений). Проверено вживую в Chrome. PR открыт, **ждёт деплоя**.
 
-1. ✅ **Директива brain #010** — session sync safeguard (mandate). `scripts/git_sync_check.sh` (`--warn`/`--gate`), SessionStart-хук в коммитимом `.claude/settings.json`, sync-гейт в `/close_session`, правило в `CLAUDE.md`, NL-триггеры. [PR #57](https://github.com/Valstan/Gonba/pull/57). +2 находки (`.gitignore`-исключение `!.claude/settings.json`, `.gitattributes` `*.sh eol=lf`). Gate догфуднут.
-2. ✅ **Deploy guard (stale-prerender)** — высокоприоритетный 🟡-техдолг закрыт. [PR #58](https://github.com/Valstan/Gonba/pull/58). Контент-маркер `homeOrbit__itemWrap` в `deploy-prod.yml` (локальный эндпоинт) + `[ -d .next ] && exit 1` в `safe-build.sh`. Провалидирован на деплое (`8 вхождений → OK`).
-3. ✅ **3 owed-ответа brain закрыты** — ack-письма #010, #006 (ssh-opt-in), #prod-redesign-config (галереи 10/13, chat 6, VK healthy) в `mailbox/to-brain/`.
+## Следующий шаг
 
-## Кандидаты на следующую нитку (из PENDING)
-
-- 🟡 **Дрейф репо↔прод systemd-юнитов** (`gonba-web.service` vs установленный `gonba.service` + inline домен-vars).
-- 🟡 **Мониторинг протухания VK-токенов** (молча не работал 2.5 дня в мае — нужен алерт при `error` на всех источниках).
-- 🟡 **VK source #5 (Садовая Фея)** — user page, не группа: `pending` навсегда, пока код не научится `users.get` + положительный `owner_id`. Отдельный PR.
-- 🟢 Уборка ~260 строк мёртвого admin-CSS орбиты в `globals.css` · drawer-подменю Header → в Payload · `last_error` не очищается при success · idempotency VK по `(ownerId, postId)`.
-- 🟢 **Node 20 actions deprecation** — `actions/checkout@v4`/`setup-node@v4` (дедлайн GitHub июнь 2026). Бамп до v5 в CI + deploy workflow.
+Довести **PR #68** до прода через **`/reliz`** (merge → safe-build → restart gonba → verify). После деплоя орбита закрутится и под reduced-motion. Проверить на проде `гоньба.рф`: при включённом «уменьшить движение» орбита крутится медленно (180s), при выключенном — 90s.
 
 ## Контекст
 
-- **Прод:** ✅ `гоньба.рф/` = карусель (8 кружков), `/api/health` 200, секреты в `/etc/gonba/`, новый deploy-guard активен.
-- **Локально:** dev-БД — фейковые тестовые проекты (при следующей local-работе восстановить из прод-дампа). SSH opt-in (вариант #3) отработал без фрикции весь прод-verify.
-- **Новое в процессе:** `git_sync_check.sh` SessionStart-хук теперь предупреждает о несинхроне при входе; `/close_session` гейтит на «всё на GitHub».
-- **Открытые PR:** этот session-close PR.
+- **План:** —
+- **Связанные коммиты сессии:**
+  - `555ef51` (PR #68, открыт) — orbit крутится под reduced-motion (180s мягко)
+  - `2bcdbb3` (#67) — упразднён DEVELOPMENT_LOG.md (ADR-0007, минималистичный AI-docs)
+  - `da8407c` (#66) — VK last_error: null на здоровых прогонах
+  - `37cf35c` (#65) — GitHub Actions v4→v5
+  - `5af6449` (#64) — удалён мёртвый orbit-CSS (−321)
+- **Прод:** ✅ health 200, карусель рендерится (8 кружков). НО орбита **не крутится** под reduced-motion до деплоя #68.
+- **Dev-сервер:** запущен на `localhost:3000` (фоновый процесс этой сессии) — можно остановить или оставить.
+- **Открытые вопросы для пользователя:** владелец может включить «живые» 90s, выключив «уменьшить движение» в Windows (Параметры → Спец. возможности → Визуальные эффекты → Эффекты анимации).
+
+## Failed approaches (этой нитки)
+
+_Не было — диагноз (prefers-reduced-motion) подтвердился с первой живой проверки в Chrome, фикс сразу верный._
+
+## Не забыть (low-priority)
+
+- После деплоя #68 — handoff → IDLE (нитка закрыта).
+- Brain получит 2 письма на своём `/start`: упразднение DEV_LOG (#004 → ✅) + находка про prefers-reduced-motion (новый pool-кандидат).
 
 ---
 
-> Sticky note — что было следующим шагом. Перезаписывается через `/close_session`. История — `git log -- docs/SESSION_HANDOFF.md`.
+> Sticky note — что было следующим шагом. Перезаписывается через `/close_session`.
