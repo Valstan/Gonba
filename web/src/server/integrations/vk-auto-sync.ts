@@ -332,6 +332,7 @@ export async function syncVkSource(
         data: {
           lastSyncStatus: 'no-new-posts',
           lastSyncAt: new Date().toISOString(),
+          lastError: null, // здоровый прогон — чистим возможный stale-текст ошибки
           syncLog: [logEntry('no-new-posts', 'Нет постов в сообществе'), ...(sourceDoc.syncLog || [])].slice(0, 50),
         },
       })
@@ -445,6 +446,7 @@ export async function syncVkSource(
           lastSyncedPostId: newPost.id,
           lastSyncStatus: 'success',
           lastSyncAt: new Date().toISOString(),
+          lastError: null, // здоровый прогон — чистим возможный stale-текст ошибки
         },
       })
       return {
@@ -491,6 +493,7 @@ export async function syncVkSource(
         lastSyncStatus: 'success',
         lastSyncAt: new Date().toISOString(),
         totalImported: newTotal,
+        lastError: null, // здоровый прогон — чистим возможный stale-текст ошибки
       },
     })
 
