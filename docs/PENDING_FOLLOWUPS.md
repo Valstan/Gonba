@@ -8,7 +8,7 @@
 - 🟡 **техдолг** — работает, но «костыль» / непрозрачно / повторение боли
 - 🟢 **идея** — улучшение качества жизни, не критично
 
-При закрытии — переноси запись в `DEVELOPMENT_LOG.md` (в текущий день).
+При закрытии — отмечай запись `✅ Сделано` (с PR/коммитом) прямо здесь; хронология живёт в `git log` + теле PR ([ADR-0007](adr/0007-archive-development-log.md)).
 
 ---
 
@@ -41,7 +41,7 @@ _Сейчас нет — все начатые задачи в текущей с
 ### Удобство разработки
 
 - **CI deploy step** — `.github/workflows/deploy-prod.yml` через `workflow_run` после успешного CI на `main`. SSH-ключ — общий `id_ed25519`. На failure — НЕ роллим, выгружаем `journalctl` и фейлим. Миграции остаются ручным шагом ДО merge (safety net в workflow проверяет наличие новых `web/src/migrations/*.ts`). (Сделано — см. `docs/PROJECT.md → CI / автоматический деплой`.)
-- **Hook на `git commit`** — напоминает обновить `DEVELOPMENT_LOG.md` для `feat:/fix:/refactor:`-коммитов. `scripts/git-hooks/prepare-commit-msg` + `scripts/install-git-hooks.sh`. (Сделано — устанавливается одной командой `bash scripts/install-git-hooks.sh`.)
+- ~~**Hook на `git commit`** — напоминает обновить `DEVELOPMENT_LOG.md`~~ **Упразднён 2026-05-31** вместе с самим журналом ([ADR-0007](adr/0007-archive-development-log.md)): `git rm scripts/git-hooks/prepare-commit-msg`. `scripts/install-git-hooks.sh` остался как generic-инфра для будущих хуков.
 - **Команда `/check`** — одной кнопкой `health-check`: dev local up? Prod /api/health? Git состояние? TypeScript? Lint? (Сделано — см. `.claude/commands/check.md`.)
 - **Команда `/sql`** для безопасного выполнения SQL на проде через SSH с диалогом-подтверждением (учитывая что Auto-mode classifier режет direct ALTER без warning). (Сделано — см. `.claude/commands/sql.md`.)
 - **Скрипт `scripts/dev-doctor.sh`** проверяет окружение (Postgres, .env, node_modules, payload-types, importMap, SSH alias `GONBA`, git hooks). (Сделано — `bash scripts/dev-doctor.sh`.)

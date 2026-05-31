@@ -36,8 +36,9 @@ allowed-tools: Read, Bash, Glob, Grep, AskUserQuestion, mcp__ccd_session__mark_c
 
 1. [`CLAUDE.md`](../../CLAUDE.md) — entry point, правила работы и уроки прошлых сессий
 2. [`docs/PROJECT_STATE.md`](../../docs/PROJECT_STATE.md) — архитектурная картина
-3. [`docs/DEVELOPMENT_LOG.md`](../../docs/DEVELOPMENT_LOG.md) — что сделано в последних сессиях
-4. [`docs/PENDING_FOLLOWUPS.md`](../../docs/PENDING_FOLLOWUPS.md) — открытые задачи и техдолги
+3. [`docs/PENDING_FOLLOWUPS.md`](../../docs/PENDING_FOLLOWUPS.md) — открытые задачи и техдолги
+
+Хронологию «что сделано в последних сессиях» бери из `git log --oneline -15` + `gh pr list --state merged --limit 10` (отдельного журнала нет — [ADR-0007](../../docs/adr/0007-archive-development-log.md)).
 
 Memory-файлы автоматически подгружены через `MEMORY.md` — учитывай их в рекомендациях (особенно `windows_pnpm_setup`, `dev_schema_push_prompt`, `prod_server_access`, `feedback_cross_project_ideas`).
 
@@ -131,7 +132,7 @@ options:
 Структура:
 
 1. **Сессия:** `ГОНЬБА <дата>` — отмечена.
-2. **Что нового** (из `DEVELOPMENT_LOG.md`, последний блок): 1-2 строки о последней сессии.
+2. **Что нового** (из `git log --oneline` + последних смерженных PR): 1-2 строки о последней сессии.
 3. **Git:** ветка, ahead/behind, результат pull (если был), uncommitted-файлы (если есть).
 4. **Открытые PR:** мои и всего.
 5. **Окружение:** `.env` / `node_modules` / `payload-types.ts` / прод-health.
@@ -145,4 +146,4 @@ options:
 
 В конце ответа добавь сноску:
 
-> Когда сделаешь значимые правки — перед последним коммитом обнови `docs/DEVELOPMENT_LOG.md` (новый блок сверху, в дату сегодняшней сессии) и закрой/перенеси задачи в `docs/PENDING_FOLLOWUPS.md`. Команда `/reliz` сделает релиз правильно (через `safe-build.sh`).
+> Когда сделаешь значимые правки — перед последним коммитом закрой/перенеси задачи в `docs/PENDING_FOLLOWUPS.md` (хронология — в `git log` + теле PR, отдельного журнала нет, [ADR-0007](../../docs/adr/0007-archive-development-log.md)). Команда `/reliz` сделает релиз правильно (через `safe-build.sh`).
