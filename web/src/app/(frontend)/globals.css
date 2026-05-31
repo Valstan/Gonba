@@ -888,45 +888,43 @@ html {
 
 .homeOrbit {
   position: relative;
+  /* Геометрия орбиты. Кружки увеличены ~2x, радиус и сцена выросли под них. */
+  --orbit-item-size: clamp(11rem, 16vw, 13.5rem);
+  --orbit-radius: clamp(17rem, 28vw, 24rem);
+  --orbit-center-size: min(15rem, 24vw);
 }
 
 .homeOrbit__stage {
   position: relative;
-  min-height: clamp(33rem, 46vw, 40rem);
-  overflow: hidden;
+  min-height: clamp(46rem, 78vw, 70rem);
+  overflow: visible;
 }
 
 .homeOrbit__centerWrap {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: min(12.5rem, 24vw);
+  width: var(--orbit-center-size);
   transform: translate(-50%, -50%);
   z-index: 3;
-  transition: width 0.35s ease;
 }
 
 .homeOrbit__center {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  display: block;
   position: relative;
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
   border-radius: 999px;
   background: color-mix(in oklab, var(--color-card) 88%, transparent);
-  overflow: hidden;
+  overflow: visible;
   text-decoration: none;
   color: inherit;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.1);
   transition:
     transform 0.2s ease,
-    box-shadow 0.2s ease,
-    width 0.35s ease,
-    height 0.35s ease;
-  width: min(12.5rem, 24vw);
-  height: min(12.5rem, 24vw);
-  padding: 0.45rem;
+    box-shadow 0.2s ease;
+  width: var(--orbit-center-size);
+  height: var(--orbit-center-size);
+  padding: 0;
 }
 
 .homeOrbit__center:hover,
@@ -947,31 +945,24 @@ html {
   position: absolute;
   left: 50%;
   top: 50%;
-  transform: translate(-50%, -50%) rotate(var(--orbit-angle)) translateX(clamp(11rem, 17vw, 14.5rem));
-  transition: transform 0.35s ease;
+  transform: translate(-50%, -50%) rotate(var(--orbit-angle)) translateX(var(--orbit-radius));
 }
 
 .homeOrbit__item {
-  width: clamp(5.8rem, 9vw, 7.2rem);
-  height: clamp(5.8rem, 9vw, 7.2rem);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  width: var(--orbit-item-size);
+  height: var(--orbit-item-size);
+  display: block;
   position: relative;
-  gap: 0.4rem;
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
   border-radius: 999px;
-  padding: 0.5rem;
   background: color-mix(in oklab, var(--color-card) 92%, transparent);
   text-decoration: none;
   color: inherit;
+  overflow: visible;
   transition:
     transform 0.2s ease,
     border-color 0.2s ease,
-    box-shadow 0.2s ease,
-    width 0.35s ease,
-    height 0.35s ease;
+    box-shadow 0.2s ease;
   transform: rotate(calc(-1 * var(--orbit-angle)));
 }
 
@@ -989,19 +980,15 @@ html {
 }
 
 .homeOrbit__media {
-  position: relative;
-  aspect-ratio: 4 / 3;
+  position: absolute;
+  inset: 0;
   border-radius: 999px;
   overflow: hidden;
   background: color-mix(in oklab, var(--color-muted) 85%, transparent);
-  width: 100%;
-  height: 100%;
 }
 
 .homeOrbit__media--center {
-  aspect-ratio: auto;
-  width: 100%;
-  height: 100%;
+  inset: 0;
   border-radius: 999px;
 }
 
@@ -1018,63 +1005,35 @@ html {
   background: linear-gradient(135deg, color-mix(in oklab, var(--color-primary) 70%, transparent), color-mix(in oklab, var(--color-accent) 60%, transparent));
 }
 
-.homeOrbit__centerTitle {
+/* Подпись дугой под кружком (SVG textPath). Без фона, разный цвет (--orbit-label-color),
+   белая обводка + тень — контраст на любом фоне. SVG 150% от кружка, центрирован на нём;
+   текст идёт по нижней дуге чуть ниже края фото (см. ARC_PATH_D в компоненте). */
+.homeOrbit__arc {
   position: absolute;
   left: 50%;
-  bottom: 0.85rem;
-  transform: translateX(-50%);
-  z-index: 2;
-  display: -webkit-box;
-  text-align: center;
-  min-width: 5rem;
-  padding: 0.3rem 0.85rem;
-  border-radius: 999px;
-  background: rgba(20, 28, 18, 0.88);
-  color: #fff;
-  font-size: 0.95rem;
-  font-weight: 700;
-  max-width: calc(100% - 0.7rem);
-  max-height: 3rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  white-space: normal;
-  word-break: break-word;
-  transition:
-    font-size 0.35s ease,
-    padding 0.35s ease,
-    bottom 0.35s ease;
+  top: 50%;
+  width: 150%;
+  height: 150%;
+  transform: translate(-50%, -50%);
+  overflow: visible;
+  pointer-events: none;
+  z-index: 4;
 }
 
-.homeOrbit__itemTitle {
-  position: absolute;
-  left: 50%;
-  bottom: 0.4rem;
-  transform: translateX(-50%);
-  z-index: 2;
-  max-width: calc(100% - 0.4rem);
-  border-radius: 999px;
-  background: rgba(20, 28, 18, 0.85);
-  color: #fff;
-  padding: 0.16rem 0.5rem;
-  font-weight: 700;
-  font-size: 0.8rem;
-  line-height: 1.12;
-  text-align: center;
-  max-height: 2.3rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  white-space: normal;
-  word-break: break-word;
-  transition:
-    font-size 0.35s ease,
-    padding 0.35s ease,
-    bottom 0.35s ease,
-    max-width 0.35s ease;
+.homeOrbit__arcText {
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.2px;
+  fill: var(--orbit-label-color, #20281a);
+  stroke: rgba(255, 255, 255, 0.82);
+  stroke-width: 1.7px;
+  stroke-linejoin: round;
+  paint-order: stroke fill;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
+}
+
+.homeOrbit__arc--center .homeOrbit__arcText {
+  font-size: 9px;
 }
 
 .homeOrbit.is-editing .homeOrbit__ring,
