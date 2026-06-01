@@ -114,12 +114,14 @@ export async function POST(request: Request) {
 
     const successCount = results.filter((r) => r.success).length
     const importedCount = results.filter((r) => r.newPostId).length
+    const errorCount = results.filter((r) => r.status === 'error').length
 
     return Response.json({
       success: true,
       total: results.length,
       successCount,
       importedCount,
+      errorCount,
       results,
     })
   } catch (error) {

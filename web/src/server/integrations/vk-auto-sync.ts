@@ -37,9 +37,18 @@ type VkApiResponse = {
   }
 }
 
+type SyncStatus = 'success' | 'error' | 'no-new-posts' | 'skipped' | 'pending'
+
 type SyncResult = {
   success: boolean
   message: string
+  /**
+   * Машиночитаемый исход прогона одного источника. Нужен для health-мониторинга
+   * в syncAllVkSources: `success`/`no-new-posts` = источник реально опрошен и жив,
+   * `error` = упал (часто — протухший VK-токен), `skipped` = не опрашивался
+   * (отключён / не прошёл интервал), `pending` = нет groupId (ждёт токен).
+   */
+  status: SyncStatus
   postId?: number
   newPostId?: number
 }
@@ -283,11 +292,11 @@ export async function syncVkSource(
     })
 
     if (!sourceDoc) {
-      return { success: false, message: 'Источник не найден' }
+      return { success: false, status: 'error', message: 'Источник не найден' }
     }
 
     if (!sourceDoc.isEnabled) {
-      return { success: false, message: 'Источник отключён' }
+      return { success: false, status: 'skipped', message: 'Источник отключён' }
     }
 
     const { groupId, sectionSlug, projectSlug, postType, lastSyncedPostId, syncIntervalHours } = sourceDoc
@@ -307,7 +316,7 @@ export async function syncVkSource(
           syncLog: [logEntry('skipped', message), ...(sourceDoc.syncLog || [])].slice(0, 50),
         },
       })
-      return { success: false, message }
+      return { success: false, status: 'pending', message }
     }
 
     // Проверяем, прошло ли достаточно времени с последней синхронизации
@@ -316,7 +325,7 @@ export async function syncVkSource(
       const now = Date.now()
       const intervalMs = (syncIntervalHours || 3) * 60 * 60 * 1000
       if (now - lastSync < intervalMs) {
-        return { success: false, message: `Ещё не прошло ${syncIntervalHours}ч с последней проверки` }
+        return { success: false, status: 'skipped', message: `Ещё не прошло ${syncIntervalHours}ч с последней проверки` }
       }
     }
 
@@ -336,7 +345,7 @@ export async function syncVkSource(
           syncLog: [logEntry('no-new-posts', 'Нет постов в сообществе'), ...(sourceDoc.syncLog || [])].slice(0, 50),
         },
       })
-      return { success: true, message: 'Нет новых постов' }
+      return { success: true, status: 'no-new-posts', message: 'Нет новых постов' }
     }
 
     // Находим первый пост, который ещё не был импортирован
@@ -354,7 +363,7 @@ export async function syncVkSource(
           syncLog: [logEntry('no-new-posts', 'Все посты уже импортированы'), ...(sourceDoc.syncLog || [])].slice(0, 50),
         },
       })
-      return { success: true, message: 'Все посты уже импортированы' }
+      return { success: true, status: 'no-new-posts', message: 'Все посты уже импортированы' }
     }
 
     // Находим проект
@@ -451,6 +460,7 @@ export async function syncVkSource(
       })
       return {
         success: true,
+        status: 'success',
         message: `Пост vk_id=${newPost.id} уже импортирован ранее (slug=${slug})`,
         postId: newPost.id,
       }
@@ -499,6 +509,7 @@ export async function syncVkSource(
 
     return {
       success: true,
+      status: 'success',
       message: `Импортирован пост #${newPost.id} → пост CMS #${createdPostId}`,
       postId: newPost.id,
       newPostId: createdPostId,
@@ -534,7 +545,7 @@ export async function syncVkSource(
       // ignore
     }
 
-    return { success: false, message: errorMessage }
+    return { success: false, status: 'error', message: errorMessage }
   }
 }
 
@@ -564,6 +575,24 @@ export async function syncAllVkSources(payload: Payload): Promise<SyncResult[]> 
 
     const result = await syncVkSource(payload, source.id)
     results.push(result)
+  }
+
+  // Health-мониторинг: майский инцидент — VK-токены протухли 27 мая, auto-sync
+  // молча падал 2.5 дня (никто не смотрел last_sync_status=error). Здесь — громкий,
+  // greppable маркер в лог при «ни один опрошенный источник не отработал».
+  // `attempted` = источники, реально дошедшие до VK API (success / no-new-posts / error);
+  // skipped (интервал/отключён) и pending (нет groupId) не считаем — они не пробовали.
+  const attempted = results.filter(
+    (r) => r.status === 'success' || r.status === 'no-new-posts' || r.status === 'error',
+  )
+  const errored = results.filter((r) => r.status === 'error')
+  if (attempted.length > 0 && errored.length === attempted.length) {
+    payload.logger.error(
+      `[vk-auto-sync] VK_SYNC_ALERT: ни один из ${attempted.length} опрошенных VK-источников ` +
+        `не отработал успешно (все в ошибке). Вероятная причина — протухшие VK-токены ` +
+        `(VK_TOKEN_VALSTAN / VK_TOKEN_VITA / VK_TOKEN_*). Проверь last_error источников. ` +
+        `Ошибки: ${errored.map((r) => r.message).join(' || ').slice(0, 300)}`,
+    )
   }
 
   return results
