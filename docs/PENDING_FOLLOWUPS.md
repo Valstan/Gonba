@@ -26,6 +26,12 @@ _Сейчас нет — все начатые задачи в текущей с
 
 ## 🟡 Техдолги
 
+- ⏳ **On-site редактирование контента/интерфейса** (нитка с 2026-06-01, план `docs/plans/inline-onsite-editing.md`). **Этап 1 на проде** (PR #71): кнопка входа в шапке + inline-правка постов (заголовок/hero/лёгкий текст) + `MediaPicker` (выбор существующей картинки). Осталось: PR3 (страницы Pages), PR4 (меню/футер), inline-правка project-detail. Текст-конвертер Lexical-lite — следить за round-trip.
+
+- ~~🟡 **500 при сохранении проекта + пустой /admin/collections/projects**~~ **✅ Сделано 2026-06-01** — дрейф схемы версий: `_projects_v` не хватало 6 `version_*`-колонок (миграция 20260525_080000 добавила их только в `projects`). ALTER применён на проде + миграция `20260601_120000` в репо.
+
+- 🟡 **Медиа-библиотека: дедуп / слияние дублей / связи / безопасное удаление** — план-памятка `docs/plans/media-library-integrity.md`. Phase A (выбор существующей картинки) сделано; B (дедуп при загрузке по `yandexSha256`), C (usage-связи + safe-delete с заменой), D (слияние дублей) — отдельными PR. Не блокер.
+
 - ~~🟡 **Deploy guard по содержимому (stale ISR-prerender).**~~ **✅ Сделано 2026-05-30** (PR fix/deploy-stale-prerender-guard). Контекст: 2026-05-30 деплой PR #55 прошёл «успешно» (CI зелёный, build success, smoke-checks HTTP 200), но `/` отдавал **старый prerender** (этно-страница вместо карусели). Реализовано: (а) в `.github/workflows/deploy-prod.yml` новый шаг smoke-check проверяет *маркер* `homeOrbit__itemWrap` в ответе локального `/` (минует CDN-кэш) — HTTP 200 больше не считается достаточным; (б) в `scripts/safe-build.sh` после `rm -rf .next` добавлен guard `[ -d .next ] && exit 1`. Догфуд: логика guard'а прогнана против live-прода (COUNT=8, passes). Урок и детали — DEV_LOG 2026-05-30; шеринг — `mailbox/to-brain/2026-05-30-orbit-raf-and-stale-prerender.md`.
 
 - ~~⚠️ **Директива brain #008 — секреты вне дерева репо**~~ **✅ Сделано 2026-05-30** (PR chore/secrets-outside-repo) — прод-секреты в `/etc/gonba/gonba.env` (root:valstan `0640`), 3 юнита + `scripts/safe-build.sh` через `EnvironmentFile=`, [ADR-0005](adr/0005-secrets-outside-repo-tree.md), feedback brain'у. См. DEV_LOG 2026-05-30. Pool [#008](../../brain_matrica/cross-project-ideas/ideas/008-secrets-outside-repo.md).
