@@ -44,6 +44,14 @@ jobs:
         # просто проверяет что новых файлов нет — иначе фейл.
         run: |
           set -e
+          # Ручной workflow_dispatch = "я применил миграции вручную, деплой код".
+          # Это штатный escape-hatch (см. шапку файла + сообщение об ошибке ниже):
+          # на dispatch guard пропускаем, иначе перезапуск того же коммита с новой
+          # миграцией всегда падал бы (diff видит тот же новый файл).
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "workflow_dispatch — миграции считаем применёнными вручную, guard пропущен."
+            exit 0
+          fi
           BEFORE_SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
           NEW_MIGRATIONS=$(git diff --name-only --diff-filter=A "${BEFORE_SHA}~1" "${BEFORE_SHA}" -- 'web/src/migrations/*.ts' 2>/dev/null || true)
           # Игнорируем index.ts — он обновляется каждый раз
