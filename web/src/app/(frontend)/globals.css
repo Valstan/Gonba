@@ -1068,8 +1068,12 @@ html {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* Не глушим вращение полностью (animation:none) — под reduced-motion
+     оставляем очень медленный, ненавязчивый оборот. Переопределяем ТОЛЬКО
+     длительность; имя (orbit-spin/counter-spin), timing и iteration
+     наследуются от базовых правил .homeOrbit__ring / __itemInner. */
   .homeOrbit__ring,
   .homeOrbit__itemInner {
-    animation: none;
+    animation-duration: 180s;
   }
 }
