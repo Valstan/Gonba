@@ -30,7 +30,7 @@ export type PostEditorData = {
  * Сохранение — PATCH /api/posts/{id} с _status:'published', затем router.refresh().
  */
 export const PostEditor: React.FC<{ post: PostEditorData }> = ({ post }) => {
-  const { isAdmin, mode } = useAdminMode()
+  const { isAdmin } = useAdminMode()
   const router = useRouter()
 
   const [open, setOpen] = useState(false)
@@ -84,7 +84,10 @@ export const PostEditor: React.FC<{ post: PostEditorData }> = ({ post }) => {
     }
   }
 
-  if (!isAdmin || mode !== 'manage') return null
+  // Показываем редактор, как только редактор залогинен (как и правка плашек на
+  // /projects) — без отдельного режима «Управление», чтобы «залогинился →
+  // элементы управления сразу на месте».
+  if (!isAdmin) return null
 
   return (
     <div className="container">
