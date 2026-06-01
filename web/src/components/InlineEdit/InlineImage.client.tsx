@@ -3,6 +3,8 @@
 import Image from 'next/image'
 import React, { useRef, useState } from 'react'
 
+import { MediaPicker } from './MediaPicker.client'
+
 type Props = {
   previewUrl: string | null
   alt?: string
@@ -19,6 +21,7 @@ type Props = {
 export const InlineImage: React.FC<Props> = ({ previewUrl, alt, onChange, onError }) => {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const upload = async (file: File) => {
     setUploading(true)
@@ -72,6 +75,14 @@ export const InlineImage: React.FC<Props> = ({ previewUrl, alt, onChange, onErro
       >
         {uploading ? 'Загружаем…' : previewUrl ? 'Заменить' : 'Загрузить'}
       </button>
+      <button
+        type="button"
+        onClick={() => setPickerOpen(true)}
+        disabled={uploading}
+        className="inline-flex h-9 items-center rounded-md border border-input bg-background px-3 text-sm font-medium shadow-sm hover:bg-accent disabled:opacity-50"
+      >
+        Из загруженных
+      </button>
       {previewUrl ? (
         <button
           type="button"
@@ -81,6 +92,12 @@ export const InlineImage: React.FC<Props> = ({ previewUrl, alt, onChange, onErro
           убрать
         </button>
       ) : null}
+
+      <MediaPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={(id, url) => onChange(id, url)}
+      />
     </div>
   )
 }

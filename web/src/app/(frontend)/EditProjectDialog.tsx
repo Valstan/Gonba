@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { ProjectRecord } from './projects/shared'
 import { Plate } from './projects/PlateCard'
+import { MediaPicker } from '@/components/InlineEdit/MediaPicker.client'
 import {
   Dialog,
   DialogContent,
@@ -61,6 +62,7 @@ export const EditProjectDialog: React.FC<Props> = ({ open, project, onClose, onS
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Сбрасываем форму при открытии диалога с новым проектом
@@ -241,6 +243,14 @@ export const EditProjectDialog: React.FC<Props> = ({ open, project, onClose, onS
               >
                 {uploading ? 'Загружаем…' : 'Загрузить картинку'}
               </button>
+              <button
+                type="button"
+                onClick={() => setPickerOpen(true)}
+                disabled={uploading}
+                className="inline-flex h-9 items-center rounded-md border border-input bg-background px-3 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+              >
+                Из загруженных
+              </button>
               {fields.logo ? (
                 <button
                   type="button"
@@ -309,6 +319,12 @@ export const EditProjectDialog: React.FC<Props> = ({ open, project, onClose, onS
             {saving ? 'Сохраняем…' : 'Сохранить'}
           </button>
         </DialogFooter>
+
+        <MediaPicker
+          open={pickerOpen}
+          onClose={() => setPickerOpen(false)}
+          onSelect={(id, url) => setFields((f) => ({ ...f, logo: id, logoPreviewUrl: url || f.logoPreviewUrl }))}
+        />
       </DialogContent>
     </Dialog>
   )
