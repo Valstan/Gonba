@@ -30,7 +30,7 @@
 
 Деплой и сервисы:
 
-- `deploy/systemd/gonba-web.service` — шаблон unit файла.
+- `deploy/systemd/gonba.service` — репо-шаблон unit файла (имя совпадает с установленным).
 - Фактический systemd unit в системе: `gonba.service` (его и перезапускать).
 - `web/docker-compose.yml` — локальный запуск с Postgres.
 
@@ -234,6 +234,26 @@ ssh GONBA "sudo systemctl start gonba-vk-sync.service && journalctl -u gonba-vk-
 
 Сервис в системе: `gonba.service`
 
+#### Маппинг репо ↔ прод
+
+Установленные юниты в `/etc/systemd/system/` — это **копии** репо-шаблонов (`root:root`), синхронизируются **вручную** (`sudo cp` + `daemon-reload`). Имена файлов в репо теперь совпадают с установленными 1:1:
+
+| Репо `deploy/systemd/` | Установленный юнит | Назначение |
+|---|---|---|
+| `gonba.service` | `gonba.service` | Next.js + Payload (web) |
+| `gonba-vk-sync.service` + `.timer` | то же | VK auto-sync, каждые 3ч |
+| `gonba-media-cache.service` + `.timer` | то же | TTL-чистка медиа-кэша, ежедневно 04:00 |
+
+Все юниты грузят конфиг/секреты через `EnvironmentFile=-/etc/gonba/gonba.env` (ADR-0005). Домен-vars (`NEXT_PUBLIC_SERVER_URL` / `PAYLOAD_PUBLIC_SERVER_URL`) лежат **в `gonba.env`** и запекаются в бандл на build'е (`safe-build.sh` передаёт тот же `EnvironmentFile` в build-unit).
+
+> **Известный дрейф (на 2026-06-01):** установленный `gonba.service` дополнительно содержит **inline** `Environment=NEXT_PUBLIC_SERVER_URL=...` / `PAYLOAD_PUBLIC_SERVER_URL=...`. Это **избыточно** — те же значения уже в `gonba.env`. Репо-версия намеренно без них (canonical clean). Чтобы убрать дубль на проде (опционально, требует restart):
+> ```bash
+> ssh GONBA "sudo cp deploy/systemd/gonba.service /etc/systemd/system/gonba.service \
+>   && sudo systemctl daemon-reload && sudo systemctl restart gonba"
+> # либо точечно: sudo sed -i '/^Environment=NEXT_PUBLIC_SERVER_URL=/d;/^Environment=PAYLOAD_PUBLIC_SERVER_URL=/d' /etc/systemd/system/gonba.service
+> ```
+> После этого проверить `curl -fsS https://гоньба.рф/api/health` и что `/` рендерит карусель.
+
 Регулярный релизный flow — slash-команда `/reliz` (commit → push → PR → merge → safe-build → restart → проверки). Внутри `/reliz` build запускается через `scripts/safe-build.sh`, который оборачивает `next build` в `systemd-run --uid=valstan --gid=valstan`, чтобы переживать SSH-disconnect.
 
 Первоначальная установка сервиса:
@@ -241,7 +261,7 @@ ssh GONBA "sudo systemctl start gonba-vk-sync.service && journalctl -u gonba-vk-
 1. `corepack pnpm install`
 2. `scripts/safe-build.sh` (или `systemd-run --uid=valstan --gid=valstan --working-directory=/home/valstan/GONBA/web -- /bin/bash -lc "corepack pnpm run build:raw"`)
 3. Создать секреты вне дерева репо (ADR-0005): `sudo mkdir -p /etc/gonba && sudo install -o root -g valstan -m 0640 <env-source> /etc/gonba/gonba.env`
-4. `sudo cp deploy/systemd/gonba-web.service /etc/systemd/system/gonba.service`
+4. `sudo cp deploy/systemd/gonba.service /etc/systemd/system/gonba.service`
 5. `sudo systemctl daemon-reload`
 6. `sudo systemctl enable --now gonba`
 7. Перезапуск: `sudo systemctl restart gonba`

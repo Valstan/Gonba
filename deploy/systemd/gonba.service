@@ -1,0 +1,27 @@
+[Unit]
+Description=GONBA Next.js + Payload
+After=network.target
+
+[Service]
+Type=simple
+User=valstan
+WorkingDirectory=/home/valstan/GONBA/web
+Environment=NODE_ENV=production
+# Secrets and config (incl. domain vars NEXT_PUBLIC_SERVER_URL /
+# PAYLOAD_PUBLIC_SERVER_URL) are loaded from /etc/gonba/gonba.env
+# (root:valstan, 0640), kept outside the repo tree for security
+# (pool #008 / ADR-0005). In the repo only web/.env.example.
+# The same EnvironmentFile is passed to the build via
+# `systemd-run -p EnvironmentFile=` in scripts/safe-build.sh, so the
+# NEXT_PUBLIC_* domain values get baked into the client bundle at build time.
+# This is the canonical (clean) unit: no inline domain Environment= lines —
+# they would only duplicate what gonba.env already provides. See the
+# "Systemd (production)" repo↔prod mapping note in docs/PROJECT.md.
+EnvironmentFile=-/etc/gonba/gonba.env
+Environment=PORT=3000
+ExecStart=/usr/bin/npm run start -- --hostname 127.0.0.1 --port 3000
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
