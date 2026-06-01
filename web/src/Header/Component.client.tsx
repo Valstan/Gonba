@@ -5,6 +5,7 @@ import React from 'react'
 
 import type { Header } from '@/payload-types'
 
+import { LoginControl } from '@/components/Auth/LoginControl.client'
 import { EthnoDrawer } from './EthnoDrawer.client'
 
 interface HeaderClientProps {
@@ -37,7 +38,10 @@ export const HeaderClient: React.FC<HeaderClientProps> = ({ data: _data }) => {
           ))}
         </nav>
 
-        <EthnoDrawer />
+        <div className="ethno-header__actions">
+          <LoginControl />
+          <EthnoDrawer />
+        </div>
       </div>
     </header>
   )

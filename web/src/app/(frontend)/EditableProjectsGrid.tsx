@@ -23,6 +23,7 @@ import { CSS } from '@dnd-kit/utilities'
 import type { ProjectRecord } from './projects/shared'
 import { CardSize, Plate, projectHref, projectLabel } from './projects/PlateCard'
 import { EditProjectDialog } from './EditProjectDialog'
+import { fetchMe, isAdminUser } from '@/utilities/me'
 
 type Props = {
   initialProjects: ProjectRecord[]
@@ -114,25 +115,6 @@ function SortableEditCard({
       </button>
     </div>
   )
-}
-
-type Me = { user: { id: number | string; roles?: string[] | null } | null }
-
-async function fetchMe(): Promise<Me['user']> {
-  try {
-    const res = await fetch('/api/users/me', { credentials: 'include' })
-    if (!res.ok) return null
-    const data = (await res.json()) as Me
-    return data?.user ?? null
-  } catch {
-    return null
-  }
-}
-
-function isAdminUser(user: Me['user']): boolean {
-  if (!user) return false
-  const roles = Array.isArray(user.roles) ? user.roles : []
-  return roles.includes('admin') || roles.includes('manager') || roles.includes('editor')
 }
 
 export const EditableProjectsGrid: React.FC<Props> = ({ initialProjects, centerSlug = 'gonba' }) => {
