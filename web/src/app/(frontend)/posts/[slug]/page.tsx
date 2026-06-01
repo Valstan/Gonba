@@ -16,6 +16,7 @@ import PageClient from './page.client'
 import { LivePreviewListener } from '@/components/LivePreviewListener'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
 import { AdminOverlay } from '@/components/AdminOverlay'
+import { PostEditor } from '@/components/InlineEdit/PostEditor.client'
 
 export async function generateStaticParams() {
   const payload = await getPayload({ config: configPromise })
@@ -55,6 +56,11 @@ export default async function Post({ params: paramsPromise }: Args) {
 
   const postEditUrl = `/admin/collections/posts/${post.id}`
 
+  const hero = post.heroImage
+  const heroImageId =
+    hero && typeof hero === 'object' ? hero.id : typeof hero === 'number' || typeof hero === 'string' ? hero : null
+  const heroImageUrl = hero && typeof hero === 'object' ? hero.url ?? null : null
+
   return (
     <AdminOverlay
       addLabel="Добавить контент"
@@ -81,6 +87,16 @@ export default async function Post({ params: paramsPromise }: Args) {
         {draft && <LivePreviewListener />}
 
         <PostHero post={post} />
+
+        <PostEditor
+          post={{
+            id: post.id,
+            title: post.title || '',
+            content: post.content,
+            heroImageId,
+            heroImageUrl,
+          }}
+        />
 
         <div className="flex flex-col items-center gap-4 pt-8">
           <div className="container">
