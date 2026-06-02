@@ -1,41 +1,47 @@
 # Session Handoff
 
 **Status:** ACTIVE
-**Updated:** 2026-05-31
-**Branch:** fix/orbit-reduced-motion-gentle
-**Last released version:** на проде #64–#67 (orbit-CSS cleanup, actions v5, VK last_error, упразднён DEVELOPMENT_LOG). Деплой verified: health 200, orbit-маркер ×16. **#68 ещё НЕ на проде.**
+**Updated:** 2026-06-01
+**Branch:** main
+**Last released version:** PR #77 (commit `f6d0780`) на проде — inline-правка страниц. Прод verified: health 200 на каждом деплое сессии.
 
 ---
 
 ## Текущая нитка
 
-Орбита-меню «не крутилась в браузере» — **разгадано**: причина не в коде карусели (его зря переписывали), а в `@media (prefers-reduced-motion: reduce) { animation: none }` + у владельца в Windows включено «уменьшить движение». PR **#68** меняет `animation: none` → `animation-duration: 180s` (мягкое вращение под reduced-motion, базовые 90s без изменений). Проверено вживую в Chrome. PR открыт, **ждёт деплоя**.
+**On-site редактирование контента/интерфейса прямо на сайте** (план [`docs/plans/inline-onsite-editing.md`](plans/inline-onsite-editing.md)). Этап 1 **полностью на проде**: вход через модалку в шапке → у редактора появляются элементы управления → правка постов, страниц, плашек проектов и пунктов меню на месте + выбор существующей картинки + дедуп при загрузке. Остался футер (нужна миграция БД) и картинки в блоках/hero.
 
 ## Следующий шаг
 
-Довести **PR #68** до прода через **`/reliz`** (merge → safe-build → restart gonba → verify). После деплоя орбита закрутится и под reduced-motion. Проверить на проде `гоньба.рф`: при включённом «уменьшить движение» орбита крутится медленно (180s), при выключенном — 90s.
+**Футер (PR4b) — на домашней машине с рабочей локальной БД.** Код-паттерн готов (как у меню: глобал + расхардкодить `web/src/Footer/Component.tsx` + inline-редактор), но нужен **новый глобал `footer` + миграция** (вложенные массивы) — её безопаснее сгенерировать через Payload-тулинг на машине, где локальный Postgres жив (на текущей Windows-машине Payload падает с `spawn UNKNOWN`). Шаги: `web/src/Footer/config.ts` + hook `revalidateFooter` + регистрация в `payload.config.ts` → `payload migrate:create` → расхардкодить Footer (читать глобал, fallback на текущие значения) → `FooterEditor.client.tsx` → применить миграцию на проде вручную (как `_projects_v` fix) + `/reliz`.
+
+Параллельно (без миграции, можно и тут): **картинки на страницах** (MediaBlock `items[].media` + hero) inline в `PageEditor` (брать layout через `?depth=0`, менять media id, PATCH); **медиа Phase C/D** — связи (usage) + безопасное удаление с заменой + слияние старых дублей (план `docs/plans/media-library-integrity.md`).
 
 ## Контекст
 
-- **План:** —
+- **Планы:** [`inline-onsite-editing.md`](plans/inline-onsite-editing.md) (4 PR), [`media-library-integrity.md`](plans/media-library-integrity.md) (Phase A/B done, C/D — todo).
 - **Связанные коммиты сессии:**
-  - `555ef51` (PR #68, открыт) — orbit крутится под reduced-motion (180s мягко)
-  - `2bcdbb3` (#67) — упразднён DEVELOPMENT_LOG.md (ADR-0007, минималистичный AI-docs)
-  - `da8407c` (#66) — VK last_error: null на здоровых прогонах
-  - `37cf35c` (#65) — GitHub Actions v4→v5
-  - `5af6449` (#64) — удалён мёртвый orbit-CSS (−321)
-- **Прод:** ✅ health 200, карусель рендерится (8 кружков). НО орбита **не крутится** под reduced-motion до деплоя #68.
-- **Dev-сервер:** запущен на `localhost:3000` (фоновый процесс этой сессии) — можно остановить или оставить.
-- **Открытые вопросы для пользователя:** владелец может включить «живые» 90s, выключив «уменьшить движение» в Windows (Параметры → Спец. возможности → Визуальные эффекты → Эффекты анимации).
+  - `f6d0780` (#77) — inline-правка страниц: заголовок + текст Content-блоков, depth=0 round-trip
+  - `8bf0bfc` (#76) — дедуп при загрузке по sha256 (Phase B)
+  - `c01817a` (#75) — редактируемое меню шапки (рендер из глобала + NavEditor)
+  - `0098a6a` (#74) — inline-редактор поста виден сразу при логине (без режима «Управление»)
+  - `b31b0da` (#73) — deploy-guard миграций: bypass при workflow_dispatch
+  - `8e37308` (#72) — fix схемы `_projects_v` (500 при сохранении проекта) + MediaPicker + посты без редиректа в /admin
+  - `80778cb` (#71) — этап 1: вход в шапке + inline-правка постов
+  - (ранее: #68 orbit reduced-motion, #69 systemd sync, #70 VK_SYNC_ALERT)
+- **Прод:** ✅ health 200, на `f6d0780`. Миграция `20260601_120000` (`_projects_v`) применена вручную + записана в `payload_migrations` (batch 5).
+- **Ключевые файлы:** `web/src/components/InlineEdit/` (PostEditor, PageEditor, InlineImage, MediaPicker, LiteRichTextEditor, lexical-lite), `web/src/components/Auth/LoginControl.client.tsx`, `web/src/utilities/me.ts` + `mediaUpload.ts`, `web/src/Header/NavEditor.client.tsx`.
+- **Открытые вопросы для пользователя:** опц. прод-cleanup inline домен-vars в `gonba.service` (см. PENDING / `docs/PROJECT.md`).
 
 ## Failed approaches (этой нитки)
 
-_Не было — диагноз (prefers-reduced-motion) подтвердился с первой живой проверки в Chrome, фикс сразу верный._
+- **Гейтить inline-редакторы за режимом «Управление» (manage mode)** — пробовали в PostEditor (#71), плохо: по умолчанию режим «Просмотр», при логине через `/admin` кнопки правки не появлялись. Исправлено в #74 — показываем при `isAdmin`. **Не возвращать mode-гейт** для inline-правки.
+- **Полный Lexical на публичных страницах** — отклонён на планировании (тяжёлый бандл). Выбран лёгкий contentEditable→Lexical (`lexical-lite.ts`) + fallback «сложное — в админке». Round-trip держать на наборе: абзацы/H2-H3/жирный/курсив/списки/ссылки.
 
 ## Не забыть (low-priority)
 
-- После деплоя #68 — handoff → IDLE (нитка закрыта).
-- Brain получит 2 письма на своём `/start`: упразднение DEV_LOG (#004 → ✅) + находка про prefers-reduced-motion (новый pool-кандидат).
+- 🔸 Опц. прод-cleanup: убрать дублирующие inline `Environment=` домен-vars из `/etc/systemd/system/gonba.service` (команда в `docs/PROJECT.md → Systemd`).
+- 🔸 Сузить `Posts/Pages.access.update` до `adminOrEditor` (сейчас `authenticated`) — для согласованности; не блокер.
 
 ---
 
