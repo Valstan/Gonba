@@ -12,6 +12,12 @@ type Props = {
   /** Сообщает родителю новый media id и url превью (или null при удалении). */
   onChange: (mediaId: number | string | null, previewUrl: string | null) => void
   onError?: (message: string) => void
+  /**
+   * Показывать ли кнопку «убрать». По умолчанию true. Для обязательных полей
+   * (media в mediaBlock/gallery/hero) передаём false — там картинку можно только
+   * заменить, иначе сохранение упадёт на required-валидации.
+   */
+  allowRemove?: boolean
 }
 
 /**
@@ -19,7 +25,7 @@ type Props = {
  * Загрузка — POST /api/media (как в EditProjectDialog). Файл уходит на Я.Диск
  * через afterChange-хук Media; превью показываем сразу по возвращённому url.
  */
-export const InlineImage: React.FC<Props> = ({ previewUrl, alt, onChange, onError }) => {
+export const InlineImage: React.FC<Props> = ({ previewUrl, alt, onChange, onError, allowRemove = true }) => {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -74,7 +80,7 @@ export const InlineImage: React.FC<Props> = ({ previewUrl, alt, onChange, onErro
       >
         Из загруженных
       </button>
-      {previewUrl ? (
+      {previewUrl && allowRemove ? (
         <button
           type="button"
           onClick={() => onChange(null, null)}
