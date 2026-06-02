@@ -26,7 +26,7 @@ _Сейчас нет — все начатые задачи в текущей с
 
 ## 🟡 Техдолги
 
-- ⏳ **On-site редактирование контента/интерфейса** (нитка с 2026-06-01, план `docs/plans/inline-onsite-editing.md`). **На проде:** вход в шапке (#71), правка постов (#71/#72/#74), плашек проектов (+fix 500 #72), текст страниц (#77), меню шапки (#75), `MediaPicker` + дедуп по sha256 (#72/#76). **В этом релизе:** картинки на страницах — обложка (hero) + `mediaBlock.items[].media` + `gallery.items[].image` inline в `PageEditor` (замена/выбор из загруженных, depth=0 round-trip, `InlineImage allowRemove`). **Осталось:** футер (PR4b — нужен новый глобал `footer` + миграция, делать на машине с рабочей локальной БД); inline-правка project-detail страниц; **мини-follow-up по картинкам страниц:** правка подписей (`caption`) и добавление/удаление элементов массивов (сейчас только замена — required-поля). Текст-конвертер `lexical-lite` — следить за round-trip. Детали — `SESSION_HANDOFF.md`.
+- ⏳ **On-site редактирование контента/интерфейса** (нитка с 2026-06-01, план `docs/plans/inline-onsite-editing.md`). **На проде:** вход в шапке (#71), правка постов (#71/#72/#74), плашек проектов (+fix 500 #72), текст страниц (#77), меню шапки (#75), `MediaPicker` + дедуп по sha256 (#72/#76), картинки на страницах — обложка/`mediaBlock`/`gallery` (#79). **В этом релизе (PR4b, футер):** глобал `footer` расширен (`description`, `columns[].{heading, items[].{label, href}}`, `legalAddress`), `Footer/Component.tsx` расхардкожен (читает глобал, fallback на прежние значения), `FooterEditor.client.tsx` — inline-правка. Миграция `20260602_120000` (аддитивная: ADD COLUMN + CREATE footer_columns/footer_columns_items; локально применена и round-trip проверен) — **на проде применить вручную ПЕРЕД деплоем** + INSERT в `payload_migrations`, затем деплой через `workflow_dispatch` (migration-guard в `deploy-prod.yml` упадёт на workflow_run). **Осталось:** inline-правка project-detail страниц; **мини-follow-up:** правка подписей (`caption`) и добавление/удаление элементов массивов картинок (сейчас только замена — required-поля); удалить устаревший скрытый `footer.navItems` отдельной чистящей миграцией. Текст-конвертер `lexical-lite` — следить за round-trip. Детали — `SESSION_HANDOFF.md`.
 
 - ~~🟡 **500 при сохранении проекта + пустой /admin/collections/projects**~~ **✅ Сделано 2026-06-01** — дрейф схемы версий: `_projects_v` не хватало 6 `version_*`-колонок (миграция 20260525_080000 добавила их только в `projects`). ALTER применён на проде + миграция `20260601_120000` в репо.
 
@@ -110,15 +110,7 @@ _Сейчас нет — все начатые задачи в текущей с
 
 ### Windows dev-setup (обнаружено 2026-05-25)
 
-- 🟡 **Postgres 16 → 17 миграция на dev-машине** — пользователь снёс PG16, на компе теперь PG17. `web/.env` шаблон `postgres:postgres@127.0.0.1:5432/gonba` не работает потому что:
-  1. На 5432 теперь PG17 с другим паролем (не `postgres`)
-  2. БД `gonba` могла остаться в pg_data PG16 (удалена), на PG17 её может не быть
-  3. `pgpass.conf` содержит два пароля: для 5432 (старый PG16, не работает) и 5433 (другой инстанс)
-
-  **Варианты:**
-  - **(а)** Restore из прод-дампа: `ssh GONBA "sudo -u postgres pg_dump -Fc gonba" > prod-gonba.dump`, потом `pg_restore -h 127.0.0.1 -U postgres -d gonba_new prod-gonba.dump` на локальный PG17. Обновить `.env` с актуальным паролем PG17.
-  - **(б)** Пустая БД + `pnpm payload migrate` — для smoke-тестов кода без данных.
-  - **(в)** Игнорировать локалку, тестить только через `preview_eval` / DOM-inspect / прод.
+- ~~🟡 **Postgres 16 → 17 миграция на dev-машине**~~ **✅ Решено 2026-06-02.** Сервис `postgresql-x64-17` слушает на **порту 5433** (не 5432), БД `gonba` на нём **есть** (117 таблиц). Фикс: в `web/.env` (gitignored) `DATABASE_URL` → `postgresql://postgres:<pw>@127.0.0.1:5433/gonba`, где `<pw>` — 48-символьный пароль из `%APPDATA%\postgresql\pgpass.conf` (строка `127.0.0.1:5433:*:postgres:…`, URL-энкодить). **Payload на этой машине загружается нормально** (`migrate:status`, `generate:types`, `tsx`-скрипты, dev-сервер на первом запросе) — прежний «spawn UNKNOWN» был связан именно с битым коннектом, а не с Payload. Память `dev_env_requirements` обновлена. Локальная БД отстаёт от прода на `20260601_120000` (`_projects_v` data-fix) — push:true покрывает колонки, для smoke не критично.
 
 ### Windows-dev quirks (нашли в сессии 2026-05-24 ч.4)
 
