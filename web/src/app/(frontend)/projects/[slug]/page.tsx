@@ -135,6 +135,16 @@ export default async function ProjectPage({ params: paramsPromise }: Args) {
               description: project.description,
               heroImageId,
               heroImageUrl,
+              contacts: {
+                phone: project.contacts?.phone || '',
+                email: project.contacts?.email || '',
+                whatsApp: project.contacts?.whatsApp || '',
+              },
+              location: {
+                address: project.location?.address || '',
+                mapUrl: project.location?.mapUrl || '',
+                coordinates: project.location?.coordinates || '',
+              },
             }}
           />
         </div>

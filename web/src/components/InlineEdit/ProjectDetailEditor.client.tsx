@@ -23,13 +23,19 @@ export type ProjectDetailEditorData = {
   description: unknown
   heroImageId: number | string | null
   heroImageUrl: string | null
+  contacts: { phone: string; email: string; whatsApp: string }
+  location: { address: string; mapUrl: string; coordinates: string }
 }
 
 /**
  * Кнопка «Редактировать проект» (видна редактору при логине) + модалка правки
- * заголовка / краткого описания / обложки / текста «О проекте» прямо на странице
- * проекта. Сохранение — PATCH /api/projects/{id} c _status:'published' (drafts),
- * затем router.refresh(). Паттерн — как PostEditor (#71/#74).
+ * заголовка / краткого описания / обложки / текста «О проекте» + контактов и
+ * локации прямо на странице проекта. Сохранение — PATCH /api/projects/{id} c
+ * _status:'published' (drafts), затем router.refresh(). Паттерн — как PostEditor
+ * (#71/#74). Группы contacts/location отправляем целиком (все подполя), только
+ * если что-то в группе менялось — Payload пишет группу как набор колонок, а
+ * частичный объект группы перетёр бы непереданные подполя. Галерея (массив
+ * картинок) — пока в админке.
  */
 export const ProjectDetailEditor: React.FC<{ project: ProjectDetailEditorData }> = ({ project }) => {
   const { isAdmin } = useAdminMode()
@@ -42,6 +48,12 @@ export const ProjectDetailEditor: React.FC<{ project: ProjectDetailEditorData }>
   const [heroUrl, setHeroUrl] = useState<string | null>(project.heroImageUrl)
   const [bodyHtml, setBodyHtml] = useState('')
   const [bodyDirty, setBodyDirty] = useState(false)
+  const [phone, setPhone] = useState(project.contacts.phone)
+  const [email, setEmail] = useState(project.contacts.email)
+  const [whatsApp, setWhatsApp] = useState(project.contacts.whatsApp)
+  const [address, setAddress] = useState(project.location.address)
+  const [mapUrl, setMapUrl] = useState(project.location.mapUrl)
+  const [coordinates, setCoordinates] = useState(project.location.coordinates)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -54,6 +66,12 @@ export const ProjectDetailEditor: React.FC<{ project: ProjectDetailEditorData }>
     setHeroUrl(project.heroImageUrl)
     setBodyHtml(lexicalToHtml(project.description))
     setBodyDirty(false)
+    setPhone(project.contacts.phone)
+    setEmail(project.contacts.email)
+    setWhatsApp(project.contacts.whatsApp)
+    setAddress(project.location.address)
+    setMapUrl(project.location.mapUrl)
+    setCoordinates(project.location.coordinates)
     setError(null)
     setOpen(true)
   }
@@ -69,6 +87,30 @@ export const ProjectDetailEditor: React.FC<{ project: ProjectDetailEditorData }>
       }
       if (heroId !== project.heroImageId) body.heroImage = heroId
       if (bodyDirty && !bodyUnsupported) body.description = htmlToLexical(bodyHtml)
+
+      // Контакты/локацию шлём целиком и только при изменении группы (см. docstring).
+      const contactsChanged =
+        phone.trim() !== project.contacts.phone ||
+        email.trim() !== project.contacts.email ||
+        whatsApp.trim() !== project.contacts.whatsApp
+      if (contactsChanged) {
+        body.contacts = {
+          phone: phone.trim() || null,
+          email: email.trim() || null,
+          whatsApp: whatsApp.trim() || null,
+        }
+      }
+      const locationChanged =
+        address.trim() !== project.location.address ||
+        mapUrl.trim() !== project.location.mapUrl ||
+        coordinates.trim() !== project.location.coordinates
+      if (locationChanged) {
+        body.location = {
+          address: address.trim() || null,
+          mapUrl: mapUrl.trim() || null,
+          coordinates: coordinates.trim() || null,
+        }
+      }
 
       const res = await fetch(`/api/projects/${project.id}`, {
         method: 'PATCH',
@@ -162,6 +204,69 @@ export const ProjectDetailEditor: React.FC<{ project: ProjectDetailEditorData }>
                   }}
                 />
               )}
+            </div>
+
+            <div className="grid gap-3 border-t pt-4">
+              <p className="text-sm font-medium">Контакты</p>
+              <div className="grid gap-1.5">
+                <label className="text-xs text-muted-foreground">Телефон</label>
+                <input
+                  type="text"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <label className="text-xs text-muted-foreground">Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <label className="text-xs text-muted-foreground">WhatsApp</label>
+                <input
+                  type="text"
+                  value={whatsApp}
+                  onChange={(e) => setWhatsApp(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3 border-t pt-4">
+              <p className="text-sm font-medium">Адрес и карта</p>
+              <div className="grid gap-1.5">
+                <label className="text-xs text-muted-foreground">Адрес</label>
+                <input
+                  type="text"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <label className="text-xs text-muted-foreground">Ссылка на карту</label>
+                <input
+                  type="text"
+                  value={mapUrl}
+                  onChange={(e) => setMapUrl(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <label className="text-xs text-muted-foreground">Координаты (широта,долгота)</label>
+                <input
+                  type="text"
+                  value={coordinates}
+                  placeholder="56.5240, 50.6830"
+                  onChange={(e) => setCoordinates(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </div>
             </div>
 
             {error ? (

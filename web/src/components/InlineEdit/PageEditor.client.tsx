@@ -18,7 +18,7 @@ import { hasUnsupportedNodes, htmlToLexical, lexicalToHtml } from './lexical-lit
 
 type RawColumn = { richText?: unknown; [k: string]: unknown }
 type RawMedia = number | string | { id?: number | string } | null | undefined
-type RawArrayItem = { media?: RawMedia; image?: RawMedia; [k: string]: unknown }
+type RawArrayItem = { media?: RawMedia; image?: RawMedia; caption?: unknown; [k: string]: unknown }
 type RawBlock = {
   blockType?: string
   columns?: RawColumn[]
@@ -30,18 +30,32 @@ type RawPage = { id: number | string; title?: string; hero?: RawHero; layout?: R
 
 type EditField = { blockIndex: number; colIndex: number; html: string; unsupported: boolean }
 
-// Где живёт картинка: обложка (hero) страницы или элемент массива блока.
-type MediaTarget =
-  | { kind: 'hero' }
-  | { kind: 'item'; blockIndex: number; itemIndex: number; field: 'media' | 'image' }
+// Обложка (hero) страницы — заменяется целиком, без подписи и без add/remove.
+type HeroSlot = { mediaId: number | string | null; previewUrl: string | null }
 
-type MediaSlot = {
-  key: string
-  label: string
-  target: MediaTarget
+// Элемент массива картинок (mediaBlock/gallery): media/image (required) + caption.
+type ImageItem = {
+  uid: string
+  // Индекс в исходном block.items — чтобы при сохранении сохранить остальные поля
+  // строки массива (включая её id). null — элемент добавлен в этой сессии.
+  rawIndex: number | null
   mediaId: number | string | null
   previewUrl: string | null
+  caption: string
 }
+
+// Редактируемый блок картинок (mediaBlock или gallery).
+type ImageBlock = {
+  blockIndex: number
+  field: 'media' | 'image' // имя поля upload внутри элемента
+  label: string
+  minRows: number
+  items: ImageItem[]
+}
+
+// Стабильные ключи React для добавляемых элементов (без зависимости от индекса).
+let uidCounter = 0
+const nextUid = () => `img-${(uidCounter += 1)}`
 
 /** Достаёт id media-связи независимо от depth (id или объект {id}). */
 function mediaIdOf(v: RawMedia): number | string | null {
@@ -59,6 +73,10 @@ function previewFor(id: number | string | null): string | null {
   return id == null ? null : `/api/media/file/${id}`
 }
 
+function captionOf(v: unknown): string {
+  return typeof v === 'string' ? v : ''
+}
+
 /**
  * Кнопка «Редактировать страницу» (видна редактору при логине) + модалка правки
  * заголовка, текста Content-блоков и картинок (обложка + mediaBlock/gallery)
@@ -66,11 +84,12 @@ function previewFor(id: number | string | null): string | null {
  *
  * Безопасность round-trip: layout/hero берём через GET /api/pages/{id}?depth=0
  * (связи/медиа как id — ничего не теряется при обратном PATCH). Меняем только
- * richText текстовых колонок и id картинок. Сложные блоки — пока в админке.
+ * richText текстовых колонок, картинки и подписи. Сложные блоки — пока в админке.
  *
- * Картинки правим в режиме «заменить» (replace / выбрать из загруженных): поля
- * media обязательны, поэтому удаление/добавление элементов массива здесь не
- * делаем — это безопаснее для round-trip и required-валидации.
+ * Картинки mediaBlock/gallery: можно заменить файл, править подпись (caption) и
+ * добавлять/удалять элементы массива. Upload в элементе обязателен (required) —
+ * перед сохранением проверяем, что у каждого элемента выбран файл, и не даём
+ * удалить элементы ниже minRows (1). Обложка (hero) — только замена файла.
  */
 export const PageEditor: React.FC<{ id: number | string; title: string }> = ({ id, title: initialTitle }) => {
   const { isAdmin } = useAdminMode()
@@ -81,7 +100,8 @@ export const PageEditor: React.FC<{ id: number | string; title: string }> = ({ i
   const [title, setTitle] = useState(initialTitle)
   const [raw, setRaw] = useState<RawPage | null>(null)
   const [fields, setFields] = useState<EditField[]>([])
-  const [mediaSlots, setMediaSlots] = useState<MediaSlot[]>([])
+  const [hero, setHero] = useState<HeroSlot | null>(null)
+  const [imageBlocks, setImageBlocks] = useState<ImageBlock[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -115,52 +135,49 @@ export const PageEditor: React.FC<{ id: number | string; title: string }> = ({ i
       })
       setFields(list)
 
-      // 2. Картинки: обложка (hero) + элементы mediaBlock/gallery
-      const slots: MediaSlot[] = []
+      // 2. Обложка (hero) — media показываем только для полноэкранной/средней
       const heroType = page.hero?.type
-      // media у обложки показывается только для полноэкранной/средней
       if (page.hero && (heroType === 'highImpact' || heroType === 'mediumImpact')) {
         const heroId = mediaIdOf(page.hero.media)
-        slots.push({
-          key: 'hero',
-          label: 'Обложка страницы',
-          target: { kind: 'hero' },
-          mediaId: heroId,
-          previewUrl: previewFor(heroId),
-        })
+        setHero({ mediaId: heroId, previewUrl: previewFor(heroId) })
+      } else {
+        setHero(null)
       }
+
+      // 3. Блоки картинок mediaBlock/gallery — с caption и add/remove
+      const blocks: ImageBlock[] = []
       let mediaBlockNo = 0
       let galleryNo = 0
       layout.forEach((block, bi) => {
         if (block?.blockType === 'mediaBlock' && Array.isArray(block.items)) {
           mediaBlockNo += 1
-          block.items.forEach((item, ii) => {
-            const mid = mediaIdOf(item?.media)
-            slots.push({
-              key: `b${bi}-i${ii}-media`,
-              label: `Медиаблок ${mediaBlockNo} — изображение ${ii + 1}`,
-              target: { kind: 'item', blockIndex: bi, itemIndex: ii, field: 'media' },
-              mediaId: mid,
-              previewUrl: previewFor(mid),
-            })
+          blocks.push({
+            blockIndex: bi,
+            field: 'media',
+            label: `Медиаблок ${mediaBlockNo}`,
+            minRows: 1,
+            items: block.items.map((item, ii) => {
+              const mid = mediaIdOf(item?.media)
+              return { uid: nextUid(), rawIndex: ii, mediaId: mid, previewUrl: previewFor(mid), caption: captionOf(item?.caption) }
+            }),
           })
         } else if (block?.blockType === 'gallery' && Array.isArray(block.items)) {
           galleryNo += 1
           const t = typeof block.title === 'string' && block.title.trim()
           const galleryLabel = t ? `«${(block.title as string).trim()}»` : `${galleryNo}`
-          block.items.forEach((item, ii) => {
-            const mid = mediaIdOf(item?.image)
-            slots.push({
-              key: `b${bi}-i${ii}-image`,
-              label: `Галерея ${galleryLabel} — изображение ${ii + 1}`,
-              target: { kind: 'item', blockIndex: bi, itemIndex: ii, field: 'image' },
-              mediaId: mid,
-              previewUrl: previewFor(mid),
-            })
+          blocks.push({
+            blockIndex: bi,
+            field: 'image',
+            label: `Галерея ${galleryLabel}`,
+            minRows: 1,
+            items: block.items.map((item, ii) => {
+              const mid = mediaIdOf(item?.image)
+              return { uid: nextUid(), rawIndex: ii, mediaId: mid, previewUrl: previewFor(mid), caption: captionOf(item?.caption) }
+            }),
           })
         }
       })
-      setMediaSlots(slots)
+      setImageBlocks(blocks)
     } catch (e) {
       setError(String((e as Error).message || e))
     } finally {
@@ -168,8 +185,44 @@ export const PageEditor: React.FC<{ id: number | string; title: string }> = ({ i
     }
   }
 
+  const updateItem = (blockIndex: number, uid: string, patch: Partial<ImageItem>) => {
+    setImageBlocks((prev) =>
+      prev.map((blk) =>
+        blk.blockIndex === blockIndex
+          ? { ...blk, items: blk.items.map((it) => (it.uid === uid ? { ...it, ...patch } : it)) }
+          : blk,
+      ),
+    )
+  }
+
+  const addItem = (blockIndex: number) => {
+    setImageBlocks((prev) =>
+      prev.map((blk) =>
+        blk.blockIndex === blockIndex
+          ? { ...blk, items: [...blk.items, { uid: nextUid(), rawIndex: null, mediaId: null, previewUrl: null, caption: '' }] }
+          : blk,
+      ),
+    )
+  }
+
+  const removeItem = (blockIndex: number, uid: string) => {
+    setImageBlocks((prev) =>
+      prev.map((blk) =>
+        blk.blockIndex === blockIndex ? { ...blk, items: blk.items.filter((it) => it.uid !== uid) } : blk,
+      ),
+    )
+  }
+
   const save = async () => {
     if (!raw) return
+    // Валидация required-upload: каждый элемент картиночного блока должен иметь файл.
+    for (const blk of imageBlocks) {
+      const empty = blk.items.findIndex((it) => it.mediaId == null)
+      if (empty !== -1) {
+        setError(`«${blk.label}»: у изображения ${empty + 1} не выбран файл — выберите файл или удалите элемент.`)
+        return
+      }
+    }
     setSaving(true)
     setError(null)
     try {
@@ -180,12 +233,20 @@ export const PageEditor: React.FC<{ id: number | string; title: string }> = ({ i
         const col = layout[f.blockIndex]?.columns?.[f.colIndex]
         if (col) col.richText = htmlToLexical(f.html)
       }
-      // картинки блоков (mediaBlock/gallery)
-      for (const m of mediaSlots) {
-        if (m.target.kind !== 'item') continue
-        const { blockIndex, itemIndex, field } = m.target
-        const item = layout[blockIndex]?.items?.[itemIndex]
-        if (item) item[field] = m.mediaId
+      // картинки блоков (mediaBlock/gallery): пересобираем items (caption + add/remove)
+      for (const blk of imageBlocks) {
+        const target = layout[blk.blockIndex]
+        if (!target) continue
+        const rawItems = Array.isArray(target.items) ? target.items : []
+        target.items = blk.items.map((it) => {
+          // Сохраняем исходный объект строки (включая её id и будущие поля),
+          // переопределяя только upload-поле и подпись.
+          const base: RawArrayItem =
+            it.rawIndex != null && rawItems[it.rawIndex] ? { ...rawItems[it.rawIndex] } : {}
+          base[blk.field] = it.mediaId
+          base.caption = it.caption.trim() ? it.caption.trim() : null
+          return base
+        })
       }
 
       const body: Record<string, unknown> = {
@@ -195,11 +256,10 @@ export const PageEditor: React.FC<{ id: number | string; title: string }> = ({ i
       }
 
       // обложку (hero) отправляем целиком (depth=0 round-trip), только если меняли
-      const heroSlot = mediaSlots.find((m) => m.target.kind === 'hero')
-      if (heroSlot && raw.hero && heroSlot.mediaId !== mediaIdOf(raw.hero.media)) {
-        const hero = JSON.parse(JSON.stringify(raw.hero)) as RawHero
-        hero.media = heroSlot.mediaId
-        body.hero = hero
+      if (hero && raw.hero && hero.mediaId !== mediaIdOf(raw.hero.media)) {
+        const h = JSON.parse(JSON.stringify(raw.hero)) as RawHero
+        h.media = hero.mediaId
+        body.hero = h
       }
 
       const res = await fetch(`/api/pages/${id}`, {
@@ -223,7 +283,7 @@ export const PageEditor: React.FC<{ id: number | string; title: string }> = ({ i
 
   if (!isAdmin) return null
 
-  const nothingToEdit = !loading && fields.length === 0 && mediaSlots.length === 0
+  const nothingToEdit = !loading && fields.length === 0 && !hero && imageBlocks.length === 0
 
   return (
     <div className="container">
@@ -282,27 +342,61 @@ export const PageEditor: React.FC<{ id: number | string; title: string }> = ({ i
                 ))
               )}
 
-              {mediaSlots.length > 0 ? (
-                <div className="grid gap-3 border-t pt-4">
-                  <p className="text-sm font-medium">Картинки</p>
-                  {mediaSlots.map((slot) => (
-                    <div key={slot.key} className="grid gap-1.5">
-                      <label className="text-xs text-muted-foreground">{slot.label}</label>
+              {hero ? (
+                <div className="grid gap-1.5 border-t pt-4">
+                  <p className="text-sm font-medium">Обложка страницы</p>
+                  <InlineImage
+                    previewUrl={hero.previewUrl}
+                    alt={title}
+                    allowRemove={false}
+                    onChange={(mid, url) => setHero((h) => (h ? { ...h, mediaId: mid, previewUrl: url } : h))}
+                    onError={setError}
+                  />
+                </div>
+              ) : null}
+
+              {imageBlocks.map((blk) => (
+                <div key={blk.blockIndex} className="grid gap-3 border-t pt-4">
+                  <p className="text-sm font-medium">{blk.label}</p>
+                  {blk.items.map((it, idx) => (
+                    <div key={it.uid} className="grid gap-1.5 rounded-md border border-border/60 p-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs text-muted-foreground">Изображение {idx + 1}</label>
+                        {blk.items.length > blk.minRows ? (
+                          <button
+                            type="button"
+                            onClick={() => removeItem(blk.blockIndex, it.uid)}
+                            className="text-xs text-destructive underline-offset-2 hover:underline"
+                          >
+                            удалить
+                          </button>
+                        ) : null}
+                      </div>
                       <InlineImage
-                        previewUrl={slot.previewUrl}
-                        alt={title}
+                        previewUrl={it.previewUrl}
+                        alt={it.caption || title}
                         allowRemove={false}
-                        onChange={(mid, url) =>
-                          setMediaSlots((prev) =>
-                            prev.map((s) => (s.key === slot.key ? { ...s, mediaId: mid, previewUrl: url } : s)),
-                          )
-                        }
+                        onChange={(mid, url) => updateItem(blk.blockIndex, it.uid, { mediaId: mid, previewUrl: url })}
                         onError={setError}
+                      />
+                      <input
+                        type="text"
+                        value={it.caption}
+                        placeholder="Подпись (необязательно)"
+                        onChange={(e) => updateItem(blk.blockIndex, it.uid, { caption: e.target.value })}
+                        className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                       />
                     </div>
                   ))}
+                  <button
+                    type="button"
+                    onClick={() => addItem(blk.blockIndex)}
+                    className="inline-flex h-9 items-center justify-center gap-1 self-start rounded-md border border-dashed border-input bg-background px-3 text-sm font-medium text-muted-foreground shadow-sm hover:bg-accent"
+                  >
+                    + Добавить изображение
+                  </button>
                 </div>
-              ) : null}
+              ))}
 
               {nothingToEdit ? (
                 <p className="text-sm text-muted-foreground">
