@@ -8,6 +8,7 @@ import { CollectionArchive } from '@/components/CollectionArchive'
 import { AdminOverlay } from '@/components/AdminOverlay'
 import { Media } from '@/components/Media'
 import RichText from '@/components/RichText'
+import { ProjectDetailEditor } from '@/components/InlineEdit/ProjectDetailEditor.client'
 import { queryProjectBySlug } from '../queries'
 
 type Args = {
@@ -37,6 +38,16 @@ export default async function ProjectPage({ params: paramsPromise }: Args) {
   const projectId = project.id
   const projectEditUrl = `/admin/collections/projects/${projectId}`
   const enabledSections = Array.isArray(project.enabledSections) && project.enabledSections.length > 0 ? project.enabledSections : null
+
+  // Данные для inline-редактора проекта (depth=1 → heroImage уже объект с url).
+  const heroImage = project.heroImage as { id?: number | string; url?: string | null } | number | string | null | undefined
+  const heroImageId =
+    heroImage && typeof heroImage === 'object'
+      ? heroImage.id ?? null
+      : typeof heroImage === 'number' || typeof heroImage === 'string'
+        ? heroImage
+        : null
+  const heroImageUrl = heroImage && typeof heroImage === 'object' ? heroImage.url ?? null : null
 
   const [featuredPosts, upcomingEvents, projectServices] = await Promise.all([
     payload.find({
@@ -114,7 +125,19 @@ export default async function ProjectPage({ params: paramsPromise }: Args) {
       </div>
 
       <div className="container rounded-3xl border border-border/80 bg-card/80 p-6 md:p-10">
-        <h1 className="text-3xl font-semibold">{project.title}</h1>
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="text-3xl font-semibold">{project.title}</h1>
+          <ProjectDetailEditor
+            project={{
+              id: projectId,
+              title: project.title || '',
+              summary: project.summary || '',
+              description: project.description,
+              heroImageId,
+              heroImageUrl,
+            }}
+          />
+        </div>
         <p className="mt-4 max-w-2xl text-muted-foreground">{project.summary || 'Проектное пространство проекта и его активная программа.'}</p>
 
         <div className="mt-6 flex flex-wrap gap-3">
