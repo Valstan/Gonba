@@ -1,7 +1,6 @@
 import type { CollectionConfig } from 'payload'
 
 import { adminOrEditor } from '../../access/adminOrEditor'
-import { anyone } from '../../access/anyone'
 import {
   fetchVkGroupMeta,
   fetchVkUserMeta,
@@ -16,9 +15,13 @@ export const VkAutoSync: CollectionConfig<'vk-auto-sync'> = {
     plural: 'Источники авто-импорта VK',
   },
   access: {
+    // Конфиг источников содержит accessToken VK — НЕ публичный. read сужен до
+    // adminOrEditor (раньше anyone → токен утекал через GET /api/vk-auto-sync).
+    // Серверный код (syncAllVkSources, trigger-route) ходит через Local API с
+    // overrideAccess:true и этим сужением не затрагивается.
     create: adminOrEditor,
     delete: adminOrEditor,
-    read: anyone,
+    read: adminOrEditor,
     update: adminOrEditor,
   },
   admin: {

@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
 import { adminOrEditor } from '../../access/adminOrEditor'
+import { adminOrEditorField } from '../../access/adminOrEditorField'
 import { anyone } from '../../access/anyone'
 
 export const Messages: CollectionConfig<'messages'> = {
@@ -62,6 +63,10 @@ export const Messages: CollectionConfig<'messages'> = {
       name: 'ipHash',
       type: 'text',
       index: true,
+      // admin.hidden прячет лишь из админ-UI; чтобы анти-абуз метаданные не
+      // утекали через публичный GET /api/messages (read: anyone для чата) —
+      // явный field-level read только для админа/редактора.
+      access: { read: adminOrEditorField },
       admin: {
         hidden: true,
       },
@@ -69,6 +74,7 @@ export const Messages: CollectionConfig<'messages'> = {
     {
       name: 'userAgent',
       type: 'text',
+      access: { read: adminOrEditorField },
       admin: {
         hidden: true,
       },
@@ -85,6 +91,8 @@ export const Messages: CollectionConfig<'messages'> = {
     {
       name: 'hiddenReason',
       type: 'text',
+      // Причина скрытия — для админа, не для публичного чата.
+      access: { read: adminOrEditorField },
       admin: {
         condition: (data) => Boolean(data?.isModerated),
         description: 'Причина скрытия (для админа).',
