@@ -1,12 +1,16 @@
 import Link from 'next/link'
 import React from 'react'
 
-type FooterColumn = {
-  heading: string
-  items: { label: string; href: string }[]
-}
+import type { Footer as FooterType } from '@/payload-types'
+import { getCachedGlobal } from '@/utilities/getGlobals'
+import { FooterEditor, type FooterColumn } from './FooterEditor.client'
 
-const COLUMNS: FooterColumn[] = [
+// Дефолты — fallback, пока глобал `footer` пуст. Как только подвал отредактируют
+// через сайт, рендер идёт из глобала. Совпадают с прежним хардкодом.
+const DEFAULT_DESCRIPTION =
+  'Жемчужина Вятки. Этно-усадьба, мастерские, экскурсии и магазин вятских сборов в селе на правом берегу.'
+const DEFAULT_LEGAL_ADDRESS = 'с. Гоньба, Малмыжский р-н, Кировская обл.'
+const DEFAULT_COLUMNS: FooterColumn[] = [
   {
     heading: '· Разделы ·',
     items: [
@@ -28,8 +32,26 @@ const COLUMNS: FooterColumn[] = [
   },
 ]
 
+function deriveColumns(data: FooterType): FooterColumn[] {
+  const cols = Array.isArray(data?.columns) ? data.columns : []
+  const mapped = cols
+    .map((c) => ({
+      heading: c?.heading?.trim() || '',
+      items: (Array.isArray(c?.items) ? c.items : [])
+        .map((i) => ({ label: i?.label?.trim() || '', href: i?.href?.trim() || '' }))
+        .filter((i) => i.label && i.href),
+    }))
+    .filter((c) => c.heading || c.items.length > 0)
+  return mapped.length ? mapped : DEFAULT_COLUMNS
+}
+
 export async function Footer() {
+  const data: FooterType = await getCachedGlobal('footer', 0)()
+
   const year = new Date().getFullYear()
+  const description = data?.description?.trim() || DEFAULT_DESCRIPTION
+  const legalAddress = data?.legalAddress?.trim() || DEFAULT_LEGAL_ADDRESS
+  const columns = deriveColumns(data)
 
   return (
     <footer className="ethno-footer">
@@ -42,13 +64,10 @@ export async function Footer() {
                 Гоньба
               </Link>
             </h2>
-            <p>
-              Жемчужина Вятки. Этно-усадьба, мастерские, экскурсии и магазин вятских
-              сборов в селе на правом берегу.
-            </p>
+            <p>{description}</p>
           </div>
 
-          {COLUMNS.map((col, ci) => (
+          {columns.map((col, ci) => (
             <div key={ci}>
               <h3>{col.heading}</h3>
               <ul>
@@ -64,8 +83,10 @@ export async function Footer() {
 
         <div className="ethno-footer__legal">
           <span>© {year} Гоньба · все права сохранены</span>
-          <span>с. Гоньба, Малмыжский р-н, Кировская обл.</span>
+          <span>{legalAddress}</span>
         </div>
+
+        <FooterEditor description={description} columns={columns} legalAddress={legalAddress} />
       </div>
     </footer>
   )
