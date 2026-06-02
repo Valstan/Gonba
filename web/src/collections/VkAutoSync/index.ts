@@ -4,6 +4,7 @@ import { adminOrEditor } from '../../access/adminOrEditor'
 import { anyone } from '../../access/anyone'
 import {
   fetchVkGroupMeta,
+  fetchVkUserMeta,
   getEnvFallbackVkToken,
   parseVkCommunityIdentifier,
 } from '../../server/integrations/vk-auto-sync-resolve'
@@ -358,9 +359,13 @@ export const VkAutoSync: CollectionConfig<'vk-auto-sync'> = {
         const ident = parseVkCommunityIdentifier(url)
         if (!ident) return data
 
-        // 1) ID группы — заполняем из URL, если ещё не задан
-        if (ident.groupId && !data.groupId) {
-          data.groupId = ident.groupId
+        // 1) Числовой id источника — заполняем из URL, если ещё не задан.
+        //    Сообщество (groupId) и личная страница (userId) хранятся в одном
+        //    поле `groupId`; тип (знак owner_id для wall.get) выводится из URL
+        //    при синхронизации — отдельное поле/миграция не нужны.
+        const identNumericId = ident.groupId ?? ident.userId
+        if (identNumericId && !data.groupId) {
+          data.groupId = identNumericId
         }
         if (ident.screenName && !data.screenName) {
           data.screenName = ident.screenName
@@ -384,13 +389,18 @@ export const VkAutoSync: CollectionConfig<'vk-auto-sync'> = {
           return data
         }
 
-        const meta = await fetchVkGroupMeta(
-          { groupId: data.groupId as number | undefined, screenName: data.screenName as string | undefined },
-          token,
-        )
+        // Личная страница → users.get, сообщество/короткое имя → groups.getById
+        const meta =
+          ident.kind === 'user'
+            ? await fetchVkUserMeta((ident.userId ?? (data.groupId as number | undefined)) ?? null, token)
+            : await fetchVkGroupMeta(
+                { groupId: data.groupId as number | undefined, screenName: data.screenName as string | undefined },
+                token,
+              )
         if (!meta) {
           req.payload.logger.warn(
-            `[vk-auto-sync] Не удалось получить метаданные группы ${url} (возможно, токен заблокирован или сообщество приватно).`,
+            `[vk-auto-sync] Не удалось получить метаданные источника ${url} ` +
+              `(возможно, токен заблокирован, страница приватна или тип источника не распознан).`,
           )
           return data
         }
