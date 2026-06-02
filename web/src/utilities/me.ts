@@ -18,8 +18,15 @@ export type MeUser = {
 
 type MeResponse = { user: MeUser }
 
-/** Роли, которым доступно редактирование на сайте. */
-const EDITOR_ROLES = ['admin', 'manager', 'editor'] as const
+/**
+ * Роли, которым доступно on-site редактирование контента.
+ *
+ * Совпадает с серверным `adminOrEditor` (Posts/Pages/Projects/Media/Categories/
+ * Header/Footer). `manager` — инфраструктурная роль (Я.Диск, VK-импорт через
+ * `requireAdmin` = admin||manager в /admin), не контент-редактор, поэтому
+ * inline-инструменты на сайте ему не показываем (иначе PATCH вернёт 403).
+ */
+const EDITOR_ROLES = ['admin', 'editor'] as const
 
 /** Текущий пользователь (или null, если гость / запрос не удался). */
 export async function fetchMe(): Promise<MeUser> {

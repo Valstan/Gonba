@@ -9,7 +9,7 @@ import {
   lexicalEditor,
 } from '@payloadcms/richtext-lexical'
 
-import { authenticated } from '../../access/authenticated'
+import { adminOrEditor } from '../../access/adminOrEditor'
 import { authenticatedOrPublished } from '../../access/authenticatedOrPublished'
 import { Banner } from '../../blocks/Banner/config'
 import { Code } from '../../blocks/Code/config'
@@ -36,10 +36,10 @@ export const Posts: CollectionConfig<'posts'> = {
     plural: 'Посты',
   },
   access: {
-    create: authenticated,
-    delete: authenticated,
+    create: adminOrEditor,
+    delete: adminOrEditor,
     read: authenticatedOrPublished,
-    update: authenticated,
+    update: adminOrEditor,
   },
   // This config controls what's populated by default when a post is referenced
   // https://payloadcms.com/docs/queries/select#defaultpopulate-collection-config-property

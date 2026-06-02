@@ -9,8 +9,8 @@ import fs from 'fs/promises'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
+import { adminOrEditor } from '../access/adminOrEditor'
 import { anyone } from '../access/anyone'
-import { authenticated } from '../access/authenticated'
 import {
   deleteYandexResource,
   getPublicDownloadUrl,
@@ -39,10 +39,10 @@ export const Media: CollectionConfig = {
   },
   folders: true,
   access: {
-    create: authenticated,
-    delete: authenticated,
+    create: adminOrEditor,
+    delete: adminOrEditor,
     read: anyone,
-    update: authenticated,
+    update: adminOrEditor,
   },
   fields: [
     {
