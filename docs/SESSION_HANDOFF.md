@@ -1,47 +1,46 @@
 # Session Handoff
 
 **Status:** ACTIVE
-**Updated:** 2026-06-01
+**Updated:** 2026-06-02
 **Branch:** main
-**Last released version:** PR #77 (commit `f6d0780`) на проде — inline-правка страниц. Прод verified: health 200 на каждом деплое сессии.
+**Last released version:** PR #81 (commit `45d2b6e`) на проде — inline-правка страниц проектов. Прод verified: health 200, `/projects/village-events` 200 после каждого деплоя сессии.
 
 ---
 
 ## Текущая нитка
 
-**On-site редактирование контента/интерфейса прямо на сайте** (план [`docs/plans/inline-onsite-editing.md`](plans/inline-onsite-editing.md)). Этап 1 **полностью на проде**: вход через модалку в шапке → у редактора появляются элементы управления → правка постов, страниц, плашек проектов и пунктов меню на месте + выбор существующей картинки + дедуп при загрузке. Остался футер (нужна миграция БД) и картинки в блоках/hero.
+**On-site редактирование контента/интерфейса прямо на сайте** (план [`docs/plans/inline-onsite-editing.md`](plans/inline-onsite-editing.md)). **Основные части закрыты и на проде:** вход в шапке, правка постов, плашек проектов, текст+картинки страниц, меню шапки, **футер** (глобал + inline), **страницы проектов** (заголовок/описание/обложка/текст). Остались мелкие follow-up'ы.
+
+Сегодня (2026-06-02) задеплоено 3 PR: **#79** картинки на страницах (hero/mediaBlock/gallery), **#80** редактируемый футер (глобал `footer` + миграция batch 6), **#81** inline-правка страниц проектов.
 
 ## Следующий шаг
 
-**Футер (PR4b) — на домашней машине с рабочей локальной БД.** Код-паттерн готов (как у меню: глобал + расхардкодить `web/src/Footer/Component.tsx` + inline-редактор), но нужен **новый глобал `footer` + миграция** (вложенные массивы) — её безопаснее сгенерировать через Payload-тулинг на машине, где локальный Postgres жив (на текущей Windows-машине Payload падает с `spawn UNKNOWN`). Шаги: `web/src/Footer/config.ts` + hook `revalidateFooter` + регистрация в `payload.config.ts` → `payload migrate:create` → расхардкодить Footer (читать глобал, fallback на текущие значения) → `FooterEditor.client.tsx` → применить миграцию на проде вручную (как `_projects_v` fix) + `/reliz`.
-
-Параллельно (без миграции, можно и тут): **картинки на страницах** (MediaBlock `items[].media` + hero) inline в `PageEditor` (брать layout через `?depth=0`, менять media id, PATCH); **медиа Phase C/D** — связи (usage) + безопасное удаление с заменой + слияние старых дублей (план `docs/plans/media-library-integrity.md`).
+Выбрать один из мелких follow-up'ов (все без блокеров):
+1. **Картинки страниц — caption + добавление/удаление** элементов массивов в `PageEditor` (сейчас только замена media id; поля required). Без миграции. Файл: `web/src/components/InlineEdit/PageEditor.client.tsx` + `InlineImage.client.tsx`.
+2. **Чистка устаревшего `footer.navItems`** — отдельной аддитивной-down миграцией `DROP TABLE footer_nav_items/footer_rels` + убрать скрытое поле из `web/src/Footer/config.ts`. Только когда понадобится; сейчас оно скрыто (`admin.hidden`) и безвредно.
+3. **Inline-правка остальных блоков project-detail** — галерея/контакты/локация (`web/src/app/(frontend)/projects/[slug]/page.tsx`, пока правятся в админке).
 
 ## Контекст
 
-- **Планы:** [`inline-onsite-editing.md`](plans/inline-onsite-editing.md) (4 PR), [`media-library-integrity.md`](plans/media-library-integrity.md) (Phase A/B done, C/D — todo).
-- **Связанные коммиты сессии:**
-  - `f6d0780` (#77) — inline-правка страниц: заголовок + текст Content-блоков, depth=0 round-trip
-  - `8bf0bfc` (#76) — дедуп при загрузке по sha256 (Phase B)
-  - `c01817a` (#75) — редактируемое меню шапки (рендер из глобала + NavEditor)
-  - `0098a6a` (#74) — inline-редактор поста виден сразу при логине (без режима «Управление»)
-  - `b31b0da` (#73) — deploy-guard миграций: bypass при workflow_dispatch
-  - `8e37308` (#72) — fix схемы `_projects_v` (500 при сохранении проекта) + MediaPicker + посты без редиректа в /admin
-  - `80778cb` (#71) — этап 1: вход в шапке + inline-правка постов
-  - (ранее: #68 orbit reduced-motion, #69 systemd sync, #70 VK_SYNC_ALERT)
-- **Прод:** ✅ health 200, на `f6d0780`. Миграция `20260601_120000` (`_projects_v`) применена вручную + записана в `payload_migrations` (batch 5).
-- **Ключевые файлы:** `web/src/components/InlineEdit/` (PostEditor, PageEditor, InlineImage, MediaPicker, LiteRichTextEditor, lexical-lite), `web/src/components/Auth/LoginControl.client.tsx`, `web/src/utilities/me.ts` + `mediaUpload.ts`, `web/src/Header/NavEditor.client.tsx`.
-- **Открытые вопросы для пользователя:** опц. прод-cleanup inline домен-vars в `gonba.service` (см. PENDING / `docs/PROJECT.md`).
+- **Планы:** [`inline-onsite-editing.md`](plans/inline-onsite-editing.md), [`media-library-integrity.md`](plans/media-library-integrity.md) (Phase A/B done, C/D — todo).
+- **Связанные коммиты сессии (2026-06-02):**
+  - `45d2b6e` (#81) — `ProjectDetailEditor`: title/summary/heroImage/description inline на `/projects/[slug]`
+  - `719e3f9` (#80) — редактируемый футер: глобал `footer` (description/columns/legalAddress) + `FooterEditor` + миграция `20260602_120000`
+  - `b91ca70` (#79) — картинки на страницах: hero + `mediaBlock.items[].media` + `gallery.items[].image` (`PageEditor`), новый проп `InlineImage.allowRemove`
+- **Прод:** ✅ health 200, на `45d2b6e`. Миграция `20260602_120000` (footer) применена вручную + записана в `payload_migrations` (**batch 6**) ДО деплоя; деплой футера — через `workflow_dispatch` (migration-guard). Миграции #79/#81 не требовали (без новых полей).
+- **Ключевые файлы:** `web/src/components/InlineEdit/` (PostEditor, PageEditor, ProjectDetailEditor, InlineImage, MediaPicker, LiteRichTextEditor, lexical-lite), `web/src/Footer/` (config, Component, FooterEditor, RowLabel), `web/src/Header/NavEditor.client.tsx`.
+- **Локальный dev ЗАРАБОТАЛ на этой машине:** PostgreSQL 17 слушает на **:5433** (не 5432), БД `gonba` есть; `web/.env` → `DATABASE_URL=...@127.0.0.1:5433/gonba` с 48-симв. паролем из `%APPDATA%\postgresql\pgpass.conf`. Payload грузится и обслуживает запросы нормально (dev-сервер, `migrate:status`, `generate:types`, `tsx`). Прежний «spawn UNKNOWN» был, скорее всего, следствием битого коннекта. См. memory `dev_env_requirements` + PENDING.
+- **Открытые вопросы для пользователя:** опц. прод-cleanup inline домен-vars в `gonba.service` (см. PENDING).
 
 ## Failed approaches (этой нитки)
 
-- **Гейтить inline-редакторы за режимом «Управление» (manage mode)** — пробовали в PostEditor (#71), плохо: по умолчанию режим «Просмотр», при логине через `/admin` кнопки правки не появлялись. Исправлено в #74 — показываем при `isAdmin`. **Не возвращать mode-гейт** для inline-правки.
-- **Полный Lexical на публичных страницах** — отклонён на планировании (тяжёлый бандл). Выбран лёгкий contentEditable→Lexical (`lexical-lite.ts`) + fallback «сложное — в админке». Round-trip держать на наборе: абзацы/H2-H3/жирный/курсив/списки/ссылки.
+_Не было — все попробованные подходы этой сессии сработали (фикс dev-env, аддитивная миграция футера с round-trip-проверкой, 3 PR)._ Прошлые failed approaches нитки (mode-гейт inline-редакторов; полный Lexical на публичных страницах) остаются актуальны — **не повторять**, см. `git log -- docs/SESSION_HANDOFF.md` (#78).
 
 ## Не забыть (low-priority)
 
 - 🔸 Опц. прод-cleanup: убрать дублирующие inline `Environment=` домен-vars из `/etc/systemd/system/gonba.service` (команда в `docs/PROJECT.md → Systemd`).
-- 🔸 Сузить `Posts/Pages.access.update` до `adminOrEditor` (сейчас `authenticated`) — для согласованности; не блокер.
+- 🔸 Локальная БД (:5433) отстаёт от прода на миграцию `20260601_120000` (`_projects_v` data-fix) — push:true покрывает колонки, для smoke не критично; при желании применить вручную.
+- 🔸 Сузить `Posts/Pages.access.update` до `adminOrEditor` (сейчас `authenticated`).
 
 ---
 
