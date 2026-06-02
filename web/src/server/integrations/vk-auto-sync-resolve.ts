@@ -1,31 +1,42 @@
 /**
  * Хелперы для коллекции `vk-auto-sync`:
- * - извлечение groupId из любой формы URL VK-сообщества
- * - запрос метаданных группы через VK API (поле `groups.getById`)
+ * - извлечение числового id источника из любой формы URL VK
+ * - определение типа источника: сообщество (group) или личная страница (user)
+ * - запрос метаданных через VK API (`groups.getById` для групп, `users.get` для
+ *   личных страниц)
  *
  * Цель — дать пользователю ввести только URL и получить остальное автоматически.
+ * Тип источника важен для `wall.get`: у сообщества `owner_id` отрицательный
+ * (`-groupId`), у личной страницы — положительный (`+userId`).
  */
 
 const VK_API_VERSION = '5.199'
 
+export type VkIdentifier = {
+  /**
+   * 'group' — сообщество (club/public/group/просто число),
+   * 'user' — личная страница (vk.com/idN),
+   * undefined — короткое имя: тип нельзя определить из URL без запроса к API.
+   */
+  kind?: 'user' | 'group'
+  groupId?: number
+  userId?: number
+  screenName?: string
+}
+
 /**
- * Принимает URL VK-сообщества в любой обычной форме:
- *   - https://vk.com/club229392127
- *   - https://vk.com/public229392127
- *   - https://vk.com/club_229392127  (с подчёркиванием — редко, но бывает)
- *   - https://vk.com/screen_name      (короткое имя)
- *   - club229392127                   (без хоста)
- *   - 229392127                       (просто число)
- *
- * Возвращает либо `{ groupId: number }`, либо `{ screenName: string }` —
- * VK API принимает оба варианта.
+ * Принимает URL VK-источника в любой обычной форме:
+ *   - https://vk.com/club229392127    → { kind:'group', groupId }
+ *   - https://vk.com/public229392127  → group
+ *   - https://vk.com/group_229392127  → group (подчёркивание — редко, но бывает)
+ *   - https://vk.com/id86086407       → { kind:'user', userId } (личная страница)
+ *   - https://vk.com/screen_name      → { screenName } (тип неизвестен)
+ *   - club229392127                   → group (без хоста)
+ *   - 229392127                       → group (просто число — исторически сообщество)
  *
  * Если URL невалидный — возвращает null.
  */
-export function parseVkCommunityIdentifier(input: string | null | undefined): {
-  groupId?: number
-  screenName?: string
-} | null {
+export function parseVkCommunityIdentifier(input: string | null | undefined): VkIdentifier | null {
   if (!input || typeof input !== 'string') return null
   let raw = input.trim()
   if (!raw) return null
@@ -42,18 +53,26 @@ export function parseVkCommunityIdentifier(input: string | null | undefined): {
   raw = raw.replace(/[?#].*$/, '').replace(/^@/, '').trim()
   if (!raw) return null
 
-  // club12345 / public12345 / group12345
-  const num = raw.match(/^(?:club|public|group)_?(\d+)$/i)
-  if (num) {
-    return { groupId: Number(num[1]) }
+  // club12345 / public12345 / group12345 → сообщество
+  const grp = raw.match(/^(?:club|public|group)_?(\d+)$/i)
+  if (grp) {
+    return { kind: 'group', groupId: Number(grp[1]) }
   }
 
-  // просто число
+  // idXXXX → личная страница (VK резервирует idN только под user-страницы;
+  // кастомное короткое имя вида id<цифры> создать нельзя)
+  const usr = raw.match(/^id(\d+)$/i)
+  if (usr) {
+    return { kind: 'user', userId: Number(usr[1]) }
+  }
+
+  // просто число → исторически сообщество
   if (/^\d+$/.test(raw)) {
-    return { groupId: Number(raw) }
+    return { kind: 'group', groupId: Number(raw) }
   }
 
-  // short name (latin/cyrillic + digits + дефис/подчёркивание)
+  // short name (latin/cyrillic + digits + дефис/подчёркивание) — тип неизвестен:
+  // короткое имя может принадлежать и сообществу, и личной странице
   if (/^[a-z0-9_\-.]{2,64}$/i.test(raw)) {
     return { screenName: raw }
   }
@@ -125,6 +144,66 @@ export async function fetchVkGroupMeta(
     screenName: typeof first.screen_name === 'string' ? first.screen_name : identifier.screenName || null,
     name: typeof first.name === 'string' ? first.name : null,
     description: typeof first.description === 'string' ? first.description : null,
+    avatarUrl:
+      (typeof first.photo_200 === 'string' && first.photo_200) ||
+      (typeof first.photo_100 === 'string' && first.photo_100) ||
+      (typeof first.photo_50 === 'string' && first.photo_50) ||
+      null,
+  }
+}
+
+/**
+ * Подтянуть метаданные личной страницы (vk.com/idN) через VK API `users.get`.
+ * Возвращает ту же форму `VkGroupMeta`, что и `fetchVkGroupMeta` (поле `groupId`
+ * = userId), чтобы вызывающий код был единообразным.
+ *
+ * @param userId числовой id пользователя VK
+ * @param token VK access token. Если null/пусто — функция вернёт null.
+ */
+export async function fetchVkUserMeta(
+  userId: number | null | undefined,
+  token: string | null | undefined,
+): Promise<VkGroupMeta | null> {
+  if (!token || !userId) return null
+
+  const params = new URLSearchParams({
+    user_ids: String(userId),
+    fields: 'photo_200,photo_100,photo_50,screen_name,status',
+    access_token: token,
+    v: VK_API_VERSION,
+  })
+
+  let res: Response
+  try {
+    res = await fetch(`https://api.vk.com/method/users.get?${params.toString()}`, {
+      signal: AbortSignal.timeout(8000),
+    })
+  } catch {
+    return null
+  }
+  if (!res.ok) return null
+
+  let data: unknown
+  try {
+    data = await res.json()
+  } catch {
+    return null
+  }
+  const root = data as { response?: Array<Record<string, unknown>>; error?: unknown }
+  if (root?.error) return null
+
+  const first = Array.isArray(root.response) ? root.response[0] : undefined
+  if (!first) return null
+
+  const firstName = typeof first.first_name === 'string' ? first.first_name : ''
+  const lastName = typeof first.last_name === 'string' ? first.last_name : ''
+  const fullName = `${firstName} ${lastName}`.trim()
+
+  return {
+    groupId: Number(first.id) || userId,
+    screenName: typeof first.screen_name === 'string' ? first.screen_name : null,
+    name: fullName || null,
+    description: typeof first.status === 'string' && first.status.trim() ? first.status : null,
     avatarUrl:
       (typeof first.photo_200 === 'string' && first.photo_200) ||
       (typeof first.photo_100 === 'string' && first.photo_100) ||

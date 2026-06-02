@@ -1,6 +1,8 @@
 import type { Payload } from 'payload'
 import type { Post } from '@/payload-types'
 
+import { parseVkCommunityIdentifier } from './vk-auto-sync-resolve'
+
 const VK_API_VERSION = '5.199'
 
 /**
@@ -89,10 +91,14 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Получает посты из VK сообщества с обработкой ошибок и retry
+ * Получает посты со стены VK с обработкой ошибок и retry.
+ *
+ * @param ownerId знаковый `owner_id` для wall.get: сообщество — отрицательный
+ *   (`-groupId`), личная страница — положительный (`+userId`). Считается в
+ *   syncVkSource из типа источника (parseVkCommunityIdentifier).
  */
 async function fetchVkPosts(
-  groupId: number,
+  ownerId: number,
   preferredToken: string,
   count: number = 3,
   retries: number = 2,
@@ -117,7 +123,7 @@ async function fetchVkPosts(
       try {
         const url = 'https://api.vk.com/method/wall.get'
         const params = new URLSearchParams({
-          owner_id: `-${groupId}`,
+          owner_id: String(ownerId),
           count: String(Math.min(count, 10)), // макс 10 за раз
           access_token: token,
           v: VK_API_VERSION,
@@ -329,9 +335,18 @@ export async function syncVkSource(
       }
     }
 
+    // Знак owner_id для wall.get выводим из URL источника: сообщество —
+    // отрицательный (-groupId), личная страница (vk.com/idN) — положительный
+    // (+userId). Тип не хранится отдельным полем, чтобы не плодить миграцию;
+    // числовой id лежит в `groupId` (для user-страниц это userId).
+    // Edge: личная страница, заведённая через короткое имя (vk.com/<name>, без
+    // префикса id) определится как сообщество — для неё нужен URL вида vk.com/idN.
+    const ident = parseVkCommunityIdentifier(sourceDoc.communityUrl)
+    const ownerId = ident?.kind === 'user' ? Math.abs(groupId) : -Math.abs(groupId)
+
     // Получаем посты из VK с ротацией токенов
     // Используем accessToken из конфига как preferred, но fallback на пул
-    const posts = await fetchVkPosts(groupId, sourceDoc.accessToken || '', 3)
+    const posts = await fetchVkPosts(ownerId, sourceDoc.accessToken || '', 3)
 
     if (!posts || posts.length === 0) {
       await payload.update({
@@ -549,6 +564,39 @@ export async function syncVkSource(
   }
 }
 
+// ≈24ч при интервале синхронизации 3ч — как часто повторять алерт при ДЛИТЕЛЬНОМ
+// сбое (heartbeat), чтобы долгий инцидент не «замолкал» после первого срабатывания.
+const VK_SYNC_ALERT_HEARTBEAT_RUNS = 8
+
+// Счётчик подряд идущих прогонов, где ВСЕ опрошенные источники упали. Живёт в
+// памяти процесса gonba.service (внешний timer бьёт по одному long-running Next).
+// Сбрасывается на первом здоровом прогоне и при рестарте сервиса.
+let vkConsecutiveAllFailRuns = 0
+
+/**
+ * Решает, писать ли громкий `VK_SYNC_ALERT` на этом прогоне.
+ *
+ * Дедуп спама (раньше маркер писался на КАЖДОМ «все упали» прогоне, т.е. каждые
+ * ~3ч): алертим на ВХОДЕ в состояние «все упали» (1-й провал — мгновенное
+ * обнаружение, не задерживаем) и затем раз в `VK_SYNC_ALERT_HEARTBEAT_RUNS`
+ * подряд-провалов (напоминание при долгом сбое), а на промежуточных — молчим.
+ * Любой здоровый прогон сбрасывает счётчик.
+ *
+ * Чистая функция — состояние (`prevConsecutiveAllFail`) держит вызывающий, чтобы
+ * логика тестировалась без модульного состояния и без БД.
+ */
+export function decideVkSyncAlert(input: {
+  attempted: number
+  errored: number
+  prevConsecutiveAllFail: number
+}): { allFailing: boolean; consecutiveAllFail: number; emit: boolean } {
+  const allFailing = input.attempted > 0 && input.errored === input.attempted
+  const consecutiveAllFail = allFailing ? input.prevConsecutiveAllFail + 1 : 0
+  const emit =
+    allFailing && (consecutiveAllFail === 1 || consecutiveAllFail % VK_SYNC_ALERT_HEARTBEAT_RUNS === 0)
+  return { allFailing, consecutiveAllFail, emit }
+}
+
 /**
  * Запускает синхронизацию всех активных источников
  * С задержкой между источниками для защиты от rate limit
@@ -586,10 +634,16 @@ export async function syncAllVkSources(payload: Payload): Promise<SyncResult[]> 
     (r) => r.status === 'success' || r.status === 'no-new-posts' || r.status === 'error',
   )
   const errored = results.filter((r) => r.status === 'error')
-  if (attempted.length > 0 && errored.length === attempted.length) {
+  const decision = decideVkSyncAlert({
+    attempted: attempted.length,
+    errored: errored.length,
+    prevConsecutiveAllFail: vkConsecutiveAllFailRuns,
+  })
+  vkConsecutiveAllFailRuns = decision.consecutiveAllFail
+  if (decision.emit) {
     payload.logger.error(
-      `[vk-auto-sync] VK_SYNC_ALERT: ни один из ${attempted.length} опрошенных VK-источников ` +
-        `не отработал успешно (все в ошибке). Вероятная причина — протухшие VK-токены ` +
+      `[vk-auto-sync] VK_SYNC_ALERT (провал #${decision.consecutiveAllFail} подряд): ни один из ${attempted.length} ` +
+        `опрошенных VK-источников не отработал успешно (все в ошибке). Вероятная причина — протухшие VK-токены ` +
         `(VK_TOKEN_VALSTAN / VK_TOKEN_VITA / VK_TOKEN_*). Проверь last_error источников. ` +
         `Ошибки: ${errored.map((r) => r.message).join(' || ').slice(0, 300)}`,
     )
