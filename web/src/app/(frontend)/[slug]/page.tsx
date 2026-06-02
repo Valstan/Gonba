@@ -13,7 +13,7 @@ import { generateMeta } from '@/utilities/generateMeta'
 import PageClient from './page.client'
 import { LivePreviewListener } from '@/components/LivePreviewListener'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
-import { AdminOverlay } from '@/components/AdminOverlay'
+import { PageEditor } from '@/components/InlineEdit/PageEditor.client'
 
 export async function generateStaticParams() {
   const payload = await getPayload({ config: configPromise })
@@ -67,16 +67,9 @@ export default async function Page({ params: paramsPromise }: Args) {
   }
 
   const { hero, layout } = page
-  const pageEditUrl = `/admin/collections/pages/${page.id}`
 
   return (
-    <AdminOverlay
-      addLabel="Добавить блок"
-      addUrl={pageEditUrl}
-      editLabel="Редактировать"
-      editUrl={pageEditUrl}
-      label="страницу"
-    >
+    <>
       <article className="pt-16 pb-24">
         <div className="container">
           <Breadcrumbs
@@ -93,9 +86,10 @@ export default async function Page({ params: paramsPromise }: Args) {
         {draft && <LivePreviewListener />}
 
         <RenderHero {...hero} />
+        {page.id ? <PageEditor id={page.id} title={page.title || ''} /> : null}
         <RenderBlocks blocks={layout} collectionSlug="pages" pageId={page.id} />
       </article>
-    </AdminOverlay>
+    </>
   )
 }
 
