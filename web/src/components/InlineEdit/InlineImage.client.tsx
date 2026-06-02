@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import React, { useRef, useState } from 'react'
 
+import { uploadOrReuseMedia } from '@/utilities/mediaUpload'
 import { MediaPicker } from './MediaPicker.client'
 
 type Props = {
@@ -26,20 +27,10 @@ export const InlineImage: React.FC<Props> = ({ previewUrl, alt, onChange, onErro
   const upload = async (file: File) => {
     setUploading(true)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('_payload', JSON.stringify({ alt: alt || file.name }))
-      const res = await fetch('/api/media', { method: 'POST', body: fd, credentials: 'include' })
-      if (!res.ok) {
-        const txt = await res.text().catch(() => '')
-        throw new Error(`Не удалось загрузить картинку (${res.status}): ${txt.slice(0, 160)}`)
-      }
-      const data = await res.json()
-      const doc = data?.doc || data
-      const id = doc?.id ?? null
-      const url = doc?.url ?? null
-      if (!id) throw new Error('Не получен id загруженного файла')
-      onChange(id, url || previewUrl)
+      // uploadOrReuseMedia дедуплицирует по sha256: если такой файл уже на
+      // Я.Диске — переиспользует, не плодя дубль.
+      const result = await uploadOrReuseMedia(file, alt || file.name)
+      onChange(result.id, result.url || previewUrl)
     } catch (e) {
       onError?.(String((e as Error).message || e))
     } finally {

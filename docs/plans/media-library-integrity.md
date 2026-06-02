@@ -20,10 +20,10 @@
 ## Phase A — MediaPicker (✅ сделано, этап 1)
 Кнопка «Из загруженных» в `InlineImage` и `EditProjectDialog`. Снижает появление новых дублей.
 
-## Phase B — Дедуп при загрузке
-- На `POST /api/media`: до создания записи считать sha256 файла и искать существующую Media с тем же `yandexSha256` (и/или размер+имя). Если есть — **вернуть существующую** вместо создания дубля.
-- Реализация: `beforeOperation`/`beforeValidate` хук Media или кастомный upload-эндпоинт-обёртка. Аккуратно: Payload upload-pipeline; проще обёртка `/api/media/upload-dedup`, которую дёргает фронт (InlineImage/EditProjectDialog), а она либо находит дубль, либо проксирует в обычный create.
-- Хэш на клиенте (`crypto.subtle.digest`) → запрос `GET /api/media?where[yandexSha256][equals]=...` → если найдено, не грузим.
+## Phase B — Дедуп при загрузке ✅ (2026-06-01)
+- Реализовано на клиенте: `web/src/utilities/mediaUpload.ts` — `uploadOrReuseMedia(file, alt)` считает `sha256Hex(file)` (`crypto.subtle`), ищет `GET /api/media?where[yandexSha256][equals]=<hash>`; если дубль есть — переиспользует, иначе обычный `POST /api/media`. Я.Диск отдаёт sha256 содержимого, изображения не трансформируются (`imageSizes: []`) → хэш совпадает.
+- Подключено в `InlineImage` и `EditProjectDialog` (upload-обработчики).
+- **Ограничение:** дедуп только при загрузке через сайт-инструменты; старые дубли в Я.Облаке остаются — их разгребёт Phase D (слияние). Записи без `yandexSha256` (несинхронизированные) не матчатся — заливаются как обычно.
 
 ## Phase C — Связи (usage) + безопасное удаление
 - **Поиск использований** Media по id: пройтись по коллекциям/полям, ссылающимся на media (Projects.logo/heroImage/gallery, Posts.heroImage/meta.image/content-blocks, Pages-блоки, Media в rich-text). Собрать список «где используется».
