@@ -6,6 +6,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { ProjectRecord } from './projects/shared'
 import { Plate } from './projects/PlateCard'
 import { MediaPicker } from '@/components/InlineEdit/MediaPicker.client'
+import { uploadOrReuseMedia } from '@/utilities/mediaUpload'
 import {
   Dialog,
   DialogContent,
@@ -104,20 +105,9 @@ export const EditProjectDialog: React.FC<Props> = ({ open, project, onClose, onS
     setUploading(true)
     setError(null)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('_payload', JSON.stringify({ alt: project.title || file.name }))
-      const res = await fetch('/api/media', { method: 'POST', body: fd, credentials: 'include' })
-      if (!res.ok) {
-        const txt = await res.text().catch(() => '')
-        throw new Error(`Не удалось загрузить картинку (${res.status}): ${txt.slice(0, 200)}`)
-      }
-      const data = await res.json()
-      const doc = data?.doc || data
-      const id = doc?.id ?? null
-      const url = doc?.url ?? null
-      if (!id) throw new Error('Не получен id загруженного файла')
-      setFields((f) => ({ ...f, logo: id, logoPreviewUrl: url || f.logoPreviewUrl }))
+      // Дедуп по sha256: если файл уже на Я.Диске — переиспользуем, не плодя дубль.
+      const result = await uploadOrReuseMedia(file, project.title || file.name)
+      setFields((f) => ({ ...f, logo: result.id, logoPreviewUrl: result.url || f.logoPreviewUrl }))
     } catch (e) {
       setError(String((e as Error).message || e))
     } finally {
