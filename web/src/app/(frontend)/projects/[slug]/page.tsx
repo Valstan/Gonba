@@ -49,6 +49,17 @@ export default async function ProjectPage({ params: paramsPromise }: Args) {
         : null
   const heroImageUrl = heroImage && typeof heroImage === 'object' ? heroImage.url ?? null : null
 
+  // Галерея для inline-редактора (depth=1 → image уже объект с url).
+  const galleryItems = Array.isArray(project.gallery)
+    ? project.gallery.map((it) => {
+        const img = it?.image as { id?: number | string; url?: string | null } | number | string | null | undefined
+        const imageId =
+          img && typeof img === 'object' ? img.id ?? null : typeof img === 'number' || typeof img === 'string' ? img : null
+        const imageUrl = img && typeof img === 'object' ? img.url ?? null : null
+        return { id: it?.id ?? null, imageId, imageUrl, caption: it?.caption || '' }
+      })
+    : []
+
   const [featuredPosts, upcomingEvents, projectServices] = await Promise.all([
     payload.find({
       collection: 'posts',
@@ -145,6 +156,7 @@ export default async function ProjectPage({ params: paramsPromise }: Args) {
                 mapUrl: project.location?.mapUrl || '',
                 coordinates: project.location?.coordinates || '',
               },
+              gallery: galleryItems,
             }}
           />
         </div>

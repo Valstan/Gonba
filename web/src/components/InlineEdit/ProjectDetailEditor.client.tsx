@@ -16,6 +16,13 @@ import { InlineImage } from './InlineImage.client'
 import { LiteRichTextEditor } from './LiteRichTextEditor.client'
 import { hasUnsupportedNodes, htmlToLexical, lexicalToHtml } from './lexical-lite'
 
+export type ProjectGalleryItemData = {
+  id: number | string | null
+  imageId: number | string | null
+  imageUrl: string | null
+  caption: string
+}
+
 export type ProjectDetailEditorData = {
   id: number | string
   title: string
@@ -25,7 +32,23 @@ export type ProjectDetailEditorData = {
   heroImageUrl: string | null
   contacts: { phone: string; email: string; whatsApp: string }
   location: { address: string; mapUrl: string; coordinates: string }
+  gallery: ProjectGalleryItemData[]
 }
+
+// Строка галереи в state редактора: image (required) + caption. rawId — id
+// существующего элемента массива (для стабильности строки при PATCH); null —
+// элемент добавлен в этой сессии.
+type GalleryRow = {
+  uid: string
+  rawId: number | string | null
+  mediaId: number | string | null
+  previewUrl: string | null
+  caption: string
+}
+
+// Стабильные React-ключи для добавляемых элементов (без зависимости от индекса).
+let galleryUid = 0
+const nextGalleryUid = () => `pg-${(galleryUid += 1)}`
 
 /**
  * Кнопка «Редактировать проект» (видна редактору при логине) + модалка правки
@@ -35,7 +58,10 @@ export type ProjectDetailEditorData = {
  * (#71/#74). Группы contacts/location отправляем целиком (все подполя), только
  * если что-то в группе менялось — Payload пишет группу как набор колонок, а
  * частичный объект группы перетёр бы непереданные подполя. Галерея (массив
- * картинок) — пока в админке.
+ * image+caption) правится здесь же: замена файла, подпись, add/remove. Image
+ * обязателен (required) — перед сохранением проверяем, что у каждого элемента
+ * выбран файл. Массив шлём целиком, только если он менялся; id существующих
+ * строк сохраняем для стабильности.
  */
 export const ProjectDetailEditor: React.FC<{ project: ProjectDetailEditorData }> = ({ project }) => {
   const { isAdmin } = useAdminMode()
@@ -54,6 +80,8 @@ export const ProjectDetailEditor: React.FC<{ project: ProjectDetailEditorData }>
   const [address, setAddress] = useState(project.location.address)
   const [mapUrl, setMapUrl] = useState(project.location.mapUrl)
   const [coordinates, setCoordinates] = useState(project.location.coordinates)
+  const [gallery, setGallery] = useState<GalleryRow[]>([])
+  const [galleryDirty, setGalleryDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -72,11 +100,42 @@ export const ProjectDetailEditor: React.FC<{ project: ProjectDetailEditorData }>
     setAddress(project.location.address)
     setMapUrl(project.location.mapUrl)
     setCoordinates(project.location.coordinates)
+    setGallery(
+      project.gallery.map((it) => ({
+        uid: nextGalleryUid(),
+        rawId: it.id,
+        mediaId: it.imageId,
+        previewUrl: it.imageUrl ?? (it.imageId != null ? `/api/media/file/${it.imageId}` : null),
+        caption: it.caption || '',
+      })),
+    )
+    setGalleryDirty(false)
     setError(null)
     setOpen(true)
   }
 
+  const updateGalleryItem = (uid: string, patch: Partial<GalleryRow>) => {
+    setGallery((prev) => prev.map((it) => (it.uid === uid ? { ...it, ...patch } : it)))
+    setGalleryDirty(true)
+  }
+  const addGalleryItem = () => {
+    setGallery((prev) => [...prev, { uid: nextGalleryUid(), rawId: null, mediaId: null, previewUrl: null, caption: '' }])
+    setGalleryDirty(true)
+  }
+  const removeGalleryItem = (uid: string) => {
+    setGallery((prev) => prev.filter((it) => it.uid !== uid))
+    setGalleryDirty(true)
+  }
+
   const save = async () => {
+    // Валидация required-upload галереи до начала сохранения.
+    if (galleryDirty) {
+      const emptyIdx = gallery.findIndex((it) => it.mediaId == null)
+      if (emptyIdx !== -1) {
+        setError(`Галерея: у изображения ${emptyIdx + 1} не выбран файл — выберите файл или удалите элемент.`)
+        return
+      }
+    }
     setSaving(true)
     setError(null)
     try {
@@ -110,6 +169,16 @@ export const ProjectDetailEditor: React.FC<{ project: ProjectDetailEditorData }>
           mapUrl: mapUrl.trim() || null,
           coordinates: coordinates.trim() || null,
         }
+      }
+
+      // Галерея — массив целиком (Payload заменяет весь массив), только если менялась.
+      // id существующих строк сохраняем, новым не передаём — Payload создаст их.
+      if (galleryDirty) {
+        body.gallery = gallery.map((it) => ({
+          ...(it.rawId != null ? { id: it.rawId } : {}),
+          image: it.mediaId,
+          caption: it.caption.trim() ? it.caption.trim() : null,
+        }))
       }
 
       const res = await fetch(`/api/projects/${project.id}`, {
@@ -151,7 +220,7 @@ export const ProjectDetailEditor: React.FC<{ project: ProjectDetailEditorData }>
         <DialogContent className="max-h-[88vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Редактирование проекта</DialogTitle>
-            <DialogDescription>Заголовок, краткое описание, обложка и текст «О проекте». Сохранится сразу.</DialogDescription>
+            <DialogDescription>Заголовок, описание, обложка, текст «О проекте», контакты, адрес и мини-галерея. Сохранится сразу.</DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-2">
@@ -267,6 +336,49 @@ export const ProjectDetailEditor: React.FC<{ project: ProjectDetailEditorData }>
                   className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 />
               </div>
+            </div>
+
+            <div className="grid gap-3 border-t pt-4">
+              <p className="text-sm font-medium">Мини-галерея</p>
+              {gallery.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Пока пусто — добавьте изображения.</p>
+              ) : (
+                gallery.map((it, idx) => (
+                  <div key={it.uid} className="grid gap-1.5 rounded-md border border-border/60 p-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs text-muted-foreground">Изображение {idx + 1}</label>
+                      <button
+                        type="button"
+                        onClick={() => removeGalleryItem(it.uid)}
+                        className="text-xs text-destructive underline-offset-2 hover:underline"
+                      >
+                        удалить
+                      </button>
+                    </div>
+                    <InlineImage
+                      previewUrl={it.previewUrl}
+                      alt={it.caption || title}
+                      allowRemove={false}
+                      onChange={(mid, url) => updateGalleryItem(it.uid, { mediaId: mid, previewUrl: url })}
+                      onError={setError}
+                    />
+                    <input
+                      type="text"
+                      value={it.caption}
+                      placeholder="Подпись (необязательно)"
+                      onChange={(e) => updateGalleryItem(it.uid, { caption: e.target.value })}
+                      className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    />
+                  </div>
+                ))
+              )}
+              <button
+                type="button"
+                onClick={addGalleryItem}
+                className="inline-flex h-9 items-center justify-center gap-1 self-start rounded-md border border-dashed border-input bg-background px-3 text-sm font-medium text-muted-foreground shadow-sm hover:bg-accent"
+              >
+                + Добавить изображение
+              </button>
             </div>
 
             {error ? (
