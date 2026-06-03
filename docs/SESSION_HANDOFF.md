@@ -3,45 +3,43 @@
 **Status:** ACTIVE
 **Updated:** 2026-06-03
 **Branch:** main
-**Last released version:** PR #91 (commit `298ed0b`) — inline-галерея на `/projects/[slug]/gallery` + хук `revalidateProject`. Прод: health 200, авто-деплой OK, новый код подтверждён по маркеру (`flex items-start justify-between` в анон-HTML `/gallery`).
+**Last released version:** PR #96 (commit `059690c`) — media-чистильщик ротирует legacy `public/media`. Прод: health 200, авто-деплой OK (зелёный после починки серта), TLS-серт переиздан до 2026-09-01.
 
 ---
 
 ## Текущая нитка
 
-**On-site редактирование контента/интерфейса прямо на сайте** (план [`docs/plans/inline-onsite-editing.md`](plans/inline-onsite-editing.md)). Основные части на проде. В сессии **2026-06-03 (machine A)** добавлена inline-правка **галереи проекта**:
-- **#90** — мини-галерея (массив `gallery` image+caption) в `ProjectDetailEditor` на `/projects/[slug]`.
-- **#91** — полная галерея на `/projects/[slug]/gallery` через новый `ProjectGalleryEditor` + новый `afterChange`/`afterDelete`-хук `revalidateProject` (force-static страница без явного `revalidatePath` не обновлялась).
-- **#89** (вне inline-нитки) — якорь #014 consult-library в `CLAUDE.md` (закрыл `recommend` от brain).
+**Единая медиа → довести до «идеала».** Схема работает (Я.Диск primary, горячее лениво оседает на VPS, daily-таймер `gonba-media-cache.timer` ротирует по atime/TTL-30д), и в этой сессии legacy `public/media` (409MB) заведён в ту же ротацию ([#96](https://github.com/Valstan/Gonba/pull/96), на проде). **Но atime на этом VPS — шумный сигнал спроса:** `media-cache` и `media` лежат внутри `public/`, который задевается деплой-сборкой → dry-run сейчас вымывает 0. Чистая схема ещё не достигнута.
 
 ## Следующий шаг
 
-1. **Прод-доверификация галереи (#90/#91)** — залогиниться редактором: на `/projects/<slug>` («Редактировать проект» → раздел «Мини-галерея») и на `/projects/<slug>/gallery` («Редактировать фотографии»): заменить файл / «Из загруженных» / подпись / +добавить / удалить → Сохранить → проверить рендер **и что force-static `/gallery` обновляется сразу** (валидирует `revalidateProject`). Локально не делалось: нет admin-сессии и Я.Диск-токена. Тот же путь, что в #85.
-2. **Чистка `footer.navItems`** — down-миграция `DROP TABLE footer_nav_items/footer_rels` + убрать скрытое поле из `web/src/Footer/config.ts`. Destructive на проде — под OK владельца.
-3. Прочие открытые направления (не inline): Media-library Phase C/D, VK source #5 (ждёт рабочего токена + пере-сохранения в `/admin`). См. `PENDING_FOLLOWUPS.md`.
+**Довести единую медиа до чистой demand-схемы** (детали — `PENDING_FOLLOWUPS.md → 🟡 Единая медиа: вынести кэш из public/`):
+1. **Вынести кэш из `public/`:** добавить `MEDIA_CACHE_DIR=/var/lib/gonba/media-cache` в `/etc/gonba/gonba.env` (root-правка), создать папку (`valstan:valstan`), restart `gonba`. `gonba-media-cache.service` уже читает `EnvironmentFile` → подхватит. Proxy и чистильщик берут путь из той же env. Сборка больше не трогает кэш → atime станет честным сигналом.
+2. **Разовый слив legacy:** все 363 media-записи имеют `yandexPath` (0 без, 0 `yandex_error`) → удалить локальные копии в `public/media` один раз (дотянутся по спросу в новый кэш). Сначала dry-run/бэкап-список, потом под OK владельца. Заодно вычистить ~33 orphan-файла (нет записи в БД, proxy не отдаёт).
+3. После — проверить, что dry-run чистильщика начинает видеть холодное (atime реально стареет вне `public/`).
 
 ## Контекст
 
-- **Планы:** [`inline-onsite-editing.md`](plans/inline-onsite-editing.md) (основное на проде), [`media-library-integrity.md`](plans/media-library-integrity.md) (Phase C/D — todo).
+- **План:** отдельного плана нет; всё в `PENDING_FOLLOWUPS.md → 🟡 Единая медиа` + `docs/plans/media-library-integrity.md` (Phase C/D — usage-связи/safe-delete/дедуп, не блокер).
 - **Связанные коммиты сессии (2026-06-03, machine A):**
-  - `298ed0b` (#91) — `ProjectGalleryEditor.client.tsx` (fetch-on-open `GET /api/projects/{id}?depth=0`, round-trip id строк массива) на `/gallery` + `Projects/hooks/revalidateProject.ts` (`afterChange`/`afterDelete` → `safeRevalidatePath('/projects/{slug}'` + `/gallery)`, идиом `revalidatePost`/`revalidatePage`). Без миграций.
-  - `670795e` (#90) — inline мини-галерея в `ProjectDetailEditor` (массив `gallery`, PATCH целиком при изменении, id существующих строк сохраняются, image required-валидация). Без миграций.
-  - `4a10e30` (#89) — docs: якорь #014 consult-library в `CLAUDE.md` + report-письмо `mailbox/to-brain/2026-06-03-consult-library-reflex-applied.md`.
-- **Dev-среда (machine A — ЭТА машина):** есть локальный Postgres :5433 с БД `gonba` (опубликованные проекты есть; `eco-hotel-booking` id=7, 1 фото в галерее) → серверный рендер страниц верифицируется локально (`pnpm dev`). Есть SSH deploy-ключ `~/.ssh/id_ed25519_gonba_deploy` + alias `GONBA` (в отличие от machine B вчера — там не было). Я.Диск-токен локально = placeholder → upload-на-Яндекс локально **не** тестируется. NB: при `pnpm dev` Next может застать :3000 занятым leftover-процессом → берёт :3001; чистить node по портам после (`Get-NetTCPConnection -LocalPort 3000,3001`).
-- **Прод:** ✅ на `298ed0b`, авто-деплой через `deploy-prod.yml`. Health 200. `/gallery` отдаёт новый код (маркер подтверждён).
-- **Прод-проверка с Windows:** curl к `гоньба.рф` падает `schannel CRYPT_E_REVOCATION_OFFLINE` → использовать `--ssl-no-revoke` + punycode `https://xn--80abf4be9f.xn--p1ai` (IDN). `gh`/`git` временами роняют соединение с github:443 — транзиент, повторять; **не доверять** exit-code хвостовой команды после `gh run watch` (проверять статус ран явно).
-- **Открытые вопросы для пользователя:** прод-доверификация галереи (Следующий шаг #1) ждёт сессии редактора; `footer.navItems` cleanup — destructive, под OK; опц. прод-cleanup inline домен-vars в `gonba.service` (PENDING).
+  - `059690c` (#96) — `web/scripts/clean-media-cache.ts`: `--dir` повторяемый, дефолт ротирует ДВЕ папки (`media-cache` + legacy `media`) с тем же 30д-atime-TTL, добавлены `--no-legacy`/`MEDIA_LEGACY_DIR`. Безвреден (eligible=0 сейчас). Сервис/таймер/env не трогались.
+  - `422e2e1` (#94) — footer: убран мёртвый `footer.navItems`, миграция `20260603_120000` DROP `footer_nav_items`/`footer_rels`/enum. Применена на проде (`payload migrate`, batch 7), задеплоено, подвал рендерится из `columns`/`description`/`legalAddress`.
+- **Прод-инцидент сессии (устранён):** TLS-серт `гоньба.рф` истёк 11:12 UTC, сайт лёг по HTTPS. Авто-обновление падало сутки (`authenticator = standalone` конфликтовал с nginx на :80). Фикс: `certbot certonly --nginx` → серт до 2026-09-01, метод переключён на nginx. Детали — memory `prod_tls_cert_renewal`.
+- **Прод:** ✅ на `059690c`, health 200, CDN все 200, серт валиден до 2026-09-01.
+- **Dev-среда (machine A):** локальный Postgres :5433 (БД `gonba`), SSH deploy-ключ `~/.ssh/id_ed25519_gonba_deploy` + alias `GONBA` есть. Я.Диск-токен локально = placeholder.
+- **Прод-проверка с Windows:** curl к `гоньба.рф` требует `--ssl-no-revoke` + punycode `https://xn--80abf4be9f.xn--p1ai`; публичный HTML отдаётся **gzip** → для grep-маркеров нужен `curl --compressed` (иначе ложный «маркер не найден»).
+- **Открытые вопросы для пользователя:** слив legacy `public/media` — destructive (удаление 363+33 файлов), под OK; галерея #90/#91 прод-доверификация ждёт сессии редактора.
 
 ## Failed approaches (этой нитки)
 
-_В сессии 2026-06-03 (machine A) отвергнутых подходов не было — #89/#90/#91 сработали с первого захода (typecheck/lint зелёные, серверная верификация локально + прод по маркеру)._ Durable (не повторять при любой будущей inline-работе): **mode-гейт inline-редакторов** и **полный Lexical на публичных страницах** — отвергнуты в прошлых сессиях; детали `git log -- docs/SESSION_HANDOFF.md` (#78).
+_В сессии 2026-06-03 (machine A) отвергнутых подходов не было — footer (#94), cert-фикс и media-#96 сработали с первого захода. Долгий форензик-разбор atime на проде не дал однозначной причины «почему atime свежий» (деплой/relatime/шум хоста), но вывод устойчив: **atime внутри `public/` ненадёжен → кэш надо вынести наружу** (следующий шаг). Durable-уроки прошлых ниток (mode-гейт inline-редакторов, полный Lexical на публичных страницах — отвергнуты) см. `git log -- docs/SESSION_HANDOFF.md` (#78)._
 
 ## Не забыть (low-priority)
 
-- 🔸 **Прод-верификация галереи (#90/#91)** — admin-клик + upload-на-Я.Диск + мгновенный refresh force-static `/gallery`.
-- 🔸 **Остаток security (low):** raw `GET /api/messages` отдаёт тела `isModerated`-сообщений (для строгости — collection `read` с Where-фильтром по `isModerated` для не-админов).
+- 🔸 **Прод-доверификация галереи #90/#91** — admin-клик + upload-на-Я.Диск + мгновенный refresh force-static `/gallery` (нужна сессия редактора; локально нет admin/Я.Диск-токена).
 - 🔸 **Остаток VK (low):** личная страница через короткое имя (`vk.com/<name>` без `id`) определится как сообщество — нужен `vk.com/idN` либо `utils.resolveScreenName`.
-- 🔸 Опц. прод-cleanup дублирующих inline `Environment=` домен-vars в `/etc/systemd/system/gonba.service` (команда в `docs/PROJECT.md → Systemd`).
+- 🔸 Опц. прод-cleanup дублирующих inline `Environment=` домен-vars в `/etc/systemd/system/gonba.service`.
+- 🔸 Удалить бэкап `/home/valstan/gonba.env.bak-20260530` (следующий деплой с новым `safe-build.sh` уже подтвердил).
 
 ---
 
