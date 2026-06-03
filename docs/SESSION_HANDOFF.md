@@ -3,43 +3,43 @@
 **Status:** ACTIVE
 **Updated:** 2026-06-03
 **Branch:** main
-**Last released version:** PR #91 (commit `298ed0b`) — inline-галерея на `/projects/[slug]/gallery` + хук `revalidateProject`. Прод: health 200, авто-деплой OK, новый код подтверждён по маркеру (`flex items-start justify-between` в анон-HTML `/gallery`).
+**Last released version:** PR #93 (commit `cbce1b4`) — security: скрытые модерацией сообщения закрыты из публичного read Messages. Прод: health 200, авто-деплой OK, фикс подтверждён на проде (anon `?where[isModerated][equals]=true` → `totalDocs=0`).
 
 ---
 
 ## Текущая нитка
 
-**On-site редактирование контента/интерфейса прямо на сайте** (план [`docs/plans/inline-onsite-editing.md`](plans/inline-onsite-editing.md)). Основные части на проде. В сессии **2026-06-03 (machine A)** добавлена inline-правка **галереи проекта**:
-- **#90** — мини-галерея (массив `gallery` image+caption) в `ProjectDetailEditor` на `/projects/[slug]`.
-- **#91** — полная галерея на `/projects/[slug]/gallery` через новый `ProjectGalleryEditor` + новый `afterChange`/`afterDelete`-хук `revalidateProject` (force-static страница без явного `revalidatePath` не обновлялась).
-- **#89** (вне inline-нитки) — якорь #014 consult-library в `CLAUDE.md` (закрыл `recommend` от brain).
+**Разбор бэклога (machine A, сессия 2026-06-03 вечер).** Прошли пред-согласованный список из 4 задач:
+
+- **#93 (security) — ✅ смержен+задеплоен.** raw `GET /api/messages` отдавал тела `isModerated`-сообщений (collection `read: anyone`). Новый document-level access `messagesPublicRead`: staff видят всё, остальные → Where-фильтр `{ isModerated: { not_equals: true } }`. Дополняет field-level `adminOrEditorField` из #87 (теперь закрыто и тело, и метаданные). Юнит-тест 7 кейсов.
+- **Media Phase B — оказалось уже сделано** 2026-06-01 (`mediaUpload.ts`). Проверено: дедуп универсален по всем сайт-редакторам. Поправлена устаревшая строка в `PENDING_FOLLOWUPS`.
+- **#94 (footer cleanup) — ✅ готов, open, ждёт деплоя.** Убрано мёртвое `footer.navItems` + миграция `20260603_120000` (DROP таблиц/enum). **НЕ смержен** — несёт destructive DROP на прод.
+- **Галерея #90/#91 — SSH-доверификация ✅.** Прод на коде, обе страницы 200 + маркер. Интерактивный click-through (логин редактором + Я.Диск) — owner-gated.
 
 ## Следующий шаг
 
-1. **Прод-доверификация галереи (#90/#91)** — залогиниться редактором: на `/projects/<slug>` («Редактировать проект» → раздел «Мини-галерея») и на `/projects/<slug>/gallery` («Редактировать фотографии»): заменить файл / «Из загруженных» / подпись / +добавить / удалить → Сохранить → проверить рендер **и что force-static `/gallery` обновляется сразу** (валидирует `revalidateProject`). Локально не делалось: нет admin-сессии и Я.Диск-токена. Тот же путь, что в #85.
-2. **Чистка `footer.navItems`** — down-миграция `DROP TABLE footer_nav_items/footer_rels` + убрать скрытое поле из `web/src/Footer/config.ts`. Destructive на проде — под OK владельца.
-3. Прочие открытые направления (не inline): Media-library Phase C/D, VK source #5 (ждёт рабочего токена + пере-сохранения в `/admin`). См. `PENDING_FOLLOWUPS.md`.
+1. **Деплой footer cleanup [#94](https://github.com/Valstan/Gonba/pull/94)** (destructive, под OK владельца) — миграция `20260603_120000` DROP'ает `footer_nav_items`/`footer_rels`/enum. Порядок (см. `deploy-prod.yml` safety-net): (а) `pg_dump` бэкап; (б) применить SQL на проде вручную (`up()` из миграции / `run-migrate.sh`) + `INSERT INTO payload_migrations`; (в) `gh pr merge 94 --squash`; (г) авто-деплой упадёт на safety-net (видит новый файл миграции) → запустить deploy через **workflow_dispatch** (guard пропускается); (д) проверить footer рендерится (description/columns/legalAddress), health 200. SQL round-trip уже провалидирован локально в ROLLBACK.
+2. **Прод-доверификация галереи #90/#91** (owner-gated) — залогиниться редактором: `/projects/<slug>` («Мини-галерея») и `/projects/<slug>/gallery` — заменить файл / «Из загруженных» / подпись / +добавить / удалить → Сохранить → проверить рендер **и мгновенный refresh force-static `/gallery`** (валидирует `revalidateProject`). Нужны admin-сессия + Я.Диск-токен.
+3. **Media Phase C** (следующий настоящий этап media-library, крупный) — usage-связи «где используется картинка» (read-only эндпоинт `GET /api/media/usage?id=...` с явной картой полей) + safe-delete с заменой. План `docs/plans/media-library-integrity.md`. Тестировать на копии прод-БД перед destructive-частями.
 
 ## Контекст
 
-- **Планы:** [`inline-onsite-editing.md`](plans/inline-onsite-editing.md) (основное на проде), [`media-library-integrity.md`](plans/media-library-integrity.md) (Phase C/D — todo).
-- **Связанные коммиты сессии (2026-06-03, machine A):**
-  - `298ed0b` (#91) — `ProjectGalleryEditor.client.tsx` (fetch-on-open `GET /api/projects/{id}?depth=0`, round-trip id строк массива) на `/gallery` + `Projects/hooks/revalidateProject.ts` (`afterChange`/`afterDelete` → `safeRevalidatePath('/projects/{slug}'` + `/gallery)`, идиом `revalidatePost`/`revalidatePage`). Без миграций.
-  - `670795e` (#90) — inline мини-галерея в `ProjectDetailEditor` (массив `gallery`, PATCH целиком при изменении, id существующих строк сохраняются, image required-валидация). Без миграций.
-  - `4a10e30` (#89) — docs: якорь #014 consult-library в `CLAUDE.md` + report-письмо `mailbox/to-brain/2026-06-03-consult-library-reflex-applied.md`.
-- **Dev-среда (machine A — ЭТА машина):** есть локальный Postgres :5433 с БД `gonba` (опубликованные проекты есть; `eco-hotel-booking` id=7, 1 фото в галерее) → серверный рендер страниц верифицируется локально (`pnpm dev`). Есть SSH deploy-ключ `~/.ssh/id_ed25519_gonba_deploy` + alias `GONBA` (в отличие от machine B вчера — там не было). Я.Диск-токен локально = placeholder → upload-на-Яндекс локально **не** тестируется. NB: при `pnpm dev` Next может застать :3000 занятым leftover-процессом → берёт :3001; чистить node по портам после (`Get-NetTCPConnection -LocalPort 3000,3001`).
-- **Прод:** ✅ на `298ed0b`, авто-деплой через `deploy-prod.yml`. Health 200. `/gallery` отдаёт новый код (маркер подтверждён).
-- **Прод-проверка с Windows:** curl к `гоньба.рф` падает `schannel CRYPT_E_REVOCATION_OFFLINE` → использовать `--ssl-no-revoke` + punycode `https://xn--80abf4be9f.xn--p1ai` (IDN). `gh`/`git` временами роняют соединение с github:443 — транзиент, повторять; **не доверять** exit-code хвостовой команды после `gh run watch` (проверять статус ран явно).
-- **Открытые вопросы для пользователя:** прод-доверификация галереи (Следующий шаг #1) ждёт сессии редактора; `footer.navItems` cleanup — destructive, под OK; опц. прод-cleanup inline домен-vars в `gonba.service` (PENDING).
+- **Планы:** [`media-library-integrity.md`](plans/media-library-integrity.md) (Phase B done → C/D todo), [`inline-onsite-editing.md`](plans/inline-onsite-editing.md) (основное на проде).
+- **Связанные коммиты/PR сессии (2026-06-03, machine A):**
+  - `cbce1b4` ([#93](https://github.com/Valstan/Gonba/pull/93), смержен) — `access/messagesPublicRead.ts` (document-level Where-фильтр) + Messages `read` + юнит-тест `messages-read-access.int.spec.ts`. Без миграций.
+  - [#94](https://github.com/Valstan/Gonba/pull/94) (**open**, ветка `chore/footer-drop-navitems`) — `Footer/config.ts` (убран navItems+импорт link) + миграция `20260603_120000.ts` (DROP, reversible down реконструирован из live-DDL, pool #017) + seed/russify перестали сеять footer.navItems. typecheck/lint чистые, CI зелёный.
+- **Прод:** ✅ на `cbce1b4`. Health 200. Security-фикс #93 подтверждён на проде. Прод имеет **0 чат-сообщений** сейчас (фикс preventive).
+- **Dev-среда (machine A):** локальный Postgres :5433, БД `gonba`. `psql.exe` — `C:\Program Files\PostgreSQL\17\bin\psql.exe` (не на PATH; DATABASE_URL в `web/.env`). SSH-ключ `~/.ssh/id_ed25519_gonba_deploy` + alias `GONBA` есть. Я.Диск-токен локально = placeholder.
+- **Открытые вопросы для владельца:** деплой #94 (destructive DROP, под OK); интерактивная верификация галереи (нужна сессия редактора); опц. прод-cleanup inline `Environment=` домен-vars в `gonba.service` (PENDING).
 
 ## Failed approaches (этой нитки)
 
-_В сессии 2026-06-03 (machine A) отвергнутых подходов не было — #89/#90/#91 сработали с первого захода (typecheck/lint зелёные, серверная верификация локально + прод по маркеру)._ Durable (не повторять при любой будущей inline-работе): **mode-гейт inline-редакторов** и **полный Lexical на публичных страницах** — отвергнуты в прошлых сессиях; детали `git log -- docs/SESSION_HANDOFF.md` (#78).
+_Отвергнутых подходов не было — все 4 задачи прошли с первого захода._ Заметка для будущих сессий: при удалении Payload-поля **typecheck ловит забытые писатели** — `footer.navItems` сидел не только в `Footer/config.ts`, но и в `endpoints/seed/index.ts` (×2) и `scripts/russify.ts`; первичный grep по `Footer/` их не нашёл, `tsc --noEmit` нашёл. Durable inline-уроки (mode-гейт редакторов, полный Lexical на публичных страницах — отвергнуты в прошлых сессиях) — см. `git log -- docs/SESSION_HANDOFF.md` (#78).
 
 ## Не забыть (low-priority)
 
-- 🔸 **Прод-верификация галереи (#90/#91)** — admin-клик + upload-на-Я.Диск + мгновенный refresh force-static `/gallery`.
-- 🔸 **Остаток security (low):** raw `GET /api/messages` отдаёт тела `isModerated`-сообщений (для строгости — collection `read` с Where-фильтром по `isModerated` для не-админов).
+- 🔸 **Деплой #94** (footer DROP) — destructive, порядок выше в «Следующий шаг #1».
+- 🔸 **Прод-верификация галереи #90/#91** — admin-клик + upload-на-Я.Диск + мгновенный refresh force-static `/gallery`.
 - 🔸 **Остаток VK (low):** личная страница через короткое имя (`vk.com/<name>` без `id`) определится как сообщество — нужен `vk.com/idN` либо `utils.resolveScreenName`.
 - 🔸 Опц. прод-cleanup дублирующих inline `Environment=` домен-vars в `/etc/systemd/system/gonba.service` (команда в `docs/PROJECT.md → Systemd`).
 
