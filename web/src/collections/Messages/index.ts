@@ -2,7 +2,7 @@ import type { CollectionConfig } from 'payload'
 
 import { adminOrEditor } from '../../access/adminOrEditor'
 import { adminOrEditorField } from '../../access/adminOrEditorField'
-import { anyone } from '../../access/anyone'
+import { messagesPublicRead } from '../../access/messagesPublicRead'
 
 export const Messages: CollectionConfig<'messages'> = {
   slug: 'messages',
@@ -11,8 +11,10 @@ export const Messages: CollectionConfig<'messages'> = {
     plural: 'Сообщения',
   },
   access: {
-    // Публичный read: посетители видят чат. Скрытые модерацией фильтруются на уровне endpoint.
-    read: anyone,
+    // Публичный read: посетители видят чат, но скрытые модерацией (isModerated)
+    // сообщения отдаются только админам/редакторам. Не-staff (вкл. raw GET
+    // /api/messages) получают Where-фильтр, исключающий скрытые тела.
+    read: messagesPublicRead,
     // Создание только через свой API-endpoint (с rate-limit и overrideAccess).
     create: adminOrEditor,
     update: adminOrEditor,
