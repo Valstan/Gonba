@@ -5,6 +5,7 @@ import { adminOrEditor } from '../../access/adminOrEditor'
 import { anyone } from '../../access/anyone'
 import { populatePublishedAt } from '../../hooks/populatePublishedAt'
 import { populateProjectTitle } from '../../hooks/populateProjectTitle'
+import { revalidateProject, revalidateProjectDelete } from './hooks/revalidateProject'
 import { defaultLexical } from '@/fields/defaultLexical'
 
 export const Projects: CollectionConfig<'projects'> = {
@@ -280,6 +281,8 @@ export const Projects: CollectionConfig<'projects'> = {
   hooks: {
     beforeValidate: [populateProjectTitle],
     beforeChange: [populatePublishedAt],
+    afterChange: [revalidateProject],
+    afterDelete: [revalidateProjectDelete],
   },
   versions: {
     drafts: true,

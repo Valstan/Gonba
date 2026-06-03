@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 
 import { Breadcrumbs } from '@/components/Breadcrumbs'
 import { Media } from '@/components/Media'
+import { ProjectGalleryEditor } from '@/components/InlineEdit/ProjectGalleryEditor.client'
 import { YandexGallerySection } from '@/components/Gallery/YandexGallerySection'
 import { listYandexGalleryFolder, type YandexGalleryItem } from '@/server/integrations/yandex-disk-gallery'
 import { queryProjectBySlug } from '../../queries'
@@ -150,7 +151,10 @@ export default async function ProjectGalleryPage({ params: paramsPromise }: Args
             { label: 'Галерея' },
           ]}
         />
-        <h1 className="mt-6 text-3xl font-semibold">Галерея проекта</h1>
+        <div className="mt-6 flex items-start justify-between gap-3">
+          <h1 className="text-3xl font-semibold">Галерея проекта</h1>
+          <ProjectGalleryEditor id={project.id} />
+        </div>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {deduped.map((media, index) => {
