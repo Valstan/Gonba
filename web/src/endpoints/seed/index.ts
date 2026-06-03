@@ -27,8 +27,6 @@ const collections: CollectionSlug[] = [
   'search',
 ]
 
-const globals: Array<'header' | 'footer'> = ['header', 'footer']
-
 const categories = ['Technology', 'News', 'Finance', 'Design', 'Software', 'Engineering']
 
 // Next.js revalidation errors are normal when seeding the database without a server running
@@ -50,21 +48,22 @@ export const seed = async ({
   // the custom `/api/seed` endpoint does not
   payload.logger.info(`— Clearing collections and globals...`)
 
-  // clear the database
-  await Promise.all(
-    globals.map((global) =>
-      payload.updateGlobal({
-        slug: global,
-        data: {
-          navItems: [],
-        },
-        depth: 0,
-        context: {
-          disableRevalidate: true,
-        },
-      }),
-    ),
-  )
+  // clear the database (каждый глобал — своими массивами: header.navItems,
+  // footer.columns; footer.navItems удалён, см. миграцию 20260603_120000)
+  await Promise.all([
+    payload.updateGlobal({
+      slug: 'header',
+      data: { navItems: [] },
+      depth: 0,
+      context: { disableRevalidate: true },
+    }),
+    payload.updateGlobal({
+      slug: 'footer',
+      data: { columns: [] },
+      depth: 0,
+      context: { disableRevalidate: true },
+    }),
+  ])
 
   await Promise.all(
     collections.map((collection) => payload.db.deleteMany({ collection, req, where: {} })),
@@ -345,29 +344,17 @@ export const seed = async ({
     payload.updateGlobal({
       slug: 'footer',
       data: {
-        navItems: [
+        columns: [
           {
-            link: {
-              type: 'custom',
-              label: 'Админка',
-              url: '/admin',
-            },
-          },
-          {
-            link: {
-              type: 'custom',
-              label: 'Исходный код',
-              newTab: true,
-              url: 'https://github.com/payloadcms/payload/tree/main/templates/website',
-            },
-          },
-          {
-            link: {
-              type: 'custom',
-              label: 'Payload CMS',
-              newTab: true,
-              url: 'https://payloadcms.com/',
-            },
+            heading: 'Ссылки',
+            items: [
+              { label: 'Админка', href: '/admin' },
+              {
+                label: 'Исходный код',
+                href: 'https://github.com/payloadcms/payload/tree/main/templates/website',
+              },
+              { label: 'Payload CMS', href: 'https://payloadcms.com/' },
+            ],
           },
         ],
       },
