@@ -246,13 +246,11 @@ ssh GONBA "sudo systemctl start gonba-vk-sync.service && journalctl -u gonba-vk-
 
 Все юниты грузят конфиг/секреты через `EnvironmentFile=-/etc/gonba/gonba.env` (ADR-0005). Домен-vars (`NEXT_PUBLIC_SERVER_URL` / `PAYLOAD_PUBLIC_SERVER_URL`) лежат **в `gonba.env`** и запекаются в бандл на build'е (`safe-build.sh` передаёт тот же `EnvironmentFile` в build-unit).
 
-> **Известный дрейф (на 2026-06-01):** установленный `gonba.service` дополнительно содержит **inline** `Environment=NEXT_PUBLIC_SERVER_URL=...` / `PAYLOAD_PUBLIC_SERVER_URL=...`. Это **избыточно** — те же значения уже в `gonba.env`. Репо-версия намеренно без них (canonical clean). Чтобы убрать дубль на проде (опционально, требует restart):
+> **Дрейф устранён 2026-06-04.** Ранее установленный `gonba.service` содержал избыточные **inline** `Environment=NEXT_PUBLIC_SERVER_URL=...` / `PAYLOAD_PUBLIC_SERVER_URL=...` (дублировали `gonba.env`). Убраны точечным `sed` (бэкап `gonba.service.bak-20260604`) + `daemon-reload` + restart; обе переменные подтверждены в env процесса (теперь из `gonba.env`), health 200, домен 200. Прод-unit теперь совпадает с canonical-репо-версией по содержимому env. Команда для справки (если дубль вернётся):
 > ```bash
-> ssh GONBA "sudo cp deploy/systemd/gonba.service /etc/systemd/system/gonba.service \
+> ssh GONBA "sudo sed -i '/^Environment=NEXT_PUBLIC_SERVER_URL=/d;/^Environment=PAYLOAD_PUBLIC_SERVER_URL=/d' /etc/systemd/system/gonba.service \
 >   && sudo systemctl daemon-reload && sudo systemctl restart gonba"
-> # либо точечно: sudo sed -i '/^Environment=NEXT_PUBLIC_SERVER_URL=/d;/^Environment=PAYLOAD_PUBLIC_SERVER_URL=/d' /etc/systemd/system/gonba.service
 > ```
-> После этого проверить `curl -fsS https://гоньба.рф/api/health` и что `/` рендерит карусель.
 
 Регулярный релизный flow — slash-команда `/reliz` (commit → push → PR → merge → safe-build → restart → проверки). Внутри `/reliz` build запускается через `scripts/safe-build.sh`, который оборачивает `next build` в `systemd-run --uid=valstan --gid=valstan`, чтобы переживать SSH-disconnect.
 
