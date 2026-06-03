@@ -10,32 +10,6 @@ import { post1 } from '@/endpoints/seed/post-1'
 import { post2 } from '@/endpoints/seed/post-2'
 import { post3 } from '@/endpoints/seed/post-3'
 
-const footerNav = [
-  {
-    link: {
-      type: 'custom',
-      label: 'Админка',
-      url: '/admin',
-    },
-  },
-  {
-    link: {
-      type: 'custom',
-      label: 'Исходный код',
-      newTab: true,
-      url: 'https://github.com/payloadcms/payload/tree/main/templates/website',
-    },
-  },
-  {
-    link: {
-      type: 'custom',
-      label: 'Payload CMS',
-      newTab: true,
-      url: 'https://payloadcms.com/',
-    },
-  },
-] satisfies Array<{ link: { type: 'custom'; label: string; url: string; newTab?: boolean } }>
-
 const run = async () => {
   const payload = await getPayload({ config: configPromise })
 
@@ -123,13 +97,6 @@ const run = async () => {
       context: { disableRevalidate: true },
     })
   }
-
-  await payload.updateGlobal({
-    slug: 'footer',
-    data: { navItems: footerNav },
-    overrideAccess: true,
-    context: { disableRevalidate: true },
-  })
 
   const replacements = [
     {

@@ -1,6 +1,5 @@
 import type { GlobalConfig } from 'payload'
 
-import { link } from '@/fields/link'
 import { adminOrEditor } from '@/access/adminOrEditor'
 import { revalidateFooter } from './hooks/revalidateFooter'
 
@@ -62,23 +61,6 @@ export const Footer: GlobalConfig = {
       name: 'legalAddress',
       type: 'text',
       label: 'Адрес в строке копирайта',
-    },
-    {
-      // Устаревшее поле из шаблона Payload (плоский список ссылок). Подвал его не
-      // рендерит — структура переехала в `columns`. Оставлено в схеме (таблицы
-      // footer_nav_items/footer_rels), чтобы миграция была чисто аддитивной (без
-      // DROP на проде); скрыто из админки. Удалить отдельной чистящей миграцией.
-      name: 'navItems',
-      type: 'array',
-      admin: {
-        hidden: true,
-      },
-      fields: [
-        link({
-          appearances: false,
-        }),
-      ],
-      maxRows: 6,
     },
   ],
   hooks: {
