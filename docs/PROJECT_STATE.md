@@ -91,7 +91,7 @@ scripts/                      — общие deploy/dev помощники
 ### Media — Я.Диск как primary, локалка как TTL-кэш (ADR-0001 Implemented 2026-05-22)
 - **Хранение:** Я.Диск — единственный долгосрочный источник. Все записи Media имеют `yandexPath`, `yandexPublicUrl`, `yandexResourceId`, `yandexSha256` и др. в sidebar-полях (readonly).
 - **Раздача:** через proxy endpoint `web/src/app/api/media/file/[id]/route.ts`:
-  - Cache lookup в `MEDIA_CACHE_DIR` (default `public/media-cache/`) → fallback `public/media/` (legacy)
+  - Cache lookup в `MEDIA_CACHE_DIR` (default `public/media-cache/`; **прод 2026-06-04: `/var/lib/gonba/media-cache`** — вынесен из `public/`, чтобы деплой-сборка не сбрасывала atime → честный сигнал спроса) → fallback `public/media/` (legacy; на проде слит в бэкап `~/media-legacy-bak-20260604` 2026-06-04, дотягивается с Я.Диска по спросу)
   - На cache miss — `getDownloadUrl(yandexPath)` (приватная одноразовая ссылка по токену), `body.tee()` в response + writeStream в кэш
   - Rate-limit 240/min на IP, headers `Cache-Control: max-age=30d immutable`, `X-Cache: HIT | HIT-LEGACY | MISS`
 - **Жизненный цикл файла:**

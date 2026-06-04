@@ -1,45 +1,45 @@
 # Session Handoff
 
-**Status:** ACTIVE
-**Updated:** 2026-06-03
+**Status:** IDLE
+**Updated:** 2026-06-04
 **Branch:** main
-**Last released version:** PR #96 (commit `059690c`) — media-чистильщик ротирует legacy `public/media`. Прод: health 200, авто-деплой OK (зелёный после починки серта), TLS-серт переиздан до 2026-09-01.
+**Last released version:** PR #97 (commit `1abed52`) на `main`. В сессии 2026-06-03→04 — только **прод-операции** (env / systemd / filesystem на VPS) + doc-правки; новых код-PR нет, прод-рантайм не менялся.
 
 ---
 
 ## Текущая нитка
 
-**Единая медиа → довести до «идеала».** Схема работает (Я.Диск primary, горячее лениво оседает на VPS, daily-таймер `gonba-media-cache.timer` ротирует по atime/TTL-30д), и в этой сессии legacy `public/media` (409MB) заведён в ту же ротацию ([#96](https://github.com/Valstan/Gonba/pull/96), на проде). **Но atime на этом VPS — шумный сигнал спроса:** `media-cache` и `media` лежат внутри `public/`, который задевается деплой-сборкой → dry-run сейчас вымывает 0. Чистая схема ещё не достигнута.
+_Нет активной нитки._ Сессия 2026-06-03→04 (machine B) закрыла **три направления, все на проде и верифицированы:**
+
+1. **Единая медиа → чистая demand-схема.** Кэш вынесен из `public/` (`MEDIA_CACHE_DIR=/var/lib/gonba/media-cache`) → деплой-сборка больше не сбрасывает atime; legacy `public/media` (409 МБ) слит **обратимо**; live re-fetch с Я.Диска подтверждён.
+2. **Дрейф systemd устранён.** Убраны дублирующие inline `Environment=` из `gonba.service` (домен-vars теперь только в `gonba.env`).
+3. **Прод-доверификация inline-галереи #90/#91.** Фичи работают: `id` строк держатся, force-static `/gallery` и мини-галерея обновляются **сразу** (`revalidateProject`).
+
+Ждём следующих задач.
 
 ## Следующий шаг
 
-**Довести единую медиа до чистой demand-схемы** (детали — `PENDING_FOLLOWUPS.md → 🟡 Единая медиа: вынести кэш из public/`):
-1. **Вынести кэш из `public/`:** добавить `MEDIA_CACHE_DIR=/var/lib/gonba/media-cache` в `/etc/gonba/gonba.env` (root-правка), создать папку (`valstan:valstan`), restart `gonba`. `gonba-media-cache.service` уже читает `EnvironmentFile` → подхватит. Proxy и чистильщик берут путь из той же env. Сборка больше не трогает кэш → atime станет честным сигналом.
-2. **Разовый слив legacy:** все 363 media-записи имеют `yandexPath` (0 без, 0 `yandex_error`) → удалить локальные копии в `public/media` один раз (дотянутся по спросу в новый кэш). Сначала dry-run/бэкап-список, потом под OK владельца. Заодно вычистить ~33 orphan-файла (нет записи в БД, proxy не отдаёт).
-3. После — проверить, что dry-run чистильщика начинает видеть холодное (atime реально стареет вне `public/`).
+Свободны для новой задачи. Единственное запланированное — снять два прод-бэкапа через пару дней (см. «Не забыть»); отдельной сессии не требует.
 
 ## Контекст
 
-- **План:** отдельного плана нет; всё в `PENDING_FOLLOWUPS.md → 🟡 Единая медиа` + `docs/plans/media-library-integrity.md` (Phase C/D — usage-связи/safe-delete/дедуп, не блокер).
-- **Связанные коммиты сессии (2026-06-03, machine A):**
-  - `059690c` (#96) — `web/scripts/clean-media-cache.ts`: `--dir` повторяемый, дефолт ротирует ДВЕ папки (`media-cache` + legacy `media`) с тем же 30д-atime-TTL, добавлены `--no-legacy`/`MEDIA_LEGACY_DIR`. Безвреден (eligible=0 сейчас). Сервис/таймер/env не трогались.
-  - `422e2e1` (#94) — footer: убран мёртвый `footer.navItems`, миграция `20260603_120000` DROP `footer_nav_items`/`footer_rels`/enum. Применена на проде (`payload migrate`, batch 7), задеплоено, подвал рендерится из `columns`/`description`/`legalAddress`.
-- **Прод-инцидент сессии (устранён):** TLS-серт `гоньба.рф` истёк 11:12 UTC, сайт лёг по HTTPS. Авто-обновление падало сутки (`authenticator = standalone` конфликтовал с nginx на :80). Фикс: `certbot certonly --nginx` → серт до 2026-09-01, метод переключён на nginx. Детали — memory `prod_tls_cert_renewal`.
-- **Прод:** ✅ на `059690c`, health 200, CDN все 200, серт валиден до 2026-09-01.
-- **Dev-среда (machine A):** локальный Postgres :5433 (БД `gonba`), SSH deploy-ключ `~/.ssh/id_ed25519_gonba_deploy` + alias `GONBA` есть. Я.Диск-токен локально = placeholder.
-- **Прод-проверка с Windows:** curl к `гоньба.рф` требует `--ssl-no-revoke` + punycode `https://xn--80abf4be9f.xn--p1ai`; публичный HTML отдаётся **gzip** → для grep-маркеров нужен `curl --compressed` (иначе ложный «маркер не найден»).
-- **Открытые вопросы для пользователя:** слив legacy `public/media` — destructive (удаление 363+33 файлов), под OK; галерея #90/#91 прод-доверификация ждёт сессии редактора.
-
-## Failed approaches (этой нитки)
-
-_В сессии 2026-06-03 (machine A) отвергнутых подходов не было — footer (#94), cert-фикс и media-#96 сработали с первого захода. Долгий форензик-разбор atime на проде не дал однозначной причины «почему atime свежий» (деплой/relatime/шум хоста), но вывод устойчив: **atime внутри `public/` ненадёжен → кэш надо вынести наружу** (следующий шаг). Durable-уроки прошлых ниток (mode-гейт inline-редакторов, полный Lexical на публичных страницах — отвергнуты) см. `git log -- docs/SESSION_HANDOFF.md` (#78)._
+- **Планы:** медиа — без отдельного плана (всё в `PENDING_FOLLOWUPS → Единая медиа` ✅); `docs/plans/media-library-integrity.md` (Phase C/D — usage/safe-delete/дедуп, не блокер); `docs/plans/inline-onsite-editing.md` (основное на проде).
+- **Прод-операции сессии (НЕ в git — конфиг/файлы на VPS):**
+  - Медиа: `MEDIA_CACHE_DIR=/var/lib/gonba/media-cache` в `/etc/gonba/gonba.env` (папка `valstan:valstan` 755) + restart; legacy `public/media` слит `mv → ~/media-legacy-bak-20260604`; 27 тёплых файлов старого `public/media-cache` перенесены в новый кэш. env подтверждён в `/proc/MainPID/environ`.
+  - systemd: `sed`-удаление 2 inline `Environment=` из `/etc/systemd/system/gonba.service` (бэкап `gonba.service.bak-20260604`), `daemon-reload` + restart.
+- **Doc-коммиты сессии (этот close-PR):** `web/.env.example` (+`MEDIA_CACHE_DIR`), `docs/PROJECT_STATE.md` (прод-кэш), `docs/PROJECT.md` (дрейф устранён), `docs/PENDING_FOLLOWUPS.md` (закрыты медиа + systemd + галерея).
+- **Также в сессии:** замёржен зависший handoff-PR #97 (доки догнали `main`); отправлено письмо `mailbox/to-brain/2026-06-04-atime-cache-outside-build-dir.md` (рефлекс #009).
+- **Прод:** ✅ health 200, домен 200, медиа отдаётся (Я.Диск/`HIT`). Серт до 2026-09-01.
+- **SSH с этой машины (machine B):** изолированный deploy-ключ `id_ed25519_gonba_deploy` **ОТСУТСТВУЕТ**; авторизован `~/.ssh/id_ed25519` (владелец добавил pubkey в `authorized_keys` valstan 2026-06-04 по паролю). Alias `GONBA` указывает на `id_rsa` (неавторизован) → ходить `ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes GONBA`.
+- **Открытые вопросы для пользователя:** нет.
 
 ## Не забыть (low-priority)
 
-- 🔸 **Прод-доверификация галереи #90/#91** — admin-клик + upload-на-Я.Диск + мгновенный refresh force-static `/gallery` (нужна сессия редактора; локально нет admin/Я.Диск-токена).
+- 🟢 **Снять 2 прод-бэкапа** через пару дней (после подтверждения, что demand re-fetch держится): `rm -rf ~/media-legacy-bak-20260604` (409 МБ) и `sudo rm /etc/systemd/system/gonba.service.bak-20260604`. Паттерн как с `gonba.env.bak`.
+- 🟢 **Тестовый мусор на проде** (оставлен по решению владельца 2026-06-04): caption `REVAL-CHECK-0604` + 2 добавленных фото у `eco-hotel-booking` (id=7) — снять за 10с в редакторе галереи.
+- 🟢 **Холодный кэш после слива:** первое открытие картинки ~1с (Я.Диск `MISS`), далее мгновенно (`HIT`) — ожидаемо, самовыравнивается по прогреву. Опц. скелет/спиннер на `InlineImage`-превью (перцептивно).
 - 🔸 **Остаток VK (low):** личная страница через короткое имя (`vk.com/<name>` без `id`) определится как сообщество — нужен `vk.com/idN` либо `utils.resolveScreenName`.
-- 🔸 Опц. прод-cleanup дублирующих inline `Environment=` домен-vars в `/etc/systemd/system/gonba.service`.
-- 🔸 Удалить бэкап `/home/valstan/gonba.env.bak-20260530` (следующий деплой с новым `safe-build.sh` уже подтвердил).
+- 🔸 Inline-правка остальных блоков project-detail (контакты/локация уже inline #85, галерея #90/#91).
 
 ---
 
