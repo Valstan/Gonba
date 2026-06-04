@@ -1,10 +1,17 @@
 import { cn } from '@/utilities/ui'
 import React from 'react'
 
-import { Card, CardPostData } from '@/components/Card'
+import { Card, CardPostData, CardRelationTo } from '@/components/Card'
+
+// Результаты поиска несут на себе целевую коллекцию и подсветку совпадений
+// (см. search/page.tsx). Архивы постов их не передают → fallback на 'posts'.
+export type ArchiveResult = CardPostData & {
+  relationTo?: CardRelationTo
+  highlight?: string
+}
 
 export type Props = {
-  posts: CardPostData[]
+  posts: ArchiveResult[]
 }
 
 export const CollectionArchive: React.FC<Props> = (props) => {
@@ -18,7 +25,13 @@ export const CollectionArchive: React.FC<Props> = (props) => {
             if (typeof result === 'object' && result !== null) {
               return (
                 <div className="col-span-4" key={index}>
-                  <Card className="h-full" doc={result} relationTo="posts" showCategories />
+                  <Card
+                    className="h-full"
+                    doc={result}
+                    highlight={result.highlight}
+                    relationTo={result.relationTo ?? 'posts'}
+                    showCategories
+                  />
                 </div>
               )
             }
