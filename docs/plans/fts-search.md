@@ -1,6 +1,6 @@
 # План: полнотекстовый поиск по сайту (Postgres FTS)
 
-**Статус:** Phase 1 в работе (2026-06-04). Идея из `brain` (`from-brain/2026-06-04-feature-ideas-fts-events-calendar.md`, одобрена владельцем, `suggest`).
+**Статус:** Phase 1 ✅ (на проде, `621c20a`) + Phase 2 ✅ «Coverage + подсветка» (2026-06-04, PR feat/fts-search-phase2). Phase 3 (pg_trgm/GIN) отложена. Идея из `brain` (`from-brain/2026-06-04-feature-ideas-fts-events-calendar.md`, одобрена владельцем, `suggest`).
 
 ## Контекст
 
@@ -47,14 +47,31 @@
 - `pnpm typecheck` + `pnpm lint`.
 - (опц.) dev-сервер `/search?q=...` — на Windows ловить «spawn UNKNOWN» (memory), достаточно скрипт-пробы.
 
-## Phase 2 — охват и опечатки (follow-up, не в этом PR)
+## Phase 2 — охват и подсветка ✅ (2026-06-04, PR feat/fts-search-phase2)
 
-- **Расширить индексируемые коллекции:** `searchPlugin({ collections: ['posts','pages','projects'] })` + разовый реиндекс существующих Pages/Projects (плагин синкает только на save). Нужен reindex-скрипт/пересохранение. Прод-операция.
-- **Опечаткоустойчивость (pg_trgm):** `CREATE EXTENSION pg_trgm` (суперюзер на проде, под OK владельца) + fallback-ветка `similarity(title, q) > 0.3` когда FTS дал 0 результатов, либо `word_similarity`. Индекс `gin (… gin_trgm_ops)`.
-- **GIN-индекс под FTS_EXPR** (perf) — миграция `CREATE INDEX … USING gin (FTS_EXPR)`; выражение IMMUTABLE (2-арг `to_tsvector` + `setweight`/`||`), но должно 1:1 совпадать с запросом. На проде — через миграцию (не `push`).
-- **Подсветка совпадений** (`ts_headline`) в выдаче — UX-плюс.
+Сделано (объём «Coverage + подсветка», одобрен владельцем):
+
+- **Расширены индексируемые коллекции:** `searchPlugin({ collections: ['posts','pages','projects'] })`. Полиморфная связь `doc` теперь требует FK-колонки `search_rels.pages_id`/`projects_id` (зеркало `posts_id`) → миграция `20260604_120000` (+`.sql`), идемпотентна, по образцу проверенного footer-паттерна (DO-block guard на `pg_constraint`). На проде `push:true` после build не доезжает → явная миграция.
+- **Reindex-скрипт** `web/scripts/reindex-search.ts` (`pnpm run search:reindex [-- --collections … --dry]`): пересохраняет published-документы (title→title, контент не меняется) → afterChange-хук плагина пересинкивает их в `search`. Ревалидация страниц глушится `context.disableRevalidate` (хуки уважают), синк поиска отрабатывает. Нужен т.к. плагин синкает только при save. **Прод-шаг ПОСЛЕ деплоя+миграции.**
+- **beforeSync** робастен к коллекциям без SEO-группы `meta` (Projects): заголовок/описание/превью деривируются из собственных полей (`title`, `excerpt`/`summary`, `heroImage`). `meta.image` заполняется всегда (SEO-картинка → heroImage) — страница поиска берёт превью единообразно, поэтому **убран posts-only heroImage-запрос** в `page.tsx` (и устранён риск slug-коллизии между коллекциями).
+- **Рендер-пайплайн:** результаты несут свою `relationTo` (из полиморфного `doc`) → `Card` строит правильный href (pages → `/slug`, posts → `/posts/slug`, projects → `/projects/slug`). `CollectionArchive` берёт per-doc `relationTo` с fallback `'posts'` (не ломает остальные 7 вызовов-архивов постов).
+- **Подсветка совпадений** (`ts_headline`): SQL отдаёт сниппет с маркерами `⟦…⟧`; `Card` рендерит их как `<mark>` через React-сплит (экранированно, **без XSS** — markers, не raw HTML). Локальная проба на реальной БД: морфология + ранжирование + подсветка корректны (`олень`→оленей/олени/оленью, `мастер класс`→Мастер‑классы), мусор→0 без ошибок.
+
+### Verify (локально, 2026-06-04)
+- Script-проба FTS+ts_headline на живой БД (4 запроса) — морфология/ранжирование/подсветка ✅.
+- `search:reindex --collections pages,projects` + проба покрытия: `search_rels` получил pages/projects, `doc.relationTo` резолвится верно (projects «Бронирование ЭКО-отеля», pages «Главная»/«Контакты»). ✅
+- `pnpm typecheck` + `pnpm lint` — чисто.
+
+## Phase 3 — опечатки и perf (отложено, требует прод-DB-операций)
+
+- **Опечаткоустойчивость (pg_trgm):** `CREATE EXTENSION pg_trgm` (суперюзер на проде, под OK владельца) + fallback-ветка `similarity(title, q) > 0.3`/`word_similarity` когда FTS дал 0 результатов. Индекс `gin (… gin_trgm_ops)`.
+- **GIN-индекс под FTS_EXPR** (perf) — миграция `CREATE INDEX … USING gin (FTS_EXPR)`; выражение IMMUTABLE, должно 1:1 совпадать с запросом. При ~184 строках — преждевременная оптимизация, поэтому отложено.
 
 ## Файлы
 
-- `web/src/app/(frontend)/search/page.tsx` — переписан запрос (Phase 1).
-- (Phase 2) `web/src/plugins/index.ts`, миграция в `web/src/migrations/`, reindex-скрипт.
+- `web/src/app/(frontend)/search/page.tsx` — FTS-запрос (Phase 1) + ts_headline/relationTo (Phase 2).
+- `web/src/plugins/index.ts` — collections posts+pages+projects (Phase 2).
+- `web/src/search/beforeSync.ts` — робастная деривация meta для Projects (Phase 2).
+- `web/src/components/Card/index.tsx`, `CollectionArchive/index.tsx` — per-doc relationTo + подсветка (Phase 2).
+- `web/src/migrations/20260604_120000.ts`(+`.sql`), `web/src/migrations/index.ts` — search_rels FK-колонки (Phase 2).
+- `web/scripts/reindex-search.ts` + `package.json` script `search:reindex` (Phase 2).

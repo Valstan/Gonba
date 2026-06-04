@@ -1,18 +1,29 @@
 import type { Metadata } from 'next/types'
 
-import { CollectionArchive } from '@/components/CollectionArchive'
+import { CollectionArchive, type ArchiveResult } from '@/components/CollectionArchive'
 import configPromise from '@payload-config'
 import { getPayload } from 'payload'
 import React from 'react'
 import { Search } from '@/search/Component'
 import PageClient from './page.client'
-import { CardPostData } from '@/components/Card'
+import type { CardRelationTo } from '@/components/Card'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
 
 type Args = {
   searchParams: Promise<{
     q: string
   }>
+}
+
+// Маркеры подсветки ts_headline — редкие символы, не пересекаются с контентом.
+// Card рендерит их как <mark> (экранированно, без XSS).
+const HL = { start: '⟦', stop: '⟧' } as const
+
+// Достаём целевую коллекцию из полиморфного `doc` синк-записи (posts/pages/projects).
+const ALLOWED_RELS: readonly CardRelationTo[] = ['posts', 'pages', 'projects']
+const relationOf = (doc: unknown): CardRelationTo => {
+  const rel = (doc as { relationTo?: string } | null)?.relationTo
+  return ALLOWED_RELS.includes(rel as CardRelationTo) ? (rel as CardRelationTo) : 'posts'
 }
 // Взвешенный tsvector над синк-таблицей `search` (заголовок важнее меты).
 // 2-арг `to_tsvector('russian', …)` + setweight/|| — IMMUTABLE, безопасно для индекса (Phase 2).
@@ -27,26 +38,41 @@ const selectFields = {
   slug: true,
   categories: true,
   meta: true,
+  doc: true,
 } as const
 
 export default async function Page({ searchParams: searchParamsPromise }: Args) {
   const { q: query } = await searchParamsPromise
   const payload = await getPayload({ config: configPromise })
 
-  let docs: Record<string, unknown>[] = []
+  // Хидрейченные записи + целевая коллекция/подсветка для рендера карточек.
+  let archiveDocs: ArchiveResult[] = []
 
   if (query && query.trim()) {
     // Postgres FTS: рус. морфология (стемминг), мультислово/фразы через
     // websearch_to_tsquery, ранжирование по ts_rank. Параметризовано → без инъекций.
     // websearch_to_tsquery устойчив к мусорному вводу (не бросает на спецсимволах).
+    // ts_headline даёт подсветку совпадений в описании (маркеры ⟦…⟧ → <mark>).
     const pool = (
       payload.db as unknown as {
-        pool: { query: (text: string, params?: unknown[]) => Promise<{ rows: { id: number }[] }> }
+        pool: {
+          query: (
+            text: string,
+            params?: unknown[],
+          ) => Promise<{ rows: { id: number; snippet: string }[] }>
+        }
       }
     ).pool
 
     const { rows } = await pool.query(
-      `SELECT id FROM search
+      `SELECT id,
+              ts_headline(
+                'russian',
+                coalesce(meta_description, meta_title, title, ''),
+                websearch_to_tsquery('russian', $1),
+                'StartSel=${HL.start}, StopSel=${HL.stop}, MaxWords=35, MinWords=15, ShortWord=2'
+              ) AS snippet
+       FROM search
        WHERE ${FTS_EXPR} @@ websearch_to_tsquery('russian', $1)
        ORDER BY ts_rank(${FTS_EXPR}, websearch_to_tsquery('russian', $1)) DESC,
                 priority DESC NULLS LAST,
@@ -56,6 +82,12 @@ export default async function Page({ searchParams: searchParamsPromise }: Args) 
     )
 
     const ids = rows.map((r) => r.id)
+    // Подсветку показываем только когда совпадение реально подсвечено (есть маркеры).
+    const snippetMap = new Map(
+      rows
+        .filter((r) => r.snippet?.includes(HL.start))
+        .map((r) => [r.id, r.snippet]),
+    )
     if (ids.length) {
       const res = await payload.find({
         collection: 'search',
@@ -67,15 +99,17 @@ export default async function Page({ searchParams: searchParamsPromise }: Args) 
       })
       // Восстанавливаем порядок по релевантности (where:in возвращает произвольный порядок).
       const order = new Map(ids.map((id, i) => [id, i]))
-      docs = res.docs
+      archiveDocs = res.docs
         .slice()
-        .sort(
-          (a, b) =>
-            (order.get(a.id as number) ?? 0) - (order.get(b.id as number) ?? 0),
-        ) as Record<string, unknown>[]
+        .sort((a, b) => (order.get(a.id as number) ?? 0) - (order.get(b.id as number) ?? 0))
+        .map((doc) => ({
+          ...(doc as unknown as ArchiveResult),
+          relationTo: relationOf(doc.doc),
+          highlight: snippetMap.get(doc.id as number),
+        }))
     }
   } else {
-    // Пустой запрос — показываем свежие записи (как раньше).
+    // Пустой запрос — показываем свежие записи (как раньше), без подсветки.
     const res = await payload.find({
       collection: 'search',
       depth: 1,
@@ -83,46 +117,11 @@ export default async function Page({ searchParams: searchParamsPromise }: Args) 
       pagination: false,
       select: selectFields,
     })
-    docs = res.docs as Record<string, unknown>[]
+    archiveDocs = res.docs.map((doc) => ({
+      ...(doc as unknown as ArchiveResult),
+      relationTo: relationOf(doc.doc),
+    }))
   }
-
-  const slugs = docs
-    .map((doc) => (typeof doc.slug === 'string' ? doc.slug : null))
-    .filter((slug): slug is string => Boolean(slug))
-
-  const heroMap = new Map<string, unknown>()
-  if (slugs.length) {
-    const postsWithHero = await payload.find({
-      collection: 'posts',
-      depth: 1,
-      limit: slugs.length,
-      overrideAccess: false,
-      where: {
-        slug: {
-          in: slugs,
-        },
-      },
-      select: {
-        slug: true,
-        heroImage: true,
-      },
-    })
-
-    for (const doc of postsWithHero.docs) {
-      const slug = typeof doc.slug === 'string' ? doc.slug : null
-      if (!slug) continue
-      heroMap.set(slug, doc.heroImage)
-    }
-  }
-
-  const archiveDocs = docs.map((doc) => {
-    const slug = typeof doc.slug === 'string' ? doc.slug : null
-    if (!slug) return doc
-    return {
-      ...doc,
-      heroImage: heroMap.get(slug) || null,
-    }
-  })
 
   return (
     <div className="pt-24 pb-24">
@@ -141,7 +140,7 @@ export default async function Page({ searchParams: searchParamsPromise }: Args) 
       </div>
 
       {archiveDocs.length > 0 ? (
-        <CollectionArchive posts={archiveDocs as CardPostData[]} />
+        <CollectionArchive posts={archiveDocs} />
       ) : (
         <div className="container">Ничего не найдено.</div>
       )}

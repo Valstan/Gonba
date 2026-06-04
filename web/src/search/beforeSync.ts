@@ -5,7 +5,12 @@ export const beforeSyncWithSearch: BeforeSync = async ({ req, originalDoc, searc
     doc: { relationTo: collection },
   } = searchDoc
 
-  const { slug, id, categories, title, meta } = originalDoc
+  // Posts/Pages несут SEO-группу `meta`; Projects её не имеют — деривируем
+  // заголовок/описание/превью из собственных полей проекта.
+  const { slug, id, categories, title, meta, excerpt, summary, heroImage } = originalDoc
+
+  const metaImage = meta?.image?.id ?? meta?.image
+  const heroImageId = heroImage?.id ?? heroImage
 
   const modifiedDoc: DocToSync = {
     ...searchDoc,
@@ -13,8 +18,10 @@ export const beforeSyncWithSearch: BeforeSync = async ({ req, originalDoc, searc
     meta: {
       ...meta,
       title: meta?.title || title,
-      image: meta?.image?.id || meta?.image,
-      description: meta?.description,
+      // Превью: SEO-картинка → обложка (heroImage). Заполняем всегда, чтобы
+      // страница поиска бралась за meta.image единообразно для всех коллекций.
+      image: metaImage ?? heroImageId,
+      description: meta?.description || excerpt || summary || undefined,
     },
     categories: [],
   }

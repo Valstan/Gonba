@@ -10,16 +10,32 @@ import { Media } from '@/components/Media'
 
 export type CardPostData = Pick<Post, 'slug' | 'categories' | 'meta' | 'title' | 'heroImage'>
 
+export type CardRelationTo = 'posts' | 'pages' | 'projects'
+
+// ts_headline возвращает подсветку с маркерами ⟦…⟧ (см. search/page.tsx).
+// Рендерим как экранированный текст React + <mark> на совпадениях — без XSS.
+const HighlightedSnippet: React.FC<{ value: string }> = ({ value }) => {
+  const parts = value.split(/⟦(.*?)⟧/)
+  return (
+    <p>
+      {parts.map((part, i) =>
+        i % 2 === 1 ? <mark key={i}>{part}</mark> : <Fragment key={i}>{part}</Fragment>,
+      )}
+    </p>
+  )
+}
+
 export const Card: React.FC<{
   alignItems?: 'center'
   className?: string
   doc?: CardPostData
-  relationTo?: 'posts'
+  highlight?: string
+  relationTo?: CardRelationTo
   showCategories?: boolean
   title?: string
 }> = (props) => {
   const { card, link } = useClickableCard({})
-  const { className, doc, relationTo, showCategories, title: titleFromProps } = props
+  const { className, doc, highlight, relationTo, showCategories, title: titleFromProps } = props
 
   const { slug, categories, heroImage, meta, title } = doc || {}
   const { description, image: metaImage } = meta || {}
@@ -28,7 +44,8 @@ export const Card: React.FC<{
   const hasCategories = categories && Array.isArray(categories) && categories.length > 0
   const titleToUse = titleFromProps || title
   const sanitizedDescription = description?.replace(/\s/g, ' ') // replace non-breaking space with white space
-  const href = `/${relationTo}/${slug}`
+  // Pages живут в корне (/slug); posts/projects — под своим префиксом.
+  const href = relationTo === 'pages' ? `/${slug}` : `/${relationTo}/${slug}`
 
   return (
     <article
@@ -78,7 +95,13 @@ export const Card: React.FC<{
             </h3>
           </div>
         )}
-        {description && <div className="mt-2">{description && <p>{sanitizedDescription}</p>}</div>}
+        {highlight ? (
+          <div className="mt-2">
+            <HighlightedSnippet value={highlight} />
+          </div>
+        ) : (
+          description && <div className="mt-2">{description && <p>{sanitizedDescription}</p>}</div>
+        )}
       </div>
     </article>
   )

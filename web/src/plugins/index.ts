@@ -95,7 +95,7 @@ export const plugins: Plugin[] = [
     },
   }),
   searchPlugin({
-    collections: ['posts'],
+    collections: ['posts', 'pages', 'projects'],
     beforeSync: beforeSyncWithSearch,
     searchOverrides: {
       labels: {
