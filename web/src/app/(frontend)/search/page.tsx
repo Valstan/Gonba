@@ -14,53 +14,79 @@ type Args = {
     q: string
   }>
 }
+// Взвешенный tsvector над синк-таблицей `search` (заголовок важнее меты).
+// 2-арг `to_tsvector('russian', …)` + setweight/|| — IMMUTABLE, безопасно для индекса (Phase 2).
+const FTS_EXPR = `(
+  setweight(to_tsvector('russian', coalesce(title, '')), 'A') ||
+  setweight(to_tsvector('russian', coalesce(meta_title, '')), 'B') ||
+  setweight(to_tsvector('russian', coalesce(meta_description, '')), 'C')
+)`
+
+const selectFields = {
+  title: true,
+  slug: true,
+  categories: true,
+  meta: true,
+} as const
+
 export default async function Page({ searchParams: searchParamsPromise }: Args) {
   const { q: query } = await searchParamsPromise
   const payload = await getPayload({ config: configPromise })
 
-  const posts = await payload.find({
-    collection: 'search',
-    depth: 1,
-    limit: 12,
-    select: {
-      title: true,
-      slug: true,
-      categories: true,
-      meta: true,
-    },
-    // pagination: false reduces overhead if you don't need totalDocs
-    pagination: false,
-    ...(query
-      ? {
-          where: {
-            or: [
-              {
-                title: {
-                  like: query,
-                },
-              },
-              {
-                'meta.description': {
-                  like: query,
-                },
-              },
-              {
-                'meta.title': {
-                  like: query,
-                },
-              },
-              {
-                slug: {
-                  like: query,
-                },
-              },
-            ],
-          },
-        }
-      : {}),
-  })
+  let docs: Record<string, unknown>[] = []
 
-  const slugs = posts.docs
+  if (query && query.trim()) {
+    // Postgres FTS: рус. морфология (стемминг), мультислово/фразы через
+    // websearch_to_tsquery, ранжирование по ts_rank. Параметризовано → без инъекций.
+    // websearch_to_tsquery устойчив к мусорному вводу (не бросает на спецсимволах).
+    const pool = (
+      payload.db as unknown as {
+        pool: { query: (text: string, params?: unknown[]) => Promise<{ rows: { id: number }[] }> }
+      }
+    ).pool
+
+    const { rows } = await pool.query(
+      `SELECT id FROM search
+       WHERE ${FTS_EXPR} @@ websearch_to_tsquery('russian', $1)
+       ORDER BY ts_rank(${FTS_EXPR}, websearch_to_tsquery('russian', $1)) DESC,
+                priority DESC NULLS LAST,
+                updated_at DESC
+       LIMIT 12`,
+      [query],
+    )
+
+    const ids = rows.map((r) => r.id)
+    if (ids.length) {
+      const res = await payload.find({
+        collection: 'search',
+        depth: 1,
+        limit: 12,
+        pagination: false,
+        where: { id: { in: ids } },
+        select: selectFields,
+      })
+      // Восстанавливаем порядок по релевантности (where:in возвращает произвольный порядок).
+      const order = new Map(ids.map((id, i) => [id, i]))
+      docs = res.docs
+        .slice()
+        .sort(
+          (a, b) =>
+            (order.get(a.id as number) ?? 0) - (order.get(b.id as number) ?? 0),
+        ) as Record<string, unknown>[]
+    }
+  } else {
+    // Пустой запрос — показываем свежие записи (как раньше).
+    const res = await payload.find({
+      collection: 'search',
+      depth: 1,
+      limit: 12,
+      pagination: false,
+      select: selectFields,
+    })
+    docs = res.docs as Record<string, unknown>[]
+  }
+
+  const slugs = docs
     .map((doc) => (typeof doc.slug === 'string' ? doc.slug : null))
     .filter((slug): slug is string => Boolean(slug))
 
@@ -89,7 +115,7 @@ export default async function Page({ searchParams: searchParamsPromise }: Args) 
     }
   }
 
-  const archiveDocs = posts.docs.map((doc) => {
+  const archiveDocs = docs.map((doc) => {
     const slug = typeof doc.slug === 'string' ? doc.slug : null
     if (!slug) return doc
     return {
