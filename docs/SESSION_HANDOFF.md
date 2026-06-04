@@ -3,43 +3,42 @@
 **Status:** IDLE
 **Updated:** 2026-06-04
 **Branch:** main
-**Last released version:** PR #97 (commit `1abed52`) на `main`. В сессии 2026-06-03→04 — только **прод-операции** (env / systemd / filesystem на VPS) + doc-правки; новых код-PR нет, прод-рантайм не менялся.
+**Last released version:** PR #100 (commit `621c20a`) — Postgres FTS на `/search`. Прод: health 200, авто-деплой OK, FTS подтверждён живым запросом (`олень`→`оленей`, `эко отель`→`ЭКО‑отель`).
 
 ---
 
 ## Текущая нитка
 
-_Нет активной нитки._ Сессия 2026-06-03→04 (machine B) закрыла **три направления, все на проде и верифицированы:**
+_Нет активной нитки — всё, что начато в этой сессии, доведено до прода и проверено._ Сессия 2026-06-04 (machine A) была короткой, между-ниточной: три самостоятельные поставки + старт фич-бэклога от brain.
 
-1. **Единая медиа → чистая demand-схема.** Кэш вынесен из `public/` (`MEDIA_CACHE_DIR=/var/lib/gonba/media-cache`) → деплой-сборка больше не сбрасывает atime; legacy `public/media` (409 МБ) слит **обратимо**; live re-fetch с Я.Диска подтверждён.
-2. **Дрейф systemd устранён.** Убраны дублирующие inline `Environment=` из `gonba.service` (домен-vars теперь только в `gonba.env`).
-3. **Прод-доверификация inline-галереи #90/#91.** Фичи работают: `id` строк держатся, force-static `/gallery` и мини-галерея обновляются **сразу** (`revalidateProject`).
-
-Ждём следующих задач.
+**Сделано в сессии:**
+- **#98** — домержен зависший close-session handoff machine B (media-demand-схема финализирована, нитка закрыта). Снял рассинхрон: на `main` висел `ACTIVE`-handoff, уже неактуальный.
+- **#99** (`fix/build`) — `next-sitemap` встроен прямо в `build:raw`. Латентный баг: `postbuild`-хук npm срабатывает только для скрипта с именем `build`, а прод деплоит через `build:raw` → `robots.txt`/`sitemap.xml` не регенерились с May 18. Проверено на проде (timestamp → 2026-06-04). Параллельно: аудит G12 от brain — **GONBA не затронут** (next-sitemap static + `route.ts`, не metadata-в-route-group).
+- **#100** (`feat/fts-search`) — FTS-поиск Phase 1 (см. ниже).
 
 ## Следующий шаг
 
-Свободны для новой задачи. Единственное запланированное — снять два прод-бэкапа через пару дней (см. «Не забыть»); отдельной сессии не требует.
+_Свободны — ждём задачу._ Сильнейшие кандидаты из бэклога (оба одобрены владельцем, письмо brain `from-brain/2026-06-04-feature-ideas-fts-events-calendar.md`):
+
+1. **FTS-поиск Phase 2** — расширить индекс на `pages`/`projects` (+ разовый reindex существующих), опечаткоустойчивость `pg_trgm` (`CREATE EXTENSION`, суперюзер на проде, под OK), GIN-индекс под `FTS_EXPR`, подсветка `ts_headline`. План — [`docs/plans/fts-search.md`](plans/fts-search.md).
+2. **Афиша / календарь событий** — сперва скоординировать форму `Events`-коллекции с SabantuyMalmyzh через brain (просил свести по схеме), затем переиспользовать 1:1. Не начато.
 
 ## Контекст
 
-- **Планы:** медиа — без отдельного плана (всё в `PENDING_FOLLOWUPS → Единая медиа` ✅); `docs/plans/media-library-integrity.md` (Phase C/D — usage/safe-delete/дедуп, не блокер); `docs/plans/inline-onsite-editing.md` (основное на проде).
-- **Прод-операции сессии (НЕ в git — конфиг/файлы на VPS):**
-  - Медиа: `MEDIA_CACHE_DIR=/var/lib/gonba/media-cache` в `/etc/gonba/gonba.env` (папка `valstan:valstan` 755) + restart; legacy `public/media` слит `mv → ~/media-legacy-bak-20260604`; 27 тёплых файлов старого `public/media-cache` перенесены в новый кэш. env подтверждён в `/proc/MainPID/environ`.
-  - systemd: `sed`-удаление 2 inline `Environment=` из `/etc/systemd/system/gonba.service` (бэкап `gonba.service.bak-20260604`), `daemon-reload` + restart.
-- **Doc-коммиты сессии (этот close-PR):** `web/.env.example` (+`MEDIA_CACHE_DIR`), `docs/PROJECT_STATE.md` (прод-кэш), `docs/PROJECT.md` (дрейф устранён), `docs/PENDING_FOLLOWUPS.md` (закрыты медиа + systemd + галерея).
-- **Также в сессии:** замёржен зависший handoff-PR #97 (доки догнали `main`); отправлено письмо `mailbox/to-brain/2026-06-04-atime-cache-outside-build-dir.md` (рефлекс #009).
-- **Прод:** ✅ health 200, домен 200, медиа отдаётся (Я.Диск/`HIT`). Серт до 2026-09-01.
-- **SSH с этой машины (machine B):** изолированный deploy-ключ `id_ed25519_gonba_deploy` **ОТСУТСТВУЕТ**; авторизован `~/.ssh/id_ed25519` (владелец добавил pubkey в `authorized_keys` valstan 2026-06-04 по паролю). Alias `GONBA` указывает на `id_rsa` (неавторизован) → ходить `ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes GONBA`.
-- **Открытые вопросы для пользователя:** нет.
+- **Планы:** [`fts-search.md`](plans/fts-search.md) (Phase 1 на проде, Phase 2 — бэклог), [`media-library-integrity.md`](plans/media-library-integrity.md) (Phase C/D — todo).
+- **Связанные коммиты сессии (2026-06-04, machine A):**
+  - `621c20a` (#100) — `/search`: наивный `ILIKE '%q%'` → Postgres FTS. Взвешенный `tsvector` (title A/meta_title B/meta_description C) + `websearch_to_tsquery('russian', q)` + `ts_rank`, запрос через `payload.db.pool` (параметризован), хидрейт ранжированных id через `payload.find({where:{id:{in}}})` с пересортировкой. `russian`-конфиг встроенный → без расширений, без миграции (таблица `search` ~152 строки). Проверено на проде живым запросом.
+  - `4427723` (#99) — `build:raw` = `next build && next-sitemap …`; убран мёртвый `postbuild`.
+- **Dev-среда (machine A):** локальный Postgres :5433 (БД `gonba`, 152 строки в `search`), SSH deploy-ключ + alias `GONBA` есть. Я.Диск-токен локально = placeholder. NB: standalone tsx-скрипты с `getPayload` триггерят drizzle `push` → виснет на y/N (footer_nav_items drop) → обходить `yes y | …`; для чистой интроспекции БД лучше `payload.db.pool` (свой `pg` не хойстится при pnpm strict).
+- **Прод:** ✅ на `621c20a`, health 200, серт до 2026-09-01. FTS на `/search` живой.
+- **Прод-проверка с Windows:** curl к `гоньба.рф` требует `--ssl-no-revoke` + punycode `https://xn--80abf4be9f.xn--p1ai` + `--compressed` (gzip); кириллицу в query слать **percent-encoded** (G11: `curl` в git-bash на Windows ломает не-ASCII). `gh ... -q '.status+"/"+…'` jq-конкатенация на этой машине возвращает пусто → запрашивать статусы ранов через `--json` без `-q`.
+- **Открытые вопросы для пользователя:** нет срочных. Афиша событий ждёт координации схемы через brain; FTS Phase 2 `pg_trgm` — потребует `CREATE EXTENSION` под OK.
 
 ## Не забыть (low-priority)
 
-- 🟢 **Снять 2 прод-бэкапа** через пару дней (после подтверждения, что demand re-fetch держится): `rm -rf ~/media-legacy-bak-20260604` (409 МБ) и `sudo rm /etc/systemd/system/gonba.service.bak-20260604`. Паттерн как с `gonba.env.bak`.
-- 🟢 **Тестовый мусор на проде** (оставлен по решению владельца 2026-06-04): caption `REVAL-CHECK-0604` + 2 добавленных фото у `eco-hotel-booking` (id=7) — снять за 10с в редакторе галереи.
-- 🟢 **Холодный кэш после слива:** первое открытие картинки ~1с (Я.Диск `MISS`), далее мгновенно (`HIT`) — ожидаемо, самовыравнивается по прогреву. Опц. скелет/спиннер на `InlineImage`-превью (перцептивно).
+- 🔸 **Остаток security (low):** raw `GET /api/messages` отдаёт тела `isModerated`-сообщений (для строгости — collection `read` с Where-фильтром по `isModerated` для не-админов).
 - 🔸 **Остаток VK (low):** личная страница через короткое имя (`vk.com/<name>` без `id`) определится как сообщество — нужен `vk.com/idN` либо `utils.resolveScreenName`.
-- 🔸 Inline-правка остальных блоков project-detail (контакты/локация уже inline #85, галерея #90/#91).
+- 🔸 Удалить бэкап `/home/valstan/gonba.env.bak-20260530` (несколько деплоев с новым `safe-build.sh` уже подтвердили).
 
 ---
 
