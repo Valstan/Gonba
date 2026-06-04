@@ -6,8 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "node ./scripts/run-with-watchdog.mjs --idle-ms=600000 --stagnation-ms=900000 --max-ms=1800000 -- corepack pnpm run build:raw",
-    "build:raw": "NODE_OPTIONS='--no-deprecation --max-old-space-size=6144' next build",
-    "postbuild": "next-sitemap --config next-sitemap.config.cjs",
+    "build:raw": "NODE_OPTIONS='--no-deprecation --max-old-space-size=6144' next build && next-sitemap --config next-sitemap.config.cjs",
     "dev": "NODE_OPTIONS='--no-deprecation --max-old-space-size=3072' next dev",
     "dev:prod": "NODE_OPTIONS=--no-deprecation rm -rf .next && pnpm build && pnpm start",
     "generate:importmap": "NODE_OPTIONS=--no-deprecation payload generate:importmap",
