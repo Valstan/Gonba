@@ -1114,9 +1114,12 @@ html {
    pointer-events:none, под контентом).
    ============================================================ */
 .project-decor {
-  position: fixed;
+  /* Внутри изолированного контекста проектного layout (relative isolate):
+     absolute-слой ПОВЕРХ фона body, контент над ним (z-1). Так раньше при
+     position:fixed; z-index:-1 фон body перекрывал слой и декор был не виден. */
+  position: absolute;
   inset: 0;
-  z-index: -1;
+  z-index: 0;
   pointer-events: none;
   overflow: hidden;
   color: var(--project-accent, var(--brand-forest));
