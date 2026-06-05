@@ -17,7 +17,7 @@ export const defaultLexical = lexicalEditor({
     BoldFeature(),
     ItalicFeature(),
     // Картинки внутри richText (нужно для VK-репостов: фото лентой в теле поста).
-    UploadFeature({ collections: { media: {} } }),
+    UploadFeature(),
     LinkFeature({
       enabledCollections: ['pages', 'posts'],
       fields: ({ defaultFields }) => {
