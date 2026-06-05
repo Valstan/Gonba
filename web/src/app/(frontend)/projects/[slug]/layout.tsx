@@ -31,6 +31,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
   return (
     <ProjectProvider project={project} enabledSections={enabledSections}>
       <div
+        className="relative isolate min-h-screen"
         style={
           {
             '--project-accent': accent,
@@ -39,11 +40,13 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
         }
       >
         <ProjectDecor slug={project.slug || slug} accentColor={project.accentColor} decorMotif={decorMotif} />
-        <ProjectNav />
-        <div key={project.slug} className="project-layout animate-fade-in pb-24 md:pb-0">
-          {children}
+        <div className="relative z-[1]">
+          <ProjectNav />
+          <div key={project.slug} className="project-layout animate-fade-in pb-24 md:pb-0">
+            {children}
+          </div>
+          <ProjectBottomTabs />
         </div>
-        <ProjectBottomTabs />
       </div>
     </ProjectProvider>
   )
