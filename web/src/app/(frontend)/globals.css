@@ -1101,3 +1101,80 @@ html {
     animation-duration: 180s;
   }
 }
+
+/* ============================================================
+   Индивидуальное оформление страниц проектов (ProjectDecor)
+   Фиксированный «обойный» слой: лёгкая accent-смывка + угловые
+   SVG-мотивы. Цель — красивый минимализм: заметно, но не
+   перетягивает внимание (низкая прозрачность, мягкие формы,
+   pointer-events:none, под контентом).
+   ============================================================ */
+.project-decor {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+  color: var(--project-accent, var(--brand-forest));
+  background:
+    radial-gradient(
+      1100px 560px at 82% -12%,
+      color-mix(in oklab, var(--project-accent, var(--brand-forest)) 10%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      820px 480px at -6% 112%,
+      color-mix(in oklab, var(--project-accent, var(--brand-forest)) 8%, transparent),
+      transparent 72%
+    );
+}
+
+.project-decor__corner {
+  position: absolute;
+  width: clamp(150px, 26vw, 320px);
+  height: clamp(150px, 26vw, 320px);
+  opacity: 0.07;
+}
+
+.project-decor__tr {
+  top: 0;
+  right: 0;
+}
+
+.project-decor__bl {
+  bottom: 0;
+  left: 0;
+}
+
+/* Зеркалит мотив, чтобы «вырастал» из своего угла. */
+.project-decor__flip {
+  transform: scaleX(-1);
+}
+
+.project-decor__band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  width: 100%;
+  opacity: 0.08;
+}
+
+.project-decor__bottom {
+  bottom: 0;
+}
+
+.project-decor__waves {
+  height: clamp(72px, 12vw, 150px);
+}
+
+/* На узких экранах декор чуть тише, чтобы не конкурировать с контентом. */
+@media (max-width: 640px) {
+  .project-decor__corner {
+    opacity: 0.05;
+    width: clamp(120px, 40vw, 200px);
+    height: clamp(120px, 40vw, 200px);
+  }
+  .project-decor__band {
+    opacity: 0.06;
+  }
+}

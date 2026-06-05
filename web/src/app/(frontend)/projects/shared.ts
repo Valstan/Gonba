@@ -43,6 +43,7 @@ export type ProjectRecord = Pick<
   showInOrbit?: boolean | null
   excerpt?: string | null
   chapterRoman?: EthnoChapterRoman | null
+  decorMotif?: 'auto' | 'floral' | 'vines' | 'lines' | 'geometric' | 'waves' | 'none' | null
 }
 
 export const DEFAULT_PROJECT_SECTIONS: ProjectSectionKey[] = ['feed', 'lavka', 'gallery', 'contacts', 'chat']

@@ -36,6 +36,7 @@ const getSelect = (): ProjectsSelect => ({
     showInOrbit: true,
     excerpt: true,
     chapterRoman: true,
+    decorMotif: true,
   } as unknown as Partial<ProjectsSelect>),
 })
 

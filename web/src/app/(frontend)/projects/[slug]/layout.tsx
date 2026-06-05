@@ -3,6 +3,7 @@ import type { CSSProperties, ReactNode } from 'react'
 
 import { ProjectNav } from '@/components/ProjectNav'
 import { ProjectBottomTabs } from '@/components/ProjectNav/ProjectBottomTabs'
+import { ProjectDecor, resolveProjectTheme, type DecorMotif } from '@/components/ProjectDecor'
 import { ProjectProvider } from '@/providers/ProjectContext'
 import { normalizeSections } from '../shared'
 import { queryProjectBySlug } from '../queries'
@@ -16,17 +17,15 @@ type LayoutProps = {
   }>
 }
 
-const FALLBACK_ACCENT = '#2d7a4f'
-
 export default async function ProjectLayout({ children, params }: LayoutProps) {
   const { slug } = await params
   const project = await queryProjectBySlug({ slug })
   if (!project) return notFound()
 
-  const accent =
-    typeof project.accentColor === 'string' && project.accentColor.trim().length > 0
-      ? project.accentColor.trim()
-      : FALLBACK_ACCENT
+  // Единый источник accent + мотива: явные поля проекта или детерминированный
+  // подбор по slug (чтобы проекты различались даже без ручной разметки).
+  const decorMotif = (project as { decorMotif?: DecorMotif | null }).decorMotif ?? null
+  const { accent } = resolveProjectTheme(project.slug || slug, project.accentColor, decorMotif)
   const enabledSections = normalizeSections(project.enabledSections)
 
   return (
@@ -39,6 +38,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
           } as CSSProperties
         }
       >
+        <ProjectDecor slug={project.slug || slug} accentColor={project.accentColor} decorMotif={decorMotif} />
         <ProjectNav />
         <div key={project.slug} className="project-layout animate-fade-in pb-24 md:pb-0">
           {children}
