@@ -308,11 +308,8 @@ body {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply text-foreground min-h-[100dvh] flex flex-col;
-    /* Фон вынесен на html-канву (см. ниже html{background}), а body — прозрачен,
-       чтобы общесайтовый фикс-слой декора .site-decor (z-index:-1) был виден
-       на всех страницах (фон body перекрывал бы negative-z слой). */
-    background-color: transparent;
+    @apply bg-background text-foreground min-h-[100dvh] flex flex-col;
+    background-color: var(--paper);
   }
 }
 
@@ -1110,88 +1107,90 @@ html {
 }
 
 /* ============================================================
-   Арт-декор: общесайтовый (.site-decor, fixed) + проектный
-   (.project-decor, absolute в изолированном layout). Лёгкая
-   accent-смывка (currentColor) + SVG-мотивы по углам. Цель —
-   красивый минимализм: заметно, но не перетягивает внимание.
-   Цвет слоя задаётся через color (currentColor в смывке/узорах).
+   Индивидуальное оформление страниц проектов (ProjectDecor)
+   Фиксированный «обойный» слой: лёгкая accent-смывка + угловые
+   SVG-мотивы. Цель — красивый минимализм: заметно, но не
+   перетягивает внимание (низкая прозрачность, мягкие формы,
+   pointer-events:none, под контентом).
    ============================================================ */
-.project-decor,
-.site-decor {
-  pointer-events: none;
-  overflow: hidden;
-  /* Угловые виньетки + лёгкая верхняя дымка; центр — чистая «бумага». */
-  background:
-    radial-gradient(900px 600px at 100% -5%, color-mix(in oklab, currentColor 22%, transparent), transparent 60%),
-    radial-gradient(760px 560px at -5% 105%, color-mix(in oklab, currentColor 16%, transparent), transparent 64%),
-    linear-gradient(180deg, color-mix(in oklab, currentColor 6%, transparent), transparent 320px);
-}
-
-/* Проектный слой: absolute внутри relative-isolate layout проекта (фон body
-   перекрыл бы negative-z), контент над ним (z-1). */
 .project-decor {
+  /* Внутри изолированного контекста проектного layout (relative isolate):
+     absolute-слой ПОВЕРХ фона body, контент над ним (z-1). Так раньше при
+     position:fixed; z-index:-1 фон body перекрывал слой и декор был не виден. */
   position: absolute;
   inset: 0;
   z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
   color: var(--project-accent, var(--brand-forest));
+  /* Угловые виньетки + лёгкая верхняя дымка: центр остаётся чистой «бумагой»,
+     accent читается в углах и сверху, рисунки-мотивы — главный акцент. */
+  background:
+    radial-gradient(
+      900px 600px at 100% -5%,
+      color-mix(in oklab, var(--project-accent, var(--brand-forest)) 22%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      760px 560px at -5% 105%,
+      color-mix(in oklab, var(--project-accent, var(--brand-forest)) 16%, transparent),
+      transparent 64%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--project-accent, var(--brand-forest)) 6%, transparent),
+      transparent 320px
+    );
 }
 
-/* Общесайтовый слой: fixed за контентом. Работает, т.к. фон вынесен на
-   html-канву, а body прозрачен (см. @layer base). */
-.site-decor {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  color: var(--decor-accent, var(--brand-forest));
-}
-
-/* Узор-«пятно» в углу слоя. Основные — крупнее/ярче, вторичные (.decor-sm) — мельче/бледнее. */
-.decor-spot {
+.project-decor__corner {
   position: absolute;
-  width: clamp(170px, 24vw, 360px);
-  aspect-ratio: 1;
-  opacity: 0.3;
+  width: clamp(190px, 30vw, 400px);
+  height: clamp(190px, 30vw, 400px);
+  opacity: 0.32;
 }
 
-.decor-sm {
-  width: clamp(110px, 15vw, 210px);
-  opacity: 0.2;
+/* Сдвинуты из-под шапки (сверху) и из-под футера (снизу) в видимые боковые поля. */
+.project-decor__tr {
+  top: clamp(88px, 12vh, 150px);
+  right: 0;
 }
 
-.decor-tr {
-  top: clamp(80px, 11vh, 150px);
-  right: -12px;
+.project-decor__bl {
+  bottom: clamp(96px, 16vh, 220px);
+  left: 0;
 }
 
-.decor-bl {
-  bottom: clamp(90px, 14vh, 210px);
-  left: -12px;
-}
-
-.decor-tl {
-  top: clamp(160px, 30vh, 380px);
-  left: -10px;
-}
-
-.decor-br {
-  bottom: clamp(160px, 28vh, 380px);
-  right: -10px;
-}
-
-/* Зеркалит угловые мотивы (lines/vines/leaves), чтобы «росли» из своего угла. */
-.decor-flip {
+/* Зеркалит мотив, чтобы «вырастал» из своего угла. */
+.project-decor__flip {
   transform: scaleX(-1);
 }
 
-/* На узких экранах декор тише и мельче, чтобы не конкурировать с контентом. */
+.project-decor__band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  width: 100%;
+  opacity: 0.26;
+}
+
+.project-decor__bottom {
+  bottom: clamp(48px, 9vh, 110px);
+}
+
+.project-decor__waves {
+  height: clamp(72px, 12vw, 150px);
+}
+
+/* На узких экранах декор чуть тише, чтобы не конкурировать с контентом. */
 @media (max-width: 640px) {
-  .decor-spot {
-    opacity: 0.16;
-    width: clamp(110px, 38vw, 200px);
+  .project-decor__corner {
+    opacity: 0.18;
+    width: clamp(130px, 42vw, 220px);
+    height: clamp(130px, 42vw, 220px);
   }
-  .decor-sm {
-    opacity: 0.12;
-    width: clamp(80px, 26vw, 150px);
+  .project-decor__band {
+    opacity: 0.16;
   }
 }
 

@@ -7,7 +7,6 @@ import { JetBrains_Mono, Manrope, PT_Serif } from 'next/font/google'
 import React from 'react'
 
 import { AdminBar } from '@/components/AdminBar'
-import { SiteDecor } from '@/components/SiteDecor.client'
 import { Footer } from '@/Footer/Component'
 import { Header } from '@/Header/Component'
 import { Providers } from '@/providers'
@@ -62,7 +61,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body>
         <Providers>
-          <SiteDecor />
           <AdminBar
             adminBarProps={{
               preview: isEnabled,
