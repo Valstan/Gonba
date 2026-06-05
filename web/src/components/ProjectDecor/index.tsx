@@ -111,12 +111,12 @@ function VinesMotif() {
   return (
     <>
       <svg className="project-decor__corner project-decor__tr project-decor__flip" viewBox="0 0 200 200" aria-hidden>
-        <path d={scroll} fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" />
-        <circle cx={130} cy={86} r={4} fill="currentColor" />
+        <path d={scroll} fill="none" stroke="currentColor" strokeWidth={4} strokeLinecap="round" />
+        <circle cx={130} cy={86} r={5} fill="currentColor" />
       </svg>
       <svg className="project-decor__corner project-decor__bl" viewBox="0 0 200 200" aria-hidden>
-        <path d={scroll} fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" />
-        <circle cx={130} cy={86} r={4} fill="currentColor" />
+        <path d={scroll} fill="none" stroke="currentColor" strokeWidth={4} strokeLinecap="round" />
+        <circle cx={130} cy={86} r={5} fill="currentColor" />
       </svg>
     </>
   )
@@ -126,7 +126,7 @@ function LinesMotif() {
   const rays = (cx: number, cy: number) =>
     Array.from({ length: 7 }, (_, i) => {
       const a = (i / 6) * (Math.PI / 2)
-      return <line key={i} x1={cx} y1={cy} x2={cx + Math.cos(a) * 175} y2={cy + Math.sin(a) * 175} stroke="currentColor" strokeWidth={1.4} />
+      return <line key={i} x1={cx} y1={cy} x2={cx + Math.cos(a) * 175} y2={cy + Math.sin(a) * 175} stroke="currentColor" strokeWidth={2.4} />
     })
   return (
     <>
@@ -143,10 +143,10 @@ function LinesMotif() {
 function GeometricMotif() {
   const diamonds = Array.from({ length: 6 }, (_, i) => {
     const s = 18 + i * 14
-    return <rect key={i} x={100 - s / 2} y={100 - s / 2} width={s} height={s} transform={`rotate(45 100 100)`} fill="none" stroke="currentColor" strokeWidth={1.6} />
+    return <rect key={i} x={100 - s / 2} y={100 - s / 2} width={s} height={s} transform={`rotate(45 100 100)`} fill="none" stroke="currentColor" strokeWidth={2.4} />
   })
   const chevrons = Array.from({ length: 8 }, (_, i) => (
-    <path key={i} d={`M${i * 26} 14 l13 -12 l13 12`} fill="none" stroke="currentColor" strokeWidth={1.6} />
+    <path key={i} d={`M${i * 26} 14 l13 -12 l13 12`} fill="none" stroke="currentColor" strokeWidth={2.4} />
   ))
   return (
     <>
@@ -171,7 +171,7 @@ function WavesMotif() {
   return (
     <svg className="project-decor__band project-decor__bottom project-decor__waves" viewBox="0 0 200 90" preserveAspectRatio="none" aria-hidden>
       {[0, 16, 32].map((y) => (
-        <path key={y} d={wave(y)} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
+        <path key={y} d={wave(y)} fill="none" stroke="currentColor" strokeWidth={3.2} strokeLinecap="round" />
       ))}
     </svg>
   )
