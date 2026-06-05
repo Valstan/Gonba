@@ -180,6 +180,8 @@ git checkout main && git pull --ff-only
 - **`payload migrate` в headless** (CI / SSH без TTY) подвисает на drizzle y/N. Использовать обёртку `bash scripts/run-migrate.sh` (внутри `yes y | ...`). Fallback при подвисе — `psql -f web/src/migrations/<file>.sql` + ручной `INSERT INTO payload_migrations`.
 - **На Windows** `corepack pnpm` нужен с `script-shell = C:\Program Files\Git\bin\bash.exe` (см. memory `windows_pnpm_setup`). `pnpm 11` несовместим — используй pnpm 10 через corepack.
 - **Локальный Postgres** для GONBA: установлен, `postgres:postgres@127.0.0.1:5432/gonba`. БД уже есть.
+- **Деплой — строго ПО ОДНОМУ (не параллелить).** `deploy-prod.yml` триггерится и от merge (авто, `workflow_run` на CI), и от ручного `gh workflow run`. Если запустить оба разом — `.next` пересобирается во время отдачи, манифест чанков рассинхронится → клиент ловит **ChunkLoadError** («Application error» на всех страницах), даже если код корректен (так был прод-outage 2026-06-05 при деплое site-decor). **Правило:** после merge ждать ЕДИНСТВЕННЫЙ авто-деплой; ручной dispatch — только когда авто-деплоя не будет (напр. повторный прогон). nginx тут чист (`proxy_pass` на Next, parens-чанки `app/(frontend)/…` отдаются 200) — дело не в скобках.
+- **Smoke-check деплоя НЕ ловит client-side ChunkLoadError** (проверяет HTTP 200 + контент-маркер в SSR-HTML). После деплоя фронт-изменений — **визуально проверить гидратацию в браузере** (Claude-in-Chrome: `getComputedStyle`/`document.title`/screenshot), не доверять только зелёному деплою. Класс «зелёный пайплайн ≠ корректный результат» (pool #011).
 
 ---
 
