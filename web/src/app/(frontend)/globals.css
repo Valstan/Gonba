@@ -378,6 +378,10 @@ html {
   background: var(--paper);
   border-bottom: 1px solid var(--rule);
   padding: 18px 0;
+  /* Hero-секции (PostHero и пр.) используют отрицательный -mt и перекрывали
+     статичную шапку, перехватывая клики по меню. Поднимаем шапку над ними. */
+  position: relative;
+  z-index: 50;
 }
 .ethno-header__inner {
   display: flex;
@@ -1133,18 +1137,19 @@ html {
 
 .project-decor__corner {
   position: absolute;
-  width: clamp(180px, 30vw, 380px);
-  height: clamp(180px, 30vw, 380px);
-  opacity: 0.2;
+  width: clamp(190px, 30vw, 400px);
+  height: clamp(190px, 30vw, 400px);
+  opacity: 0.22;
 }
 
+/* Сдвинуты из-под шапки (сверху) и из-под футера (снизу) в видимые боковые поля. */
 .project-decor__tr {
-  top: 0;
+  top: clamp(88px, 12vh, 150px);
   right: 0;
 }
 
 .project-decor__bl {
-  bottom: 0;
+  bottom: clamp(96px, 16vh, 220px);
   left: 0;
 }
 
@@ -1162,7 +1167,7 @@ html {
 }
 
 .project-decor__bottom {
-  bottom: 0;
+  bottom: clamp(48px, 9vh, 110px);
 }
 
 .project-decor__waves {
