@@ -51,7 +51,25 @@ export const Projects: CollectionConfig<'projects'> = {
       name: 'accentColor',
       type: 'text',
       admin: {
-        description: 'HEX-цвет, например #2d7a4f',
+        description: 'HEX-цвет, например #2d7a4f. Если пусто — подбирается из этно-палитры по slug проекта (каждый проект получит свой оттенок).',
+      },
+    },
+    {
+      name: 'decorMotif',
+      type: 'select',
+      options: [
+        { label: 'Авто (по проекту)', value: 'auto' },
+        { label: 'Цветы', value: 'floral' },
+        { label: 'Завитушки', value: 'vines' },
+        { label: 'Линии (арт-деко лучи)', value: 'lines' },
+        { label: 'Геометрия (ромбы/шеврон)', value: 'geometric' },
+        { label: 'Волны (река)', value: 'waves' },
+        { label: 'Без декора', value: 'none' },
+      ],
+      defaultValue: 'auto',
+      admin: {
+        description:
+          'Фоновый арт-декор страницы проекта (ненавязчивый, в accent-цвете). «Авто» — мотив подбирается по проекту, чтобы страницы различались. «Без декора» — чистый фон.',
       },
     },
     {
