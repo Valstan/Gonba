@@ -1123,18 +1123,23 @@ html {
   pointer-events: none;
   overflow: hidden;
   color: var(--project-accent, var(--brand-forest));
-  /* Угловые виньетки, а не сплошная заливка: центр остаётся чистой «бумагой»,
-     accent читается в углах, рисунки-мотивы — главный акцент. */
+  /* Угловые виньетки + лёгкая верхняя дымка: центр остаётся чистой «бумагой»,
+     accent читается в углах и сверху, рисунки-мотивы — главный акцент. */
   background:
     radial-gradient(
-      560px 420px at 100% 0%,
-      color-mix(in oklab, var(--project-accent, var(--brand-forest)) 13%, transparent),
+      900px 600px at 100% -5%,
+      color-mix(in oklab, var(--project-accent, var(--brand-forest)) 22%, transparent),
       transparent 60%
     ),
     radial-gradient(
-      520px 400px at 0% 100%,
-      color-mix(in oklab, var(--project-accent, var(--brand-forest)) 11%, transparent),
-      transparent 62%
+      760px 560px at -5% 105%,
+      color-mix(in oklab, var(--project-accent, var(--brand-forest)) 16%, transparent),
+      transparent 64%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--project-accent, var(--brand-forest)) 6%, transparent),
+      transparent 320px
     );
 }
 
@@ -1142,7 +1147,7 @@ html {
   position: absolute;
   width: clamp(190px, 30vw, 400px);
   height: clamp(190px, 30vw, 400px);
-  opacity: 0.22;
+  opacity: 0.32;
 }
 
 /* Сдвинуты из-под шапки (сверху) и из-под футера (снизу) в видимые боковые поля. */
@@ -1166,7 +1171,7 @@ html {
   left: 0;
   right: 0;
   width: 100%;
-  opacity: 0.16;
+  opacity: 0.26;
 }
 
 .project-decor__bottom {
@@ -1180,11 +1185,28 @@ html {
 /* На узких экранах декор чуть тише, чтобы не конкурировать с контентом. */
 @media (max-width: 640px) {
   .project-decor__corner {
-    opacity: 0.14;
+    opacity: 0.18;
     width: clamp(130px, 42vw, 220px);
     height: clamp(130px, 42vw, 220px);
   }
   .project-decor__band {
-    opacity: 0.12;
+    opacity: 0.16;
   }
+}
+
+/* ── Accent-окраска карточек проекта (per-project цвет на виду, не только в декоре) ──
+   --project-accent задаётся в projects/[slug]/layout. Карточки внутри .project-layout
+   получают accent-подложку/кант → страница «окрашена» в цвет проекта, но тактично. */
+.project-layout .container.rounded-3xl {
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--project-accent, var(--brand-forest)) 12%, var(--card)),
+    var(--card)
+  );
+  border-color: color-mix(in oklab, var(--project-accent, var(--brand-forest)) 35%, var(--border));
+  border-left: 4px solid var(--project-accent, var(--brand-forest));
+}
+
+.project-layout .rounded-2xl.border {
+  border-top: 3px solid color-mix(in oklab, var(--project-accent, var(--brand-forest)) 60%, transparent);
 }
