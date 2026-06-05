@@ -1,3 +1,5 @@
+import crypto from 'crypto'
+
 import type { Payload } from 'payload'
 import type { Post } from '@/payload-types'
 
@@ -170,41 +172,6 @@ async function fetchVkPosts(
 }
 
 /**
- * Скачивает изображение из VK и создаёт Media запись
- */
-async function downloadAndCreateMedia(
-  payload: Payload,
-  imageUrl: string,
-  filename: string,
-): Promise<number | null> {
-  try {
-    const imageResponse = await fetch(imageUrl)
-    if (!imageResponse.ok) return null
-
-    const blob = await imageResponse.blob()
-    const buffer = Buffer.from(await blob.arrayBuffer())
-
-    const mediaDoc = await payload.create({
-      collection: 'media',
-      overrideAccess: true,
-      data: {
-        alt: filename,
-      },
-      file: {
-        data: buffer,
-        name: filename,
-        mimetype: 'image/jpeg',
-        size: buffer.length,
-      },
-    })
-
-    return typeof mediaDoc.id === 'number' ? mediaDoc.id : Number(mediaDoc.id)
-  } catch {
-    return null
-  }
-}
-
-/**
  * Генерирует slug из текста (транслитерация)
  */
 function generateSlug(text: string): string {
@@ -227,52 +194,163 @@ function generateSlug(text: string): string {
 }
 
 /**
- * Создаёт Rich Text из обычного текста
+ * Убирает VK-разметку упоминаний из текста: `[club226176537|Название]`,
+ * `[id123|Имя]`, `[public..|..]`, `[https://..|текст]` → остаётся только
+ * человекочитаемая часть («Название»). Делает посты/заголовки опрятными.
  */
-function richTextFromText(text: string): Post['content'] {
-  if (!text || !text.trim()) {
-    return {
-      root: {
-        type: 'root',
-        children: [],
-        direction: null,
-        format: '',
-        indent: 0,
-        version: 1,
-      },
-    } as Post['content']
+export function stripVkMarkup(text: string): string {
+  if (!text) return text
+  return text.replace(/\[[^\]|]+\|([^\]]+)\]/g, '$1')
+}
+
+/** URL поста VK по знаковому owner_id и id поста: vk.com/wall<owner>_<post>. */
+export function vkPostUrl(ownerId: number, postId: number): string {
+  return `https://vk.com/wall${ownerId}_${postId}`
+}
+
+/** Все фото-вложения поста → массив URL самого крупного размера каждого фото. */
+export function extractVkPhotoUrls(post: VkWallPost): string[] {
+  if (!post.attachments) return []
+  const urls: string[] = []
+  for (const att of post.attachments) {
+    if (att.type !== 'photo' || !att.photo?.sizes?.length) continue
+    const largest = att.photo.sizes.reduce((prev, curr) => (curr.width > prev.width ? curr : prev))
+    if (largest?.url) urls.push(largest.url)
   }
+  return urls
+}
 
-  const paragraphs = text.split('\n').filter((line) => line.trim())
+/**
+ * Скачивает фото и создаёт Media, НО дедуплицирует по содержимому: считает
+ * sha256 байтов и переиспользует существующую запись Media с тем же
+ * `yandexSha256` (= sha файла на Я.Диске) → не плодит дубли в облаке.
+ * `runCache` (sha→id) защищает от дублей в рамках одного прогона (до того как
+ * afterChange успел проставить yandexSha256).
+ */
+export async function downloadDedupMedia(
+  payload: Payload,
+  imageUrl: string,
+  filename: string,
+  runCache: Map<string, number>,
+): Promise<number | null> {
+  try {
+    const res = await fetch(imageUrl)
+    if (!res.ok) return null
+    const buffer = Buffer.from(await (await res.blob()).arrayBuffer())
+    const sha = crypto.createHash('sha256').update(buffer).digest('hex')
 
-  return {
-    root: {
-      type: 'root',
-      children: paragraphs.map((paragraph) => ({
-        type: 'paragraph',
-        children: [
-          {
-            type: 'text',
-            detail: 0,
-            format: 0,
-            mode: 'normal',
-            style: '',
-            text: paragraph.trim(),
-            version: 1,
-          },
-        ],
-        direction: 'ltr',
-        format: '',
-        indent: 0,
-        textFormat: 0,
-        version: 1,
-      })),
+    if (runCache.has(sha)) return runCache.get(sha) as number
+
+    const existing = await payload.find({
+      collection: 'media',
+      where: { yandexSha256: { equals: sha } },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    })
+    if (existing.docs[0]) {
+      const id = Number(existing.docs[0].id)
+      runCache.set(sha, id)
+      return id
+    }
+
+    const doc = await payload.create({
+      collection: 'media',
+      overrideAccess: true,
+      data: { alt: filename },
+      file: { data: buffer, name: filename, mimetype: 'image/jpeg', size: buffer.length },
+    })
+    const id = Number(doc.id)
+    runCache.set(sha, id)
+    return id
+  } catch {
+    return null
+  }
+}
+
+function lexTextNode(text: string) {
+  return { detail: 0, format: 0, mode: 'normal', style: '', text, type: 'text', version: 1 }
+}
+
+/**
+ * Строит content поста: абзацы текста (с очисткой VK-разметки) + все фото
+ * (upload-узлы, видны лентой в теле) + ссылка-призыв «Почитать в ВК» в конце
+ * (завлекаем подписчиков в VK). Требует UploadFeature/LinkFeature в defaultLexical.
+ */
+export function buildVkPostContent(text: string, photoMediaIds: number[], sourceUrl: string | null): Post['content'] {
+  const cleaned = stripVkMarkup(text || '')
+  const children: Record<string, unknown>[] = []
+
+  for (const line of cleaned.split('\n')) {
+    const t = line.trim()
+    if (!t) continue
+    children.push({
+      type: 'paragraph',
+      children: [lexTextNode(t)],
       direction: 'ltr',
       format: '',
       indent: 0,
+      textFormat: 0,
       version: 1,
-    },
+    })
+  }
+
+  for (const id of photoMediaIds) {
+    children.push({ type: 'upload', version: 3, relationTo: 'media', value: id, fields: {}, format: '' })
+  }
+
+  if (sourceUrl) {
+    children.push({
+      type: 'paragraph',
+      direction: 'ltr',
+      format: '',
+      indent: 0,
+      textFormat: 0,
+      version: 1,
+      children: [
+        {
+          type: 'link',
+          version: 3,
+          direction: 'ltr',
+          format: '',
+          indent: 0,
+          fields: { linkType: 'custom', url: sourceUrl, newTab: true },
+          children: [lexTextNode('Почитать в ВК')],
+        },
+      ],
+    })
+  }
+
+  return {
+    root: { type: 'root', children, direction: 'ltr', format: '', indent: 0, version: 1 },
   } as Post['content']
+}
+
+/** Добавляет media в галерею проекта без дублей (по id). */
+export async function addPhotosToProjectGallery(
+  payload: Payload,
+  projectId: number | string,
+  mediaIds: number[],
+): Promise<void> {
+  if (mediaIds.length === 0) return
+  const project = await payload.findByID({ collection: 'projects', id: projectId, depth: 0, overrideAccess: true })
+  const current = Array.isArray((project as { gallery?: Array<{ image?: number | string }> }).gallery)
+    ? (project as { gallery: Array<{ image?: number | string }> }).gallery
+    : []
+  const existingIds = new Set(current.map((g) => Number(typeof g.image === 'object' ? (g.image as { id?: number }).id : g.image)))
+  const toAdd = mediaIds.filter((id) => !existingIds.has(id))
+  if (toAdd.length === 0) return
+  const gallery = [
+    ...current.map((g) => ({ image: typeof g.image === 'object' ? (g.image as { id?: number }).id : g.image })),
+    ...toAdd.map((id) => ({ image: id })),
+  ]
+  await payload.update({
+    collection: 'projects',
+    id: projectId,
+    data: { gallery, _status: 'published' } as Record<string, unknown>,
+    overrideAccess: true,
+    context: { disableRevalidate: true },
+  })
 }
 
 /**
@@ -423,25 +501,19 @@ export async function syncVkSource(
       }
     }
 
-    // Скачиваем первое изображение (если есть)
-    let heroImageId: number | undefined
-    if (newPost.attachments && newPost.attachments.length > 0) {
-      const photoAttachment = newPost.attachments.find((a) => a.type === 'photo')
-      if (photoAttachment?.photo?.sizes) {
-        const largestSize = photoAttachment.photo.sizes.reduce((prev, curr) =>
-          curr.width > prev.width ? curr : prev,
-        )
-        heroImageId =
-          (await downloadAndCreateMedia(
-          payload,
-          largestSize.url,
-          `vk-${newPost.id}-${Date.now()}.jpg`,
-        )) ?? undefined
-      }
+    // Скачиваем ВСЕ фото поста с дедупом по содержимому (не плодим дубли в облаке).
+    const photoUrls = extractVkPhotoUrls(newPost)
+    const runCache = new Map<string, number>()
+    const photoMediaIds: number[] = []
+    for (let pi = 0; pi < photoUrls.length; pi++) {
+      const id = await downloadDedupMedia(payload, photoUrls[pi], `vk-${groupId}-${newPost.id}-${pi}.jpg`, runCache)
+      if (id != null) photoMediaIds.push(id)
     }
+    const heroImageId: number | undefined = photoMediaIds[0]
 
-    // Формируем заголовок из первых 80 символов текста
-    const title = newPost.text.length > 80 ? newPost.text.substring(0, 80).trim() + '...' : newPost.text
+    // Заголовок: очищаем VK-разметку [club..|Имя] → Имя, затем обрезаем до 80.
+    const cleanTitleSrc = stripVkMarkup(newPost.text)
+    const title = cleanTitleSrc.length > 80 ? cleanTitleSrc.substring(0, 80).trim() + '...' : cleanTitleSrc
 
     // Slug: стабильный префикс `vk-<groupId>-<postId>` гарантирует уникальность
     // между группами и между постами одной группы, даже если text-suffix пуст
@@ -491,11 +563,11 @@ export async function syncVkSource(
         postType: postType || 'news',
         project: typeof project.id === 'number' ? project.id : Number(project.id),
         categories: categoryId ? [categoryId] : [],
-        content: richTextFromText(newPost.text),
+        content: buildVkPostContent(newPost.text, photoMediaIds, vkPostUrl(ownerId, newPost.id)),
         ...(heroImageId ? { heroImage: heroImageId } : {}),
         meta: {
           title,
-          description: newPost.text.substring(0, 150),
+          description: stripVkMarkup(newPost.text).substring(0, 150),
           ...(heroImageId ? { image: heroImageId } : {}),
         },
         _status: 'published',
@@ -506,6 +578,15 @@ export async function syncVkSource(
     })
 
     const createdPostId = typeof postDoc.id === 'number' ? postDoc.id : Number(postDoc.id)
+
+    // Все фото поста → в галерею проекта (без дублей по media id).
+    if (photoMediaIds.length > 0) {
+      try {
+        await addPhotosToProjectGallery(payload, project.id, photoMediaIds)
+      } catch (e) {
+        payload.logger.warn(`[vk-auto-sync] Не удалось добавить фото в галерею проекта ${project.id}: ${String(e)}`)
+      }
+    }
 
     // Обновляем источник (без syncLog — упрощаем)
     const newTotal = (sourceDoc.totalImported || 0) + 1
