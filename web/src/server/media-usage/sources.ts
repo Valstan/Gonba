@@ -41,9 +41,11 @@ export const COLLECTION_META: Record<string, CollectionMeta> = {
   events: { key: 'events', label: 'Событие', frontend: (s) => `/events/${s}` },
   services: { key: 'services', label: 'Услуга', frontend: (s) => `/services/${s}` },
   products: { key: 'products', label: 'Товар', frontend: (s) => `/shop/${s}` },
-  'vk-import-queue': { key: 'vk-import-queue', label: 'Очередь VK' },
+  // Ключ записи = slug коллекции Payload (для title-хидрейта/findByID), НЕ имя таблицы.
+  vkImportQueue: { key: 'vkImportQueue', label: 'Очередь VK' },
   media: { key: 'media', label: 'Подпись медиафайла', titleField: 'alt' },
-  home_carousel: { key: 'home_carousel', label: 'Карусель (глобал)', isGlobal: true },
+  // Глобал: slug 'homeCarousel' (таблица home_carousel). key → adminUrl /admin/globals/homeCarousel.
+  home_carousel: { key: 'homeCarousel', label: 'Карусель (глобал)', isGlobal: true },
 }
 
 export type MediaSource = {
@@ -73,7 +75,7 @@ export const MEDIA_SOURCES: MediaSource[] = [
   { collection: 'projects', field: 'Логотип', match: 'fk', table: 'projects', col: 'logo_id', hops: 0 },
   { collection: 'events', field: 'Обложка', match: 'fk', table: 'events', col: 'hero_image_id', hops: 0 },
   { collection: 'services', field: 'Обложка', match: 'fk', table: 'services', col: 'hero_image_id', hops: 0 },
-  { collection: 'vk-import-queue', field: 'Обложка', match: 'fk', table: 'vk_import_queue', col: 'hero_image_id', hops: 0 },
+  { collection: 'vkImportQueue', field: 'Обложка', match: 'fk', table: 'vk_import_queue', col: 'hero_image_id', hops: 0 },
   { collection: 'home_carousel', field: 'Центр карусели', match: 'fk', table: 'home_carousel', col: 'center_image_id', hops: 0 },
 
   // ── Gallery / image arrays directly on a doc (hops 1) ───────────────────────
