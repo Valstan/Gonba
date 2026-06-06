@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { formatDateTime } from 'src/utilities/formatDateTime'
 import React from 'react'
 
@@ -9,33 +10,48 @@ import { formatAuthors } from '@/utilities/formatAuthors'
 export const PostHero: React.FC<{
   post: Post
 }> = ({ post }) => {
-  const { categories, heroImage, populatedAuthors, publishedAt, title } = post
+  const { categories, heroImage, populatedAuthors, publishedAt, project, title } = post
 
   const hasAuthors =
     populatedAuthors && populatedAuthors.length > 0 && formatAuthors(populatedAuthors) !== ''
+
+  // Принадлежность поста к проекту — кликабельная ссылка в корень проекта.
+  // project приходит объектом (детальный запрос идёт с дефолтным depth).
+  const projectObj = project && typeof project === 'object' ? project : null
+  const projectSlug = projectObj?.slug
+  const projectName = projectObj?.title || projectObj?.shortLabel
 
   return (
     <div className="relative -mt-[10.4rem] flex items-end">
       <div className="container z-10 relative lg:grid lg:grid-cols-[1fr_48rem_1fr] text-white pb-8">
         <div className="col-start-1 col-span-1 md:col-start-2 md:col-span-2">
           <div className="uppercase text-sm mb-6">
-            {categories?.map((category, index) => {
-              if (typeof category === 'object' && category !== null) {
-                const { title: categoryTitle } = category
+            {projectSlug && projectName ? (
+              <Link
+                href={`/projects/${projectSlug}`}
+                className="underline-offset-4 transition-opacity hover:opacity-80 hover:underline"
+              >
+                {projectName}
+              </Link>
+            ) : (
+              categories?.map((category, index) => {
+                if (typeof category === 'object' && category !== null) {
+                  const { title: categoryTitle } = category
 
-                const titleToUse = categoryTitle || 'Без категории'
+                  const titleToUse = categoryTitle || 'Без категории'
 
-                const isLast = index === categories.length - 1
+                  const isLast = index === categories.length - 1
 
-                return (
-                  <React.Fragment key={index}>
-                    {titleToUse}
-                    {!isLast && <React.Fragment>, &nbsp;</React.Fragment>}
-                  </React.Fragment>
-                )
-              }
-              return null
-            })}
+                  return (
+                    <React.Fragment key={index}>
+                      {titleToUse}
+                      {!isLast && <React.Fragment>, &nbsp;</React.Fragment>}
+                    </React.Fragment>
+                  )
+                }
+                return null
+              })
+            )}
           </div>
 
           <div className="">

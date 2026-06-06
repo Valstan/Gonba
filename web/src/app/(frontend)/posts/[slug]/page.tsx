@@ -61,8 +61,12 @@ export default async function Post({ params: paramsPromise }: Args) {
   return (
     <>
       <article className="pt-16 pb-16">
-        <div className="container">
+        {/* z-20 поднимает крошки над PostHero (у него -mt-[10.4rem] + relative z-10),
+            иначе hero перехватывает клики по ссылкам крошек. overlay — белый текст
+            с тенью, читаемо поверх тёмного hero. */}
+        <div className="container relative z-20">
           <Breadcrumbs
+            variant="overlay"
             items={[
               { href: '/', label: 'Главная' },
               { href: '/posts', label: 'Посты' },
