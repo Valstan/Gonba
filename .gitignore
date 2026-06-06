@@ -67,3 +67,6 @@ thumbnails/
 docs/vk_export_*.txt
 docs/photo_*.jpg
 docs/Описание*.txt
+
+# Local DB backups
+*.dump
