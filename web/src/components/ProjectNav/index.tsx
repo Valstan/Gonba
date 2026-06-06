@@ -42,8 +42,8 @@ export const ProjectNav: React.FC = () => {
           <span className="truncate text-sm font-semibold sm:text-base">{project.shortLabel || project.title}</span>
         </Link>
 
-        <nav className="overflow-x-auto">
-          <ul className="flex items-center gap-2">
+        <nav>
+          <ul className="flex flex-wrap items-center gap-2 sm:justify-end">
             <li>
               <Link
                 href={buildSectionHref(project.slug, 'home')}

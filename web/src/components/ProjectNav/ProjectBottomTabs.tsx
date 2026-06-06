@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { HomeIcon, NewspaperIcon, ShoppingBagIcon, ImageIcon, MessageCircleIcon, type LucideIcon } from 'lucide-react'
+import { HomeIcon, NewspaperIcon, ShoppingBagIcon, ImageIcon, PhoneIcon, MessageCircleIcon, type LucideIcon } from 'lucide-react'
 import React from 'react'
 
 import { useProjectContext } from '@/providers/ProjectContext'
@@ -51,6 +51,14 @@ const TABS: TabConfig[] = [
     Icon: ImageIcon,
     href: (slug) => `/projects/${slug}/gallery`,
     isActive: (pathname, slug) => pathname.startsWith(`/projects/${slug}/gallery`),
+  },
+  {
+    key: 'contacts',
+    section: 'contacts',
+    label: 'Контакты',
+    Icon: PhoneIcon,
+    href: (slug) => `/projects/${slug}/contacts`,
+    isActive: (pathname, slug) => pathname.startsWith(`/projects/${slug}/contacts`),
   },
   {
     key: 'chat',
