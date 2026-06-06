@@ -18,6 +18,7 @@ import {
   publishYandexResource,
   uploadLocalFileToYandex,
 } from '../server/integrations/yandex-disk'
+import { preventDeleteIfInUse } from '../server/media-usage/preventDeleteHook'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -256,6 +257,7 @@ export const Media: CollectionConfig = {
         }
       },
     ],
+    beforeDelete: [preventDeleteIfInUse],
     afterDelete: [
       async ({ doc, req, context }) => {
         if (context?.skipYandexDelete) return
