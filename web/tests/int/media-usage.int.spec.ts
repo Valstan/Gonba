@@ -1,7 +1,20 @@
 import { describe, it, expect } from 'vitest'
 
-import { buildUsageQuery } from '@/server/media-usage/findMediaUsage'
+import { buildUsageQuery, type MediaUsageResult } from '@/server/media-usage/findMediaUsage'
+import { buildInUseMessage } from '@/server/media-usage/preventDeleteHook'
 import { COLLECTION_META, MEDIA_SOURCES } from '@/server/media-usage/sources'
+
+const usage = (over: Partial<MediaUsageResult['usages'][number]> = {}) => ({
+  collection: 'posts',
+  label: 'Запись',
+  isGlobal: false,
+  docId: 26,
+  title: 'Привет',
+  fields: ['Обложка'],
+  adminUrl: null,
+  frontendUrl: null,
+  ...over,
+})
 
 // Чистый билдер SQL карты использований media. Импорт findMediaUsage.ts не
 // поднимает Payload/БД (только type-импорт `Payload` + чистый билдер), поэтому
@@ -67,5 +80,39 @@ describe('buildUsageQuery', () => {
     // Подписи оборачиваются в '...'; апострофы (если появятся) удваиваются.
     expect(sql).toContain("'Обложка'::text")
     expect(sql).toContain("'В тексте'::text")
+  })
+})
+
+describe('buildInUseMessage (safe-delete C.2)', () => {
+  it('перечисляет место с полями и заголовком', () => {
+    const msg = buildInUseMessage({
+      mediaId: 5,
+      total: 1,
+      usages: [usage({ fields: ['Обложка', 'В тексте'] })],
+    })
+    expect(msg).toContain('используется (1)')
+    expect(msg).toContain('Запись «Привет» (Обложка, В тексте)')
+  })
+
+  it('глобал показывается без doc-заголовка', () => {
+    const msg = buildInUseMessage({
+      mediaId: 5,
+      total: 1,
+      usages: [
+        usage({ collection: 'home_carousel', label: 'Карусель (глобал)', isGlobal: true, docId: null, title: 'Карусель (глобал)', fields: ['Центр карусели'] }),
+      ],
+    })
+    expect(msg).toContain('Карусель (глобал) (Центр карусели)')
+  })
+
+  it('пустой title → #id', () => {
+    const msg = buildInUseMessage({ mediaId: 5, total: 1, usages: [usage({ docId: 42, title: null })] })
+    expect(msg).toContain('Запись «#42»')
+  })
+
+  it('обрезает список после 15 с «и ещё N»', () => {
+    const usages = Array.from({ length: 20 }, (_, i) => usage({ docId: i, title: `T${i}` }))
+    const msg = buildInUseMessage({ mediaId: 5, total: 20, usages })
+    expect(msg).toContain('и ещё 5')
   })
 })
