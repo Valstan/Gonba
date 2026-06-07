@@ -52,6 +52,18 @@ export const Media: CollectionConfig = {
       //required: true,
     },
     {
+      // Phase C.2 UI — «где используется» + force-delete / replace, в сайдбаре
+      // страницы правки медиафайла. См. web/src/components/Admin/MediaActions.
+      name: 'mediaActions',
+      type: 'ui',
+      admin: {
+        position: 'sidebar',
+        components: {
+          Field: '@/components/Admin/MediaActions',
+        },
+      },
+    },
+    {
       name: 'caption',
       type: 'richText',
       editor: lexicalEditor({
