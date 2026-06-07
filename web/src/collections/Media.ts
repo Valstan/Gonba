@@ -58,6 +58,9 @@ export const Media: CollectionConfig = {
       type: 'ui',
       admin: {
         position: 'sidebar',
+        // Виджет — только в сайдбаре страницы правки; в списке Media как колонка
+        // («Media Actions / Без метки») не нужен.
+        disableListColumn: true,
         components: {
           Field: '@/components/Admin/MediaActions',
         },
