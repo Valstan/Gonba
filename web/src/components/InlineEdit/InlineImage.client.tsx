@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 
 import { uploadOrReuseMedia } from '@/utilities/mediaUpload'
 import { MediaPicker } from './MediaPicker.client'
@@ -29,6 +29,15 @@ export const InlineImage: React.FC<Props> = ({ previewUrl, alt, onChange, onErro
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  // На холодном кэше превью грузится с Я.Диска ~1с (первый MISS) — показываем
+  // спиннер поверх бокса, пока <img> не отрисуется, чтобы пустой бокс не
+  // читался как «сломалось». На тёплом кэше (HIT ~10-30мс) спиннер едва мелькнёт.
+  const [imgLoading, setImgLoading] = useState(Boolean(previewUrl))
+
+  // Сброс индикатора при смене картинки (Заменить / Из загруженных).
+  useEffect(() => {
+    setImgLoading(Boolean(previewUrl))
+  }, [previewUrl])
 
   const upload = async (file: File) => {
     setUploading(true)
@@ -48,7 +57,23 @@ export const InlineImage: React.FC<Props> = ({ previewUrl, alt, onChange, onErro
     <div className="flex items-center gap-3">
       <div className="relative h-20 w-28 flex-none overflow-hidden rounded-md border bg-muted">
         {previewUrl ? (
-          <Image src={previewUrl} alt="Превью" fill sizes="112px" className="object-cover" unoptimized />
+          <>
+            <Image
+              src={previewUrl}
+              alt="Превью"
+              fill
+              sizes="112px"
+              className="object-cover"
+              unoptimized
+              onLoad={() => setImgLoading(false)}
+              onError={() => setImgLoading(false)}
+            />
+            {imgLoading ? (
+              <div className="absolute inset-0 flex items-center justify-center" aria-hidden>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground/80" />
+              </div>
+            ) : null}
+          </>
         ) : (
           <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">нет</div>
         )}
