@@ -25,6 +25,46 @@ type Props = {
 }
 
 /**
+ * Один thumbnail грида со своим индикатором загрузки. На холодном кэше Я.Диска
+ * первый показ картинки = ~1с round-trip (MISS) — спиннер поверх плитки даёт
+ * понять, что грузится, а не пусто/сломано. Отдельный компонент нужен, чтобы у
+ * каждой плитки было собственное состояние загрузки.
+ */
+const PickerThumb: React.FC<{ doc: MediaDoc; onPick: () => void }> = ({ doc, onPick }) => {
+  const [imgLoading, setImgLoading] = useState(Boolean(doc.url))
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      className="group relative aspect-square overflow-hidden rounded-md border bg-muted hover:ring-2 hover:ring-primary"
+      title={doc.filename || doc.alt || String(doc.id)}
+    >
+      {doc.url ? (
+        <>
+          {/* плоский img — в гриде их много, next/image тут избыточен */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={doc.url}
+            alt={doc.alt || ''}
+            loading="lazy"
+            onLoad={() => setImgLoading(false)}
+            onError={() => setImgLoading(false)}
+            className="h-full w-full object-cover"
+          />
+          {imgLoading ? (
+            <span className="absolute inset-0 flex items-center justify-center" aria-hidden>
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground/80" />
+            </span>
+          ) : null}
+        </>
+      ) : (
+        <span className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">нет</span>
+      )}
+    </button>
+  )
+}
+
+/**
  * Пикер существующих картинок из библиотеки Media (которые уже на сайте/Я.Диске).
  * Позволяет «подцепить» уже загруженный файл, не создавая дубль на Я.Диске.
  * Источник — Payload REST `GET /api/media` (cookie-auth).
@@ -110,26 +150,14 @@ export const MediaPicker: React.FC<Props> = ({ open, onClose, onSelect }) => {
           ) : (
             <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
               {docs.map((d) => (
-                <button
+                <PickerThumb
                   key={d.id}
-                  type="button"
-                  onClick={() => {
+                  doc={d}
+                  onPick={() => {
                     onSelect(d.id, d.url ?? null)
                     onClose()
                   }}
-                  className="group relative aspect-square overflow-hidden rounded-md border bg-muted hover:ring-2 hover:ring-primary"
-                  title={d.filename || d.alt || String(d.id)}
-                >
-                  {d.url ? (
-                    // плоский img — в гриде их много, next/image тут избыточен
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={d.url} alt={d.alt || ''} loading="lazy" className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
-                      нет
-                    </span>
-                  )}
-                </button>
+                />
               ))}
             </div>
           )}
