@@ -30,6 +30,9 @@ export const Media: CollectionConfig = {
     plural: 'Медиа',
   },
   admin: {
+    // Встроенный поиск админ-списка: по умолчанию ищет только по useAsTitle
+    // (filename) — расширяем на alt, чтобы находить картинки по описанию.
+    listSearchableFields: ['filename', 'alt'],
     components: {
       views: {
         list: {
