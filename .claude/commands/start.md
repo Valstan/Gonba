@@ -8,11 +8,23 @@ allowed-tools: Read, Bash, Glob, Grep, AskUserQuestion, mcp__ccd_session__mark_c
 
 Задача: за один заход войти в полный контекст проекта и доложить пользователю что нового, какие хвосты и чем заняться.
 
-**Никаких изменений** — только чтение и git-fetch.
+**Никаких изменений** — только чтение и git-sync.
 
-## Шаг 0. Активная нитка из прошлой сессии
+## Шаг 0. Git sync — ДО чтения handoff (pool #032)
 
-Прочитай `docs/SESSION_HANDOFF.md` **первым делом** (до глобального read-блока). Парси YAML-like заголовок:
+**Жёсткий порядок:** сначала синхронизация с remote, потом чтение `SESSION_HANDOFF.md`. Иначе сессия начинает работу по устаревшему состоянию, а свежий handoff приезжает позже → путаница «что-то уже сделано, новые задачи прозеваны». См. [pool #032](../../../brain_matrica/cross-project-ideas/ideas/032-session-start-sync-before-state.md).
+
+В одном блоке Bash:
+
+- `git status --short --branch`
+- `git fetch --all --tags --prune`
+- `git status --short --branch` ещё раз — оценить ahead/behind
+
+**`git pull --ff-only` без подтверждения** только если: мы на `main`, есть `behind` без `ahead`, рабочее дерево чистое. Иначе — отчитаться и подождать решения (handoff при этом читать из текущего рабочего дерева, помечая в отчёте, что состояние могло устареть).
+
+## Шаг 0.1. Активная нитка из прошлой сессии
+
+**Только после** git-sync шага 0 прочитай `docs/SESSION_HANDOFF.md` (до глобального read-блока). Парси YAML-like заголовок:
 
 - `Status:` — `ACTIVE` или `IDLE`
 - `Updated:` — дата `YYYY-MM-DD`
@@ -22,7 +34,7 @@ allowed-tools: Read, Bash, Glob, Grep, AskUserQuestion, mcp__ccd_session__mark_c
 - **`Status: ACTIVE` + `Updated` ≤ 7 дней назад от сегодняшнего** → в самом начале отчёта пользователю **🧵 Прошлая сессия оставила нитку:** выделить блоком: краткое описание текущей нитки + следующий шаг + дата handoff'а. Завершить блок вопросом «продолжаем?».
 - **`Status: ACTIVE` + `Updated` > 7 дней назад** → пометить **🧵 (устаревший handoff)** — нитка может быть не актуальна, спросить пользователя перед действиями.
 - **`Status: IDLE`** → handoff не выделяется, идём по обычному отчёту (свободное состояние, ждём задачу).
-- **Файл отсутствует** → пропустить шаг 0, идти дальше.
+- **Файл отсутствует** → пропустить шаг 0.1, идти дальше.
 
 Этот шаг даёт **непрерывность многоэтапных задач** между сессиями (особенно с двух компов). Подробнее — [`../brain_matrica/cross-project-ideas/ideas/003-session-handoff.md`](../../../brain_matrica/cross-project-ideas/ideas/003-session-handoff.md) (fallback при отсутствии brain_matrica: `~/.claude/cross-project-ideas/ideas/003-session-handoff.md`).
 
@@ -42,23 +54,19 @@ allowed-tools: Read, Bash, Glob, Grep, AskUserQuestion, mcp__ccd_session__mark_c
 
 Memory-файлы автоматически подгружены через `MEMORY.md` — учитывай их в рекомендациях (особенно `windows_pnpm_setup`, `dev_schema_push_prompt`, `prod_server_access`, `feedback_cross_project_ideas`).
 
+### Шаг 2.1. Самопроверка старения backlog'а (pool #033)
+
+После чтения `PENDING_FOLLOWUPS.md` пройдись по открытым (не ✅) пунктам с метками старения (`added` / `snoozed` / `touch` / `decay` — формат описан в шапке самого файла) и **всплыви в отчёте** те, что за порогом: открыто **> 30 дней** ИЛИ `snoozed ≥ 3`. Для каждого всплывшего — предложи **re-триаж тремя исходами** (не слепое возобновление): **возобновить** / **переформулировать** под текущий код / **выкинуть** (с причиной). Если за порогом ничего нет — в отчёте не упоминать. См. [pool #033](../../../brain_matrica/cross-project-ideas/ideas/033-deferred-backlog-aging-retriage.md).
+
 **Глобальный pool идей** — [`../brain_matrica/cross-project-ideas/INDEX.md`](../../../brain_matrica/cross-project-ideas/INDEX.md) (meta-репо [`brain_matrica`](https://github.com/Valstan/brain_matrica), путь относительный от Gonba/repo-root; см. `brain_matrica/README.md → Локальный путь`). Прочитай **только** строку про GONBA — ищи статусы `⚠️` (применимо, не применено) или `❓` (не оценено). Для каждой такой идеи открой `ideas/NNN-*.md` в `brain_matrica/cross-project-ideas/` и сверь `applicable_when` против текущего состояния GONBA. Если идея подходит — включи **одной строкой** в отчёт «Кстати: из pool'а — `<идея>` подходит, потому что `<причина>`. Применить?». Не настаивай. **Новые идеи добавляй в `brain_matrica` отдельной сессией** (`cd ../brain_matrica && claude`), не из этого репо. Fallback при отсутствии brain_matrica локально — `~/.claude/cross-project-ideas/` (legacy путь). См. инструкцию в `feedback_cross_project_ideas` memory.
 
-## Шаг 3. Git sync (параллельно)
+## Шаг 3. Хронология и открытые PR
 
-В одном блоке Bash:
+Git-sync уже сделан в шаге 0. Здесь — только чтение:
 
-- `git status --short --branch`
-- `git fetch --all --tags --prune`
-- `git log --oneline -10`
-
-Затем последовательно (зависит от fetch):
-
-- `git status --short --branch` ещё раз — оценить ahead/behind
+- `git log --oneline -10` — хронология последних сессий
 - `gh pr list --state open --limit 20` — открытые PR
 - `gh pr list --author @me --state open --limit 20` — мои
-
-**`git pull` без подтверждения** только если: мы на `main`, есть `behind` без `ahead`, рабочее дерево чистое. Иначе — отчитаться и подождать решения.
 
 ## Шаг 4. Sanity-check окружения (параллельно)
 
