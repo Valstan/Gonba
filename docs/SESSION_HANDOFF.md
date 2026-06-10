@@ -1,38 +1,35 @@
 # Session Handoff
 
 **Status:** IDLE
-**Updated:** 2026-06-07
+**Updated:** 2026-06-10
 **Branch:** main
-**Last released version:** PR #129 (commit `7434467`). За сессию задеплоено 7 PR (#123–#129). Прод: health/home/projects/admin 200.
+**Last released version:** PR #132 (commit `136c1c3`). За сессию задеплоено 2 PR (#131–#132). Прод: health/home/admin 200, чанки целы.
 
 ---
 
 ## Текущая нитка
 
-_Нет активной нитки._ Сессия 2026-06-07 закрыла **директиву brain #027** (gate-replaced autonomy) и **весь оставшийся медиа-кластер** (C.2 UI force/replace + спиннеры превью), затем **проверила C.2 руками на проде** (совместно с владельцем через Claude-in-Chrome). По ходу адверсариальный code-review и live-проверка нашли и починили 2 инфра-бага. Ждём следующую задачу владельца.
+_Нет активной нитки._ Сессия 2026-06-10 (автономная, «делай всё») отработала весь входящий стек brain'а: **директива 032/033** (гигиена памяти: sync-до-handoff в `/start` + метки старения в `PENDING_FOLLOWUPS`, #131), **директива #035** (tiered-поиск substring→subsequence→fuzzy + RU↔EN раскладка в `MediaPicker`, общий модуль `web/src/utilities/tieredSearch.ts` + юнит-тесты, #132), **probe консолидации** (замеры прод-бокса + оценка перевода build в CI — письмо отправлено). Попутно: прод-бэкап `~/media-legacy-bak-20260604` удалён (с подтверждением владельца, диск 73%→71%), `/sitemap.xml` подтверждён свежим (вопрос brain'а закрыт), 3 письма в `mailbox/to-brain/`.
 
 ## Следующий шаг
 
-Нитки нет. Низкоприоритетные хвосты — см. `PENDING_FOLLOWUPS.md`.
+Нитки нет — ждём задачу владельца. Опционально первой строкой следующей сессии: владельцу глазами проверить новый поиск пикера (открыть inline-редактор картинки → «Выбрать из загруженных» → набрать запрос с опечаткой/в EN-раскладке) — браузерная проверка в этой сессии не удалась (Chrome-расширение было оффлайн), деплой верифицирован только SSR-маркером + целостностью чанков.
 
 ## Контекст
 
-- **Связанные коммиты сессии (7 PR, все задеплоены):**
-  - `4c7574d` (#123) — gate-replaced autonomy (#027): `.claude/settings.json` `defaultMode:auto` + allow/deny, CLAUDE.md, ack брейну.
-  - `a4fc8b6` (#124) / `1a4b16d` (#125) — спиннеры превью `InlineImage` / `MediaPicker` (cold-cache Я.Диск).
-  - `5b925ae` (#126) — **C.2 UI force-delete / replace**: виджет `MediaActions` в сайдбаре медиа + эндпоинты `/api/media/force-delete`,`/replace` + общий `repoint.ts` (делят скрипт Phase D и эндпоинт) + unit-тест + фикс латентного бага `replaceUploads` (`relationTo==='media'`).
-  - `ffdb372` (#127) — **fix:** обход deny `git push -u origin main` (находка code-review): allow сужен до префиксов PR-flow + deny расширен.
-  - `83142c5` (#128) — **fix:** stale importMap (находка live-проверки): `payload generate:importmap` встроен в `build:raw`.
-  - `7434467` (#129) — косметика: `disableListColumn` у `mediaActions`.
-- **Live-верификация C.2 на проде** (Claude-in-Chrome, владелец логинился): виджет рендерится, usage-список верен, REPLACE (репойнт версионно-корректный, `_status` сохранён, источник удалён) и FORCE-DELETE (осиротение ссылок как задумано) проверены end-to-end на throwaway-медиа; cleanup без следов.
-- **Прод:** ✅ health/home/projects/admin 200.
+- **Связанные коммиты сессии:**
+  - `63d1c71` (#131) — гигиена памяти 032/033: `/start` (sync = шаг 0, re-триаж stale = шаг 2.1), метки `aging` в PENDING, первый re-триаж закрыл 2 пункта, ack brain'у.
+  - `136c1c3` (#132) — tiered-поиск #035: `tieredSearch.ts` (3 уровня + RU↔EN + много-токен AND), `MediaPicker` typeahead с debounce, юнит-тесты; письмо-инвентарь brain'у (публичный FTS не тронут); письмо с замерами прод-бокса.
+- **Прод:** ✅ оба деплоя (после #131 и #132) зелёные, по одному (G24); health/home/admin 200; SSR-маркер орбиты на месте; 5 чанков из live-HTML — 200 (манифест не рассинхронен).
+- **Brain mailbox:** все 9 писем в `from-brain/` отработаны; исходящие 2026-06-10: `memory-hygiene-ack`, `tiered-search-035-inventory-and-rollout`, `consolidation-probe-results`. ⚠️ brain-репо на этой машине оставлен на недозакрытой ветке `chore/fix-archive-letter-link-depth` (незакоммиченные правки в ARCHIVE) — это сторона brain'а, мы read-only; сказано в ack-письме.
 - **Открытые вопросы для пользователя:** нет.
 
 ## Не забыть (low-priority)
 
-- 🟢 **C.2 хвост (а) versioned-usage** — расширить usage-движок на latest-draft `_v` (закрыть «media в неопубликованном черновике»). Нужен запущенный локальный Postgres для интроспекции `_v`-схемы (на machine B сейчас лежит) + design-решение: сканировать только `latest=true`, НЕ исторические версии (иначе конфликт с Phase D, где история деградирует через FK SET NULL).
-- 🟢 Удалить прод-бэкап `~/media-legacy-bak-20260604` (409 МБ) + локальный дамп `prod-gonba-predupe-20260606.dump` — деструктив, после пары дней наблюдения за продом.
-- 🟢 **FTS Phase 3** (pg_trgm/GIN) — сознательно отложено (преждевременно при ~184 строках, нужен `CREATE EXTENSION` суперюзером).
+- 🟢 Локальный дамп `prod-gonba-predupe-20260606.dump` остался на **machine B** — удалить оттуда (на machine A его нет).
+- 🟢 **C.2 хвост (а) versioned-usage** — расширить usage-движок на latest-draft `_v` (нужен локальный Postgres + design-решение «только `latest=true`»).
+- 🟢 **FTS Phase 3 / tiered Level 3 server-side** (`pg_trgm`) — совместить при внедрении (отмечено в PENDING и в письме #035).
+- 🟢 **Перевод build в CI** — НЕ начинать без отдельной директивы brain; оценка и грабли (prerender требует прод-БД) — в `mailbox/to-brain/2026-06-10-consolidation-probe-results.md` и PENDING.
 
 ---
 
