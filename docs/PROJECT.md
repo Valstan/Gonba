@@ -278,10 +278,10 @@ ssh GONBA "sudo systemctl start gonba-vk-sync.service && journalctl -u gonba-vk-
 1. Workflow `CI` (`.github/workflows/ci.yml`) — typecheck, lint, test:int, build, E2E smoke.
 2. Если зелёный — триггерится `Deploy to production`:
    - safety net: если в коммите новые `web/src/migrations/*.ts` — фейлит ДО билда (миграции применяются вручную через `/sql` ДО merge);
-   - `pnpm install` в раннере (Node 20 = мажор бокса) → **SSH-туннель к прод-Postgres** (`-L 15432:127.0.0.1:5432`) → `STANDALONE_BUILD=1 pnpm run build:raw` — prerender читает живую прод-БД, как раньше on-box (ноль stale-окна, #011);
+   - `npm ci` в раннере (Node 20 = мажор бокса; канонический lockfile — package-lock.json, как в ci.yml) → **SSH-туннель к прод-Postgres** (`-L 15432:127.0.0.1:5432`) → `STANDALONE_BUILD=1 npm run build:raw` — prerender читает живую прод-БД, как раньше on-box (ноль stale-окна, #011);
    - build-env из secret `GONBA_BUILD_ENV` (DATABASE_URL через туннель, PAYLOAD_SECRET, `NEXT_PUBLIC_*` — запекаются в бандл здесь);
    - артефакт (`.next/standalone` + static + public) → scp → `releases/<sha>` → симлинк `releases/current` → юнит идемпотентно из `deploy/systemd/gonba.service` → `systemctl restart gonba`; держим 3 релиза;
-   - на боксе `git pull` (репо нужно таймерам vk-sync/media-cache и миграциям) + `pnpm install` только при изменении lockfile;
+   - на боксе `git pull` (репо нужно таймерам vk-sync/media-cache и миграциям) + `npm install` только при изменении package-lock.json;
    - smoke-проверки: local health, CDN, контент-маркер главной.
 3. **На падении** — выгружает `journalctl -u gonba` в output, **НЕ откатывается**. Разработчик заходит руками и чинит, потом перезапускает workflow через UI Actions → Deploy to production → Run workflow (опция `build_only` — обкатать сборку без деплоя).
 

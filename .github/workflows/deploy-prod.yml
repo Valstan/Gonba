@@ -104,21 +104,20 @@ jobs:
           EOF
           chmod 600 ~/.ssh/config
 
-      - name: Setup Node + pnpm
+      - name: Setup Node
         uses: actions/setup-node@v5
         with:
           # Node 20 = версия рантайма на боксе (/usr/bin/node v20.x) — артефакт
           # собирается тем же мажором, что его исполняет.
           node-version: 20
-
-      - name: Enable corepack + pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@10.15.0 --activate
+          cache: npm
+          cache-dependency-path: web/package-lock.json
 
       - name: Install deps
+        # Канонический lockfile репо — package-lock.json (npm), как в ci.yml:
+        # pnpm-lock.yaml в .gitignore и в репо отсутствует (урок первого CI-деплоя).
         working-directory: web
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Write build env (secret GONBA_BUILD_ENV)
         # Содержимое dotenv: DATABASE_URL=postgresql://…@127.0.0.1:15432/gonba (через
@@ -154,7 +153,7 @@ jobs:
           # Включает output:'standalone' в next.config.js. Локально флаг НЕ ставят —
           # standalone-сборка мутирует node_modules (G41).
           STANDALONE_BUILD: '1'
-        run: pnpm run build:raw
+        run: npm run build:raw
 
       - name: Close SSH tunnel
         if: always()
@@ -190,10 +189,10 @@ jobs:
         if: ${{ github.event_name != 'workflow_dispatch' }}
         run: |
           set -e
-          CHANGED=$(git diff --name-only HEAD~1 HEAD -- web/pnpm-lock.yaml || true)
+          CHANGED=$(git diff --name-only HEAD~1 HEAD -- web/package-lock.json || true)
           if [ -n "${CHANGED}" ]; then
-            echo "pnpm-lock.yaml изменился — обновляем node_modules на боксе (таймеры tsx-скриптов)…"
-            ssh GONBA "cd /home/valstan/GONBA/web && corepack pnpm install --frozen-lockfile 2>&1 | tail -5"
+            echo "package-lock.json изменился — обновляем node_modules на боксе (таймеры/скрипты)…"
+            ssh GONBA "cd /home/valstan/GONBA/web && npm install --no-audit --no-fund 2>&1 | tail -5"
           else
             echo "lockfile не менялся — install на боксе пропущен."
           fi

@@ -19,14 +19,14 @@
 1. **`web/next.config.js`** — `output: 'standalone'` строго за флагом `STANDALONE_BUILD=1` (G41: standalone мутирует node_modules — локальные сборки флаг не ставят) + `outputFileTracingRoot` = web/ (server.js в корень артефакта; образец Sabantuy).
 2. **`.github/workflows/deploy-prod.yml`** — сборка переезжает в job:
    - триггеры/concurrency/migration-guard — без изменений (G24-сериализация сохранена);
-   - setup node 22 + corepack pnpm 10, `pnpm install --frozen-lockfile`;
+   - setup node 22 + corepack pnpm 10, `npm ci` (канонический lockfile — package-lock.json; pnpm-lock.yaml в .gitignore — урок первого прогона);
    - build-env из secret `GONBA_BUILD_ENV` (содержимое dotenv: `DATABASE_URL` через туннель `127.0.0.1:15432`, `PAYLOAD_SECRET`, `NEXT_PUBLIC_SERVER_URL` — последний **запекается в бандл**);
    - SSH-туннель `ssh -f -N -L 15432:127.0.0.1:5432 GONBA` на время build;
-   - `STANDALONE_BUILD=1 pnpm run build:raw` (importmap + next build + next-sitemap — как сегодня);
+   - `STANDALONE_BUILD=1 npm run build:raw` (importmap + next build + next-sitemap — как сегодня);
    - сборка артефакта: `.next/standalone` + `.next/static` + `public` → tgz;
    - деплой: scp → `releases/<sha>` → симлинк `releases/current` → `systemctl restart gonba` → ротация (последние 3 релиза);
    - smoke-гейты прежние: local health, CDN, контент-маркер `homeOrbit__itemWrap` (#011).
-   - бокс-репо остаётся источником для таймеров (vk-sync, media-cache) и миграций: шаг `git pull` сохранён + `pnpm install --frozen-lockfile` на боксе только при изменении lockfile (маленький спайк, не build).
+   - бокс-репо остаётся источником для таймеров (vk-sync, media-cache) и миграций: шаг `git pull` сохранён + `npm install` на боксе только при изменении package-lock.json (маленький спайк, не build).
 3. **`deploy/systemd/gonba.service`** — `WorkingDirectory=/home/valstan/GONBA/releases/current`, `ExecStart=node server.js`, `HOSTNAME=127.0.0.1`/`PORT=3000` (standalone-сервер читает их из env). Установка на бокс — разовый ручной шаг при первом cutover (с подтверждением владельца).
 4. **`scripts/safe-build.sh`** — остаётся как hot-fix-fallback (ADR-0002 §8), но с предупреждением в шапке: runtime теперь сервится из `releases/current`, on-box build её не обновляет.
 
