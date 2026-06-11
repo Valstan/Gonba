@@ -271,23 +271,29 @@ ssh GONBA "sudo systemctl start gonba-vk-sync.service && journalctl -u gonba-vk-
 - Прямой `corepack pnpm run build:raw` через одну SSH-сессию умирает посередине prerender'а при SSH-disconnect → артефакт `.next` остаётся неполным → сервис в crash-loop. Поэтому `systemd-run`.
 - Прод НЕ применяет миграции автоматически (`push: true` не успевает из-за timeout прерывания первого запроса). После добавления полей в коллекциях запускать `pnpm payload migrate:up` или вручную `ALTER TABLE`.
 
-### CI / автоматический деплой
+### CI / автоматический деплой (build в CI, standalone-артефакт — с 2026-06-11)
 
-После merge в `main` запускается GitHub Action `.github/workflows/deploy-prod.yml`:
+С 2026-06-11 (mandate brain «Бокс 1», план — `docs/plans/build-to-ci.md`) **сборка идёт в GitHub Actions**, бокс — runtime-only. После merge в `main`:
 
 1. Workflow `CI` (`.github/workflows/ci.yml`) — typecheck, lint, test:int, build, E2E smoke.
 2. Если зелёный — триггерится `Deploy to production`:
    - safety net: если в коммите новые `web/src/migrations/*.ts` — фейлит ДО билда (миграции применяются вручную через `/sql` ДО merge);
-   - SSH-логин на прод по ключу из secret `SSH_PRIVATE_KEY`;
-   - `git pull` → `scripts/safe-build.sh` → `scripts/wait-build.sh` → `systemctl restart gonba`;
-   - smoke-проверки на 127.0.0.1:3000 и публичный CDN.
-3. **На падении** — выгружает `journalctl -u gonba` и `gonba-build` в output, **НЕ откатывается**. Разработчик заходит руками и чинит, потом перезапускает workflow через UI Actions → Deploy to production → Run workflow.
+   - `pnpm install` в раннере (Node 20 = мажор бокса) → **SSH-туннель к прод-Postgres** (`-L 15432:127.0.0.1:5432`) → `STANDALONE_BUILD=1 pnpm run build:raw` — prerender читает живую прод-БД, как раньше on-box (ноль stale-окна, #011);
+   - build-env из secret `GONBA_BUILD_ENV` (DATABASE_URL через туннель, PAYLOAD_SECRET, `NEXT_PUBLIC_*` — запекаются в бандл здесь);
+   - артефакт (`.next/standalone` + static + public) → scp → `releases/<sha>` → симлинк `releases/current` → юнит идемпотентно из `deploy/systemd/gonba.service` → `systemctl restart gonba`; держим 3 релиза;
+   - на боксе `git pull` (репо нужно таймерам vk-sync/media-cache и миграциям) + `pnpm install` только при изменении lockfile;
+   - smoke-проверки: local health, CDN, контент-маркер главной.
+3. **На падении** — выгружает `journalctl -u gonba` в output, **НЕ откатывается**. Разработчик заходит руками и чинит, потом перезапускает workflow через UI Actions → Deploy to production → Run workflow (опция `build_only` — обкатать сборку без деплоя).
 
-**Один раз настроить secret:**
+**Один раз настроить secrets:**
 
 ```bash
 # из локалки (где лежит ~/.ssh/id_ed25519_gonba_deploy — см. раздел «SSH deploy-key — ротация»)
 gh secret set SSH_PRIVATE_KEY --repo Valstan/Gonba < ~/.ssh/id_ed25519_gonba_deploy
+# GONBA_BUILD_ENV — dotenv для CI-сборки (DATABASE_URL=…@127.0.0.1:15432/gonba,
+# PAYLOAD_SECRET, NEXT_PUBLIC_SERVER_URL, PAYLOAD_PUBLIC_SERVER_URL).
+# Источник значений — /etc/gonba/gonba.env на боксе; значения не светить в чат/коммит.
+gh secret set GONBA_BUILD_ENV --repo Valstan/Gonba < <(составить-файл)
 ```
 
 Используется **изолированный** ed25519-ключ, авторизованный только на прод-сервере GONBA — не на других серверах разработчика. Утечка secret не открывает доступ к чужим серверам. См. раздел «SSH deploy-key — ротация» ниже про регулярную замену.
@@ -296,7 +302,7 @@ gh secret set SSH_PRIVATE_KEY --repo Valstan/Gonba < ~/.ssh/id_ed25519_gonba_dep
 - Actions → Deploy to production → Run workflow → branch `main`.
 - Используй после ручного фикса failure: пофиксил → push в main → CI прошёл → второй раз CI не нужен, дёрни deploy руками.
 
-**Slash-команда `/reliz`** остаётся актуальной для случаев, когда нужен ручной контроль (миграции, сложные релизы, hot-fix без прохождения CI). Workflow и `/reliz` идемпотентно совместимы — оба идут через `safe-build.sh`.
+**Slash-команда `/reliz`** остаётся актуальной для ручного контроля (миграции, сложные релизы), но build-шаг теперь = «дождаться CI-деплоя», не safe-build. **`scripts/safe-build.sh` — только hot-fix-fallback** (ADR-0002 §8): он собирает в `web/.next`, которую runtime больше НЕ сервит — после аварийного on-box build надо ещё вернуть старый юнит (`WorkingDirectory=web`, `ExecStart=npm run start`) из бэкапа `~/gonba.service.bak-*`.
 
 ### SSH deploy-key — ротация
 
