@@ -1,35 +1,37 @@
 # Session Handoff
 
 **Status:** IDLE
-**Updated:** 2026-06-10
+**Updated:** 2026-06-11
 **Branch:** main
-**Last released version:** PR #132 (commit `136c1c3`). За сессию задеплоено 2 PR (#131–#132). Прод: health/home/admin 200, чанки целы.
+**Last released version:** PR #136 (commit `b306fa0`). За сессию 3 PR (#134–#136), 3 CI-деплоя, все зелёные.
 
 ---
 
 ## Текущая нитка
 
-_Нет активной нитки._ Сессия 2026-06-10 (автономная, «делай всё») отработала весь входящий стек brain'а: **директива 032/033** (гигиена памяти: sync-до-handoff в `/start` + метки старения в `PENDING_FOLLOWUPS`, #131), **директива #035** (tiered-поиск substring→subsequence→fuzzy + RU↔EN раскладка в `MediaPicker`, общий модуль `web/src/utilities/tieredSearch.ts` + юнит-тесты, #132), **probe консолидации** (замеры прод-бокса + оценка перевода build в CI — письмо отправлено). Попутно: прод-бэкап `~/media-legacy-bak-20260604` удалён (с подтверждением владельца, диск 73%→71%), `/sitemap.xml` подтверждён свежим (вопрос brain'а закрыт), 3 письма в `mailbox/to-brain/`.
+_Нет активной нитки._ Сессия 2026-06-11 выполнила **mandate brain «Бокс 1 / build→CI» в день получения**: сборка переехала в GitHub Actions (standalone-артефакт → `releases/<sha>` → симлинк `current` → restart), бокс — runtime-only и готов принимать KARMAN. Design-решение prerender↔прод-БД — **SSH-туннель из CI к живому Postgres** (обоснование — `docs/plans/build-to-ci.md`). Cutover юнита атомарный (ставится деплоем из репо), без даунтайма. Бонусы: RSS 452→254 МБ, диск 72%→49% (удалён старый `web/.next`, swap 8→2 ГБ — с подтверждением владельца). Урок первого прогона: канонический lockfile — `package-lock.json` (pnpm-lock в .gitignore) → деплой на `npm ci` (#135). Два письма brain'у (design-решение + итог-отчёт с lockfile-граблей).
 
 ## Следующий шаг
 
-Нитки нет — ждём задачу владельца. Опционально первой строкой следующей сессии: владельцу глазами проверить новый поиск пикера (открыть inline-редактор картинки → «Выбрать из загруженных» → набрать запрос с опечаткой/в EN-раскладке) — браузерная проверка в этой сессии не удалась (Chrome-расширение было оффлайн), деплой верифицирован только SSR-маркером + целостностью чанков.
+Нитки нет — ждём задачу владельца / заезд KARMAN (его обустраивает brain-комендант; наши деплои уже сериализованы `concurrency: deploy-prod`). Опционально: визуальная проверка гидратации в браузере (Chrome-расширение в этой сессии было оффлайн; ChunkLoadError-класс закрыт curl-проверкой — маркер 18 вхождений, все чанки 200).
 
 ## Контекст
 
+- **План:** `docs/plans/build-to-ci.md` (✅ done; там же — порядок отката на on-box build).
 - **Связанные коммиты сессии:**
-  - `63d1c71` (#131) — гигиена памяти 032/033: `/start` (sync = шаг 0, re-триаж stale = шаг 2.1), метки `aging` в PENDING, первый re-триаж закрыл 2 пункта, ack brain'у.
-  - `136c1c3` (#132) — tiered-поиск #035: `tieredSearch.ts` (3 уровня + RU↔EN + много-токен AND), `MediaPicker` typeahead с debounce, юнит-тесты; письмо-инвентарь brain'у (публичный FTS не тронут); письмо с замерами прод-бокса.
-- **Прод:** ✅ оба деплоя (после #131 и #132) зелёные, по одному (G24); health/home/admin 200; SSR-маркер орбиты на месте; 5 чанков из live-HTML — 200 (манифест не рассинхронен).
-- **Brain mailbox:** все 9 писем в `from-brain/` отработаны; исходящие 2026-06-10: `memory-hygiene-ack`, `tiered-search-035-inventory-and-rollout`, `consolidation-probe-results`. ⚠️ brain-репо на этой машине оставлен на недозакрытой ветке `chore/fix-archive-letter-link-depth` (незакоммиченные правки в ARCHIVE) — это сторона brain'а, мы read-only; сказано в ack-письме.
+  - `e0d32e7` (#134) — build→CI: workflow, standalone-флаг (G41), юнит, secret `GONBA_BUILD_ENV`, туннель.
+  - `7fda942` (#135) — фикс: `npm ci` вместо pnpm (pnpm-lock.yaml не в репо).
+  - `b306fa0` (#136) — итог-отчёт brain'у, статусы PENDING/плана.
+- **Прод:** ✅ runtime из `releases/b306fa0…` (standalone, юнит новый), health/маршруты 200, sitemap перегенерён CI. Старый юнит — бэкап `~/gonba.service.bak-20260611`; `safe-build.sh` — hot-fix-fallback (см. шапку скрипта).
+- **Brain mailbox:** mandate 06-11 закрыт (2 исходящих письма); письмо 06-10 (knip dead-code + квартальный самоосмотр, recommend/low) — **не отработано**, взять в одну из следующих сессий.
 - **Открытые вопросы для пользователя:** нет.
 
 ## Не забыть (low-priority)
 
-- 🟢 Локальный дамп `prod-gonba-predupe-20260606.dump` остался на **machine B** — удалить оттуда (на machine A его нет).
-- 🟢 **C.2 хвост (а) versioned-usage** — расширить usage-движок на latest-draft `_v` (нужен локальный Postgres + design-решение «только `latest=true`»).
-- 🟢 **FTS Phase 3 / tiered Level 3 server-side** (`pg_trgm`) — совместить при внедрении (отмечено в PENDING и в письме #035).
-- 🟢 **Перевод build в CI** — НЕ начинать без отдельной директивы brain; оценка и грабли (prerender требует прод-БД) — в `mailbox/to-brain/2026-06-10-consolidation-probe-results.md` и PENDING.
+- 🟡 **Brain-письмо 06-10:** knip-сканер + ежемесячный LLM-триаж dead-code (Payload-динамика → ignore) + квартальный самоосмотр — recommend, ответить применением или обоснованным отказом.
+- 🟢 Пиковый RSS под трафиком — хвост probe для brain (теперь на standalone-базе 254 МБ).
+- 🟢 Локальный дамп `prod-gonba-predupe-20260606.dump` — удалить на **machine B**.
+- 🟢 C.2 хвост (а) versioned-usage; FTS Phase 3 / tiered Level 3 (`pg_trgm`) — совместить при внедрении.
 
 ---
 
