@@ -1,6 +1,6 @@
 # Build → CI (standalone-артефакт) — Бокс 1, mandate brain 2026-06-11
 
-**Статус:** in progress (2026-06-11)
+**Статус:** ✅ done (2026-06-11) — первый CI-деплой зелёный (run 27341348995), бокс runtime-only; RSS 452→254 МБ; диск 72%→49% (`web/.next` удалён, swap 8→2 ГБ). Урок: канонический lockfile — package-lock.json (pnpm-lock в .gitignore), деплой на `npm ci` (#135). Остаток: визуальная гидратация браузером (Chrome-ext был оффлайн; чанки/маркер проверены curl) + пиковый RSS при случае.
 **Директива:** `brain_matrica/mailboxes/GONBA/from-brain/2026-06-11-box1-host-build-to-ci-mandate.md` (mandate, high)
 **Дедлайн:** до заезда KARMAN на наш бокс.
 
