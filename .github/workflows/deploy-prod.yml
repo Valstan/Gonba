@@ -1,16 +1,24 @@
 name: Deploy to production
 
-# Триггерится автоматически после успешного завершения workflow CI на main
-# (то есть после merge PR в main и зелёного билда+тестов).
-# Также можно дёрнуть руками через UI Actions → Deploy to production → Run workflow.
+# Сборка едет в CI (mandate brain 2026-06-11 «Бокс 1»): прод-бокс становится общим
+# для нескольких проектов, on-box `next build` (6 ГБ heap + 8 ГБ swap) недопустим —
+# build-спайк бьёт соседей (G20/G24). На сервер по SSH кладём готовый
+# standalone-артефакт и рестартим systemd-сервис; бокс — runtime-only.
 #
-# ВАЖНО: secret SSH_PRIVATE_KEY = содержимое локального ~/.ssh/id_ed25519
-# (тот же ключ, которым ходит разработчик). См. docs/PROJECT.md → «Деплой / CI».
+# Design-решение prerender↔БД (см. docs/plans/build-to-ci.md): `[slug]`-страницы
+# статически пререндерятся на build из ЖИВОЙ прод-БД через SSH-туннель из job —
+# та же семантика, что у прежнего on-box build, ноль stale-окна (#011).
 #
-# Стратегия на падение: НЕ откатываемся к предыдущему BUILD_ID — сразу
-# выгружаем логи `gonba` и `gonba-build` в job output и фейлим. Разработчик
-# заходит руками, чинит, и при необходимости перезапускает этот workflow
-# через workflow_dispatch.
+# Требуется:
+#   secrets.SSH_PRIVATE_KEY   — ключ деплоя (как раньше)
+#   secrets.GONBA_BUILD_ENV   — dotenv для build: DATABASE_URL через туннель
+#                               (127.0.0.1:15432), PAYLOAD_SECRET, NEXT_PUBLIC_* —
+#                               последние ЗАПЕКАЮТСЯ в бандл при build.
+#
+# Стратегия на падение: НЕ откатываемся — выгружаем логи в job output и фейлим.
+# Старый релиз продолжает работать (symlink releases/current не переключён либо
+# переключён, но restart упал — тогда чинить руками). Hot-fix fallback: старый
+# on-box `scripts/safe-build.sh` + юнит-бэкап (см. docs/plans/build-to-ci.md §Откат).
 
 on:
   workflow_run:
@@ -18,24 +26,31 @@ on:
     branches: [main]
     types: [completed]
   workflow_dispatch:
+    inputs:
+      build_only:
+        description: 'Только собрать артефакт в CI (без деплоя на бокс) — обкатка сборки'
+        type: boolean
+        default: false
 
 concurrency:
-  # Не параллелим деплои; если уже идёт — новый ждёт, не cancel предыдущий
+  # Не параллелим деплои; если уже идёт — новый ждёт, не cancel предыдущий (G24)
   group: deploy-prod
   cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     # При workflow_run запускаемся только если CI прошёл успешно
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
-      - name: Checkout (для diff на миграции)
+      - name: Checkout
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
+          # При workflow_run собираем именно тот коммит, что прошёл CI
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Safety net — упасть если в коммите новые Payload-миграции
         # Миграции — самая опасная часть, и `payload migrate` в CI зависает
@@ -45,19 +60,14 @@ jobs:
         run: |
           set -e
           # Ручной workflow_dispatch = "я применил миграции вручную, деплой код".
-          # Это штатный escape-hatch (см. шапку файла + сообщение об ошибке ниже):
-          # на dispatch guard пропускаем, иначе перезапуск того же коммита с новой
-          # миграцией всегда падал бы (diff видит тот же новый файл).
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "workflow_dispatch — миграции считаем применёнными вручную, guard пропущен."
             exit 0
           fi
-          BEFORE_SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
-          NEW_MIGRATIONS=$(git diff --name-only --diff-filter=A "${BEFORE_SHA}~1" "${BEFORE_SHA}" -- 'web/src/migrations/*.ts' 2>/dev/null || true)
-          # Игнорируем index.ts — он обновляется каждый раз
+          NEW_MIGRATIONS=$(git diff --name-only --diff-filter=A HEAD~1 HEAD -- 'web/src/migrations/*.ts' 2>/dev/null || true)
           NEW_MIGRATIONS=$(echo "${NEW_MIGRATIONS}" | grep -v '^web/src/migrations/index\.ts$' || true)
           if [ -n "${NEW_MIGRATIONS}" ]; then
-            echo "::error::В коммите ${BEFORE_SHA} есть новые Payload-миграции, которые должны быть применены вручную ДО merge:"
+            echo "::error::В коммите есть новые Payload-миграции, которые должны быть применены вручную ДО merge:"
             echo "${NEW_MIGRATIONS}"
             echo ""
             echo "Шаги:"
@@ -81,7 +91,6 @@ jobs:
           chmod 700 ~/.ssh
           printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          # known_hosts через ssh-keyscan чтобы не ждать accept-new
           ssh-keyscan -H 831d0ce99bdf.vps.myjino.ru >> ~/.ssh/known_hosts 2>/dev/null
           cat > ~/.ssh/config <<'EOF'
           Host GONBA
@@ -95,31 +104,139 @@ jobs:
           EOF
           chmod 600 ~/.ssh/config
 
-      - name: Pull latest main on prod
-        run: |
-          ssh GONBA "cd /home/valstan/GONBA && git pull --ff-only origin main 2>&1 | tail -20"
+      - name: Setup Node + pnpm
+        uses: actions/setup-node@v5
+        with:
+          # Node 20 = версия рантайма на боксе (/usr/bin/node v20.x) — артефакт
+          # собирается тем же мажором, что его исполняет.
+          node-version: 20
 
-      - name: Run safe-build (в фоне через systemd-run)
+      - name: Enable corepack + pnpm
         run: |
-          ssh GONBA "/home/valstan/GONBA/scripts/safe-build.sh 2>&1 | tail -15"
+          corepack enable
+          corepack prepare pnpm@10.15.0 --activate
 
-      - name: Wait for build to finish
-        # wait-build.sh внутри имеет свой timeout 1200s
-        run: |
-          ssh GONBA "/home/valstan/GONBA/scripts/wait-build.sh"
+      - name: Install deps
+        working-directory: web
+        run: pnpm install --frozen-lockfile
 
-      - name: Restart gonba
-        run: |
-          ssh GONBA "sudo systemctl restart gonba && sleep 6 && sudo systemctl is-active gonba"
-
-      - name: Smoke checks — local /api/health
+      - name: Write build env (secret GONBA_BUILD_ENV)
+        # Содержимое dotenv: DATABASE_URL=postgresql://…@127.0.0.1:15432/gonba (через
+        # SSH-туннель), PAYLOAD_SECRET, NEXT_PUBLIC_SERVER_URL, PAYLOAD_PUBLIC_SERVER_URL.
+        # NEXT_PUBLIC_* запекаются в клиентский бандл здесь, на build (наша же грабля —
+        # см. playbook §5.2). Источник значений — /etc/gonba/gonba.env на боксе.
+        env:
+          GONBA_BUILD_ENV: ${{ secrets.GONBA_BUILD_ENV }}
         run: |
           set -e
+          if [ -z "${GONBA_BUILD_ENV}" ]; then
+            echo "::error::Secret GONBA_BUILD_ENV не задан — build без БД/доменов невозможен."
+            exit 1
+          fi
+          printf '%s\n' "${GONBA_BUILD_ENV}" > web/.env
+          grep -q '127\.0\.0\.1:15432' web/.env || {
+            echo "::error::GONBA_BUILD_ENV: DATABASE_URL должен ходить через туннель 127.0.0.1:15432"
+            exit 1
+          }
+
+      - name: Open SSH tunnel to prod Postgres
+        # Prerender читает живую прод-БД (read-only: push:true гейтится NODE_ENV, G20).
+        run: |
+          set -e
+          ssh -f -N -o ExitOnForwardFailure=yes -L 15432:127.0.0.1:5432 GONBA
+          # быстрый smoke коннекта через туннель (pg_isready есть в ubuntu-runner)
+          pg_isready -h 127.0.0.1 -p 15432 || { echo "::error::Postgres за туннелем недоступен"; exit 1; }
+
+      - name: Build (standalone, prerender из прод-БД)
+        working-directory: web
+        env:
+          NODE_ENV: production
+          # Включает output:'standalone' в next.config.js. Локально флаг НЕ ставят —
+          # standalone-сборка мутирует node_modules (G41).
+          STANDALONE_BUILD: '1'
+        run: pnpm run build:raw
+
+      - name: Close SSH tunnel
+        if: always()
+        run: pkill -f 'ssh -f -N.*15432' || true
+
+      - name: Assemble standalone bundle
+        working-directory: web
+        run: |
+          set -e
+          if [ ! -f .next/standalone/server.js ]; then
+            echo "::error::server.js не в корне .next/standalone — проверь outputFileTracingRoot/STANDALONE_BUILD"
+            find .next/standalone -maxdepth 3 -name server.js || true
+            exit 1
+          fi
+          cp -r .next/static .next/standalone/.next/static
+          cp -r public .next/standalone/public
+          # build-env с секретами в артефакт не кладём: runtime берёт env из
+          # /etc/gonba/gonba.env (systemd EnvironmentFile), NEXT_PUBLIC_* уже запечены
+          rm -f .next/standalone/.env
+          tar czf ../gonba-app.tgz -C .next/standalone .
+          echo "bundle: $(du -h ../gonba-app.tgz | cut -f1)"
+
+      - name: Stop here if build_only
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_only }}
+        run: echo "build_only=true — артефакт собран успешно, деплой пропущен."
+
+      - name: Pull latest main on prod (репо бокса — для таймеров/скриптов/юнита)
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_only) }}
+        run: |
+          ssh GONBA "cd /home/valstan/GONBA && git pull --ff-only origin main 2>&1 | tail -5"
+
+      - name: Refresh box node_modules if lockfile changed (для vk-sync/media-cache таймеров)
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        run: |
+          set -e
+          CHANGED=$(git diff --name-only HEAD~1 HEAD -- web/pnpm-lock.yaml || true)
+          if [ -n "${CHANGED}" ]; then
+            echo "pnpm-lock.yaml изменился — обновляем node_modules на боксе (таймеры tsx-скриптов)…"
+            ssh GONBA "cd /home/valstan/GONBA/web && corepack pnpm install --frozen-lockfile 2>&1 | tail -5"
+          else
+            echo "lockfile не менялся — install на боксе пропущен."
+          fi
+
+      - name: Ship artifact + install unit + restart
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_only) }}
+        run: |
+          set -e
+          scp -q gonba-app.tgz GONBA:/tmp/gonba-app.tgz
+          ssh GONBA 'bash -s' "${{ github.event.workflow_run.head_sha || github.sha }}" <<'REMOTE'
+          set -e
+          SHA="$1"
+          BASE=/home/valstan/GONBA
+          REL="$BASE/releases/$SHA"
+          rm -rf "$REL"; mkdir -p "$REL"
+          tar xzf /tmp/gonba-app.tgz -C "$REL"
+          rm -f /tmp/gonba-app.tgz
+          ln -sfn "$REL" "$BASE/releases/current"
+          # Юнит ставится идемпотентно из репо ПЕРЕД restart — юнит и артефакт
+          # приезжают атомарно одним деплоем (первый CI-деплой = cutover со старого
+          # on-box юнита). Бэкап старого юнита снят заранее (gonba.service.bak-*).
+          if ! cmp -s "$BASE/deploy/systemd/gonba.service" /etc/systemd/system/gonba.service; then
+            sudo cp "$BASE/deploy/systemd/gonba.service" /etc/systemd/system/gonba.service
+            sudo systemctl daemon-reload
+            echo "unit обновлён из репо"
+          fi
+          sudo systemctl restart gonba
+          # держим последние 3 релиза
+          ls -1dt "$BASE"/releases/*/ 2>/dev/null | grep -v '/current/$' | tail -n +4 | xargs -r rm -rf
+          echo "deployed $SHA"
+          REMOTE
+
+      - name: Smoke checks — local /api/health
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_only) }}
+        run: |
+          set -e
+          sleep 6
           STATUS=$(ssh GONBA "curl -s -o /dev/null -w '%{http_code}' --max-time 15 http://127.0.0.1:3000/api/health")
           echo "local /api/health: ${STATUS}"
           [ "${STATUS}" = "200" ] || { echo "::error::local /api/health = ${STATUS}, ожидался 200"; exit 1; }
 
       - name: Smoke checks — public CDN
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_only) }}
         run: |
           set -e
           BASE='https://xn--80abf4be9f.xn--p1ai'
@@ -130,11 +247,10 @@ jobs:
           done
 
       - name: Smoke checks — контент-маркер на / (anti-stale-prerender)
-        # Lesson 2026-05-30: HTTP 200 != правильная страница. Next.js может отдать
-        # УСТАРЕВШИЙ ISR-prerender (тогда `/` вернул этно-лендинг вместо карусели,
-        # деплой выглядел успешным — все 200). Проверяем что в ответе локального
-        # эндпоинта (authoritative, минует CDN-кэш) есть маркер актуального
-        # компонента главной. Если главная меняется по дизайну — ОБНОВИТЬ MARKER.
+        # Lesson 2026-05-30: HTTP 200 != правильная страница (#011). Проверяем маркер
+        # актуального компонента главной в ответе локального эндпоинта (минует CDN).
+        # Если главная меняется по дизайну — ОБНОВИТЬ MARKER.
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_only) }}
         run: |
           set -e
           MARKER='homeOrbit__itemWrap'   # маркер орбит-карусели на / (ADR-0006)
@@ -142,8 +258,7 @@ jobs:
           COUNT=$(printf '%s' "${BODY}" | grep -o "${MARKER}" | wc -l | tr -d ' ')
           echo "Маркер '${MARKER}' на / (local): ${COUNT} вхождений"
           if [ "${COUNT}" -lt 1 ]; then
-            echo "::error::На / нет маркера '${MARKER}' — вероятно отдан УСТАРЕВШИЙ prerender (stale .next), хотя код был 200. Деплой НЕуспешен."
-            echo "::error::Чистая пересборка: ssh GONBA 'rm -rf /home/valstan/GONBA/web/.next' && ssh GONBA '/home/valstan/GONBA/scripts/safe-build.sh' && ssh GONBA '/home/valstan/GONBA/scripts/wait-build.sh' && ssh GONBA 'sudo systemctl restart gonba'"
+            echo "::error::На / нет маркера '${MARKER}' — вероятно отдан УСТАРЕВШИЙ prerender, хотя код был 200. Деплой НЕуспешен."
             exit 1
           fi
           echo "OK: главная отдаёт актуальный карусель-prerender (не stale)."
@@ -154,8 +269,8 @@ jobs:
           echo "=== journalctl -u gonba (последние 100 строк) ==="
           ssh GONBA "sudo journalctl -u gonba -n 100 --no-pager" 2>&1 || true
           echo ""
-          echo "=== journalctl -u gonba-build (последние 100 строк) ==="
-          ssh GONBA "sudo journalctl -u gonba-build -n 100 --no-pager" 2>&1 || true
-          echo ""
           echo "=== systemctl status ==="
           ssh GONBA "sudo systemctl status gonba --no-pager -l" 2>&1 || true
+          echo ""
+          echo "=== releases на боксе ==="
+          ssh GONBA "ls -la /home/valstan/GONBA/releases/ 2>/dev/null" 2>&1 || true

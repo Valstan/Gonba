@@ -1,25 +1,27 @@
 [Unit]
-Description=GONBA Next.js + Payload
+Description=GONBA Next.js + Payload (standalone artifact)
 After=network.target
 
 [Service]
 Type=simple
 User=valstan
-WorkingDirectory=/home/valstan/GONBA/web
+# Runtime сервится из готового standalone-артефакта, собранного в CI
+# (deploy-prod.yml, mandate brain 2026-06-11 «Бокс 1»): build-спайков на боксе
+# больше нет. Симлинк releases/current переключается деплоем атомарно; сам юнит
+# идемпотентно ставится remote-скриптом деплоя из этого файла (sudo cp +
+# daemon-reload) ПЕРЕД restart — юнит и артефакт приезжают одним деплоем.
+WorkingDirectory=/home/valstan/GONBA/releases/current
 Environment=NODE_ENV=production
-# Secrets and config (incl. domain vars NEXT_PUBLIC_SERVER_URL /
-# PAYLOAD_PUBLIC_SERVER_URL) are loaded from /etc/gonba/gonba.env
-# (root:valstan, 0640), kept outside the repo tree for security
-# (pool #008 / ADR-0005). In the repo only web/.env.example.
-# The same EnvironmentFile is passed to the build via
-# `systemd-run -p EnvironmentFile=` in scripts/safe-build.sh, so the
-# NEXT_PUBLIC_* domain values get baked into the client bundle at build time.
-# This is the canonical (clean) unit: no inline domain Environment= lines —
-# they would only duplicate what gonba.env already provides. See the
-# "Systemd (production)" repo↔prod mapping note in docs/PROJECT.md.
+# Secrets and config are loaded from /etc/gonba/gonba.env (root:valstan, 0640),
+# kept outside the repo tree for security (pool #008 / ADR-0005).
+# NEXT_PUBLIC_* значения теперь запекаются в бандл на CI-сборке (secret
+# GONBA_BUILD_ENV) — здесь env нужен для runtime-секретов (DATABASE_URL,
+# PAYLOAD_SECRET, Yandex/VK-токены и пр.).
 EnvironmentFile=-/etc/gonba/gonba.env
+# standalone server.js читает HOSTNAME/PORT из env (флагов --hostname/--port нет)
 Environment=PORT=3000
-ExecStart=/usr/bin/npm run start -- --hostname 127.0.0.1 --port 3000
+Environment=HOSTNAME=127.0.0.1
+ExecStart=/usr/bin/node server.js
 Restart=on-failure
 RestartSec=3
 

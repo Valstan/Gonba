@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
-# safe-build.sh — безопасная сборка GONBA web на проде.
+# safe-build.sh — аварийная on-box сборка GONBA web (hot-fix-fallback, ADR-0002 §8).
+#
+# ⚠️ С 2026-06-11 (mandate brain «Бокс 1», docs/plans/build-to-ci.md) штатная сборка
+# идёт в CI (deploy-prod.yml, standalone-артефакт → releases/current). Этот скрипт
+# собирает в web/.next, которую runtime БОЛЬШЕ НЕ СЕРВИТ. Используй только при
+# аварии (CI недоступен, прод лежит) и тогда верни старый юнит из бэкапа:
+#   sudo cp ~/gonba.service.bak-<дата> /etc/systemd/system/gonba.service
+#   sudo systemctl daemon-reload && sudo systemctl restart gonba
 #
 # Lesson learned (2026-05-20):
 #   - Прямой `corepack pnpm run build:raw` через одну SSH-сессию умирает посередине
