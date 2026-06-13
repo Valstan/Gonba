@@ -1,0 +1,60 @@
+name: Quarterly self-review reminder (#036)
+
+# Серверная (always-on) страховка для Триггера 2 директивы brain #036 —
+# квартального стратегического самоосмотра. GitHub cron работает на стороне
+# GitHub (UTC) и срабатывает ДАЖЕ при выключенном приложении/компе — в отличие
+# от локальной scheduled-task `gonba-quarterly-self-review-036` (та исполняет
+# обзор, когда приложение открыто). Этот workflow лишь открывает Issue-
+# напоминание (owner получает GitHub-нотификацию), сам обзор делает сессия.
+# Третий слой памяти-дат поверх: PENDING due-date (/start шаг 2.2) + локальная
+# рутина + этот cron. Issue закрывает тот, кто выполнил самоосмотр.
+
+on:
+  schedule:
+    # 06:00 UTC (= 09:00 MSK) в 3-й день Feb/May/Aug/Nov → раз в квартал.
+    # Ближайшее срабатывание от внедрения (июнь 2026) — 3 авг 2026.
+    - cron: '0 6 3 2,5,8,11 *'
+  workflow_dispatch: {} # ручной прогон для проверки (создаст Issue немедленно)
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open reminder issue (dedup by title marker)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = 'self-review-036'
+            const open = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            })
+            if (open.data.some((i) => i.title.includes(marker))) {
+              core.info('Открытый self-review Issue уже есть — не дублирую.')
+              return
+            }
+            const body = [
+              'Серверное напоминание (GitHub cron — срабатывает даже при выключенном приложении/компе).',
+              '',
+              '**Что сделать** — квартальный стратегический самоосмотр GONBA (директива brain #036, Триггер 2):',
+              '1. Прочитать `docs/PROJECT_STATE.md`, `docs/PENDING_FOLLOWUPS.md` (запись #036), `git log` за квартал.',
+              '2. Подготовить владельцу: (а) рефакторинг-предложения с грубой стоимостью; (б) идеи развития функциональности.',
+              '3. Письмо `mailbox/to-brain/<дата>-quarterly-self-review.md` (kind=report, ref: 036) через PR-flow.',
+              '',
+              'Открыть сессию в репо и запустить `/start`. Локальная рутина `gonba-quarterly-self-review-036` делает это автоматически при открытом приложении — данный Issue гарантирует, что напоминание не потеряется, даже если приложение было выключено.',
+              '',
+              'После выполнения — **закрыть этот Issue**.',
+            ].join('\n')
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `⏰ ${marker} · Квартальный стратегический самоосмотр (brain #036, Триггер 2)`,
+              body,
+            })
+            core.info(`Issue-напоминание создан: #${issue.data.number}`)
