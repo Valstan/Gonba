@@ -143,8 +143,18 @@ jobs:
         run: |
           set -e
           ssh -f -N -o ExitOnForwardFailure=yes -L 15432:127.0.0.1:5432 GONBA
-          # быстрый smoke коннекта через туннель (pg_isready есть в ubuntu-runner)
-          pg_isready -h 127.0.0.1 -p 15432 || { echo "::error::Postgres за туннелем недоступен"; exit 1; }
+          # smoke коннекта через туннель с ретраями. ssh -f форкается в фон сразу
+          # после установки форварда, но pg_isready вплотную за ним иногда гонит
+          # готовность форварда → спорадический «no response» (фейл деплоя 2026-06-13;
+          # SSH/Postgres были живы, дамп-журналов-степ через тот же SSH прошёл).
+          ok=
+          for i in $(seq 1 10); do
+            if pg_isready -h 127.0.0.1 -p 15432 >/dev/null 2>&1; then
+              echo "tunnel ready (attempt $i)"; ok=1; break
+            fi
+            sleep 2
+          done
+          [ "$ok" = 1 ] || { echo "::error::Postgres за туннелем недоступен (10×2с)"; exit 1; }
 
       - name: Build (standalone, prerender из прод-БД)
         working-directory: web
