@@ -1,15 +1,7 @@
-import type { Metadata } from 'next'
 import { sections } from '@/app/(frontend)/sections/data'
 import { SectionCard } from '@/components/SectionCard'
 
-export const metadata: Metadata = {
-  title: 'Миры Жемчужины Вятки — все разделы',
-  description: 'Выберите тематический раздел и погрузитесь в его атмосферу.',
-}
-
-export const dynamic = 'force-static'
-export const revalidate = 600
-
+// metadata/dynamic/revalidate перенесены в ./page.tsx — Next читает их только оттуда.
 export default function SectionMapPage() {
   const readySections = sections.filter((s) => s.status === 'ready')
   const plannedSections = sections.filter((s) => s.status === 'planned')
