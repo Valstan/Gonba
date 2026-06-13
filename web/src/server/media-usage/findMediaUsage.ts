@@ -1,6 +1,6 @@
 import type { Payload } from 'payload'
 
-import { COLLECTION_META, MEDIA_SOURCES, type MediaSource } from './sources'
+import { ALL_MEDIA_SOURCES, COLLECTION_META, type MediaSource } from './sources'
 
 /**
  * Usage engine — finds every document/global that references a given Media id.
@@ -8,7 +8,9 @@ import { COLLECTION_META, MEDIA_SOURCES, type MediaSource } from './sources'
  * Strategy: one parameterized `UNION ALL` over the verified source map
  * (`sources.ts`), run via `payload.db.pool` (same raw-SQL escape hatch the FTS
  * search uses). Covers FK columns, gallery/block arrays, and Lexical upload
- * nodes inside `jsonb` rich-text (which Payload does NOT track in `*_rels`).
+ * nodes inside `jsonb` rich-text (which Payload does NOT track in `*_rels`) —
+ * both in main tables AND in `_<coll>_v` version tables (draft-only ссылки, что
+ * не попали в main, пока черновик не опубликован; считается latest-версия).
  * Doc titles are then hydrated through the Local API.
  *
  * Only `$1` (the media id, validated as an integer by the caller) is dynamic —
@@ -30,6 +32,22 @@ function selectFor(src: MediaSource): string {
   const c = sqlStr(src.collection)
   const f = sqlStr(src.field)
 
+  // Версионный (`_v`) источник: doc_id берётся из `<versionTable>.parent_id`, и
+  // считается только latest-версия (текущее состояние черновика). `hops` здесь —
+  // шаги от `table` до строки `_<coll>_v`, а не до документа.
+  if (src.versionTable) {
+    const vt = src.versionTable
+    if (src.hops === 0) {
+      // table === versionTable: сама `_<coll>_v` несёт и version_-колонку, и parent_id/latest.
+      return `SELECT ${c}::text AS collection, t.parent_id::int AS doc_id, ${f}::text AS field FROM ${src.table} t WHERE t.latest IS TRUE AND t.parent_id IS NOT NULL AND ${cond}`
+    }
+    if (src.hops === 1) {
+      return `SELECT ${c}::text AS collection, vv.parent_id::int AS doc_id, ${f}::text AS field FROM ${src.table} t JOIN ${vt} vv ON t._parent_id = vv.id WHERE vv.latest IS TRUE AND vv.parent_id IS NOT NULL AND ${cond}`
+    }
+    // hops === 2: items -> via (block) -> _<coll>_v -> doc
+    return `SELECT ${c}::text AS collection, vv.parent_id::int AS doc_id, ${f}::text AS field FROM ${src.table} t JOIN ${src.via} v ON t._parent_id = v.id JOIN ${vt} vv ON v._parent_id = vv.id WHERE vv.latest IS TRUE AND vv.parent_id IS NOT NULL AND ${cond}`
+  }
+
   if (src.hops === 0) {
     return `SELECT ${c}::text AS collection, t.id::int AS doc_id, ${f}::text AS field FROM ${src.table} t WHERE ${cond}`
   }
@@ -42,7 +60,7 @@ function selectFor(src: MediaSource): string {
 
 /** The full UNION ALL query (exported for unit testing — no DB needed). */
 export function buildUsageQuery(): string {
-  return MEDIA_SOURCES.map(selectFor).join('\nUNION ALL\n')
+  return ALL_MEDIA_SOURCES.map(selectFor).join('\nUNION ALL\n')
 }
 
 export type MediaUsage = {

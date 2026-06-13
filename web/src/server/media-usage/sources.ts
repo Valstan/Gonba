@@ -59,10 +59,24 @@ export type MediaSource = {
   table: string
   /** the column: a `*_id` FK (match 'fk') or a jsonb rich-text column (match 'richtext') */
   col: string
-  /** _parent_id hops from `table` up to the owning doc */
+  /**
+   * `_parent_id` hops from `table` up to the owning row:
+   *   - обычный источник — до самого документа (main-таблица).
+   *   - версионный источник (`versionTable` задан) — до строки `_<coll>_v`
+   *     (а уже её `parent_id` указывает на документ; см. `versionTable`).
+   */
   hops: 0 | 1 | 2
   /** intermediate table (required iff hops === 2) */
   via?: string
+  /**
+   * Версионный (`_<coll>_v`) источник: draft-only ссылка, которой нет в main-
+   * таблице, пока черновик не опубликован (Phase C.2 хвост «а»). Когда задан —
+   * `doc_id` берётся из `<versionTable>.parent_id`, и считается только ПОСЛЕДНЯЯ
+   * версия (`latest IS TRUE`) — текущее состояние черновика. Исторические версии
+   * намеренно не блокируют удаление (их FK деградирует SET NULL, см. план Phase D).
+   * Для `hops:0` table === versionTable (сама `_<coll>_v`).
+   */
+  versionTable?: string
 }
 
 export const MEDIA_SOURCES: MediaSource[] = [
@@ -104,3 +118,55 @@ export const MEDIA_SOURCES: MediaSource[] = [
   { collection: 'pages', field: 'Блок «Форма» (текст)', match: 'richtext', table: 'pages_blocks_form_block', col: 'intro_content', hops: 1 },
   { collection: 'pages', field: 'Блок колонок (текст)', match: 'richtext', table: 'pages_blocks_content_columns', col: 'rich_text', hops: 2, via: 'pages_blocks_content' },
 ]
+
+/**
+ * Версионные источники — те же поля, но в `_<coll>_v`-таблицах (Phase C.2 хвост «а»).
+ * Покрывают **draft-only** ссылки: пока черновик не опубликован, media живёт только
+ * в latest-версии, а в main-таблице её нет → без этого usage-движок вернул бы 0 и
+ * safe-delete мог бы осиротить черновик. Считаем только `latest IS TRUE`.
+ *
+ * Версионируемые коллекции (drafts): posts, pages, projects, events, services
+ * (products/vkImportQueue/глобалы — без версий). Имена таблиц/колонок выверены
+ * интроспекцией prod-производной БД (machine B) 2026-06-13.
+ *
+ * `hops` здесь — шаги от `table` до строки `_<coll>_v` (а её `parent_id` → документ):
+ *   0 — table === versionTable (`_<coll>_v`).
+ *   1 — `table._parent_id` → `versionTable.id` (массив/блок на доке).
+ *   2 — `table._parent_id` → `via.id` → `versionTable.id` (массив внутри блока).
+ */
+export const MEDIA_VERSION_SOURCES: MediaSource[] = [
+  // posts → _posts_v
+  { collection: 'posts', field: 'Обложка (черновик)', match: 'fk', table: '_posts_v', col: 'version_hero_image_id', hops: 0, versionTable: '_posts_v' },
+  { collection: 'posts', field: 'SEO-картинка (черновик)', match: 'fk', table: '_posts_v', col: 'version_meta_image_id', hops: 0, versionTable: '_posts_v' },
+  { collection: 'posts', field: 'В тексте (черновик)', match: 'richtext', table: '_posts_v', col: 'version_content', hops: 0, versionTable: '_posts_v' },
+
+  // pages → _pages_v (+ вложенные блоки)
+  { collection: 'pages', field: 'Hero (черновик)', match: 'fk', table: '_pages_v', col: 'version_hero_media_id', hops: 0, versionTable: '_pages_v' },
+  { collection: 'pages', field: 'SEO-картинка (черновик)', match: 'fk', table: '_pages_v', col: 'version_meta_image_id', hops: 0, versionTable: '_pages_v' },
+  { collection: 'pages', field: 'Hero (текст, черновик)', match: 'richtext', table: '_pages_v', col: 'version_hero_rich_text', hops: 0, versionTable: '_pages_v' },
+  { collection: 'pages', field: 'Блок «Галерея» (черновик)', match: 'fk', table: '_pages_v_blocks_gallery_items', col: 'image_id', hops: 2, via: '_pages_v_blocks_gallery', versionTable: '_pages_v' },
+  { collection: 'pages', field: 'Блок «Медиа» (черновик)', match: 'fk', table: '_pages_v_blocks_media_block_items', col: 'media_id', hops: 2, via: '_pages_v_blocks_media_block', versionTable: '_pages_v' },
+  { collection: 'pages', field: 'Блок «Отзывы» (черновик)', match: 'fk', table: '_pages_v_blocks_testimonials_items', col: 'photo_id', hops: 2, via: '_pages_v_blocks_testimonials', versionTable: '_pages_v' },
+  { collection: 'pages', field: 'Блок CTA (текст, черновик)', match: 'richtext', table: '_pages_v_blocks_cta', col: 'rich_text', hops: 1, versionTable: '_pages_v' },
+  { collection: 'pages', field: 'Блок «Архив» (текст, черновик)', match: 'richtext', table: '_pages_v_blocks_archive', col: 'intro_content', hops: 1, versionTable: '_pages_v' },
+  { collection: 'pages', field: 'Блок «Форма» (текст, черновик)', match: 'richtext', table: '_pages_v_blocks_form_block', col: 'intro_content', hops: 1, versionTable: '_pages_v' },
+  { collection: 'pages', field: 'Блок колонок (текст, черновик)', match: 'richtext', table: '_pages_v_blocks_content_columns', col: 'rich_text', hops: 2, via: '_pages_v_blocks_content', versionTable: '_pages_v' },
+
+  // projects → _projects_v (+ галерея)
+  { collection: 'projects', field: 'Обложка (черновик)', match: 'fk', table: '_projects_v', col: 'version_hero_image_id', hops: 0, versionTable: '_projects_v' },
+  { collection: 'projects', field: 'Логотип (черновик)', match: 'fk', table: '_projects_v', col: 'version_logo_id', hops: 0, versionTable: '_projects_v' },
+  { collection: 'projects', field: 'Описание (черновик)', match: 'richtext', table: '_projects_v', col: 'version_description', hops: 0, versionTable: '_projects_v' },
+  { collection: 'projects', field: 'Галерея (черновик)', match: 'fk', table: '_projects_v_version_gallery', col: 'image_id', hops: 1, versionTable: '_projects_v' },
+
+  // events → _events_v (+ галерея)
+  { collection: 'events', field: 'Обложка (черновик)', match: 'fk', table: '_events_v', col: 'version_hero_image_id', hops: 0, versionTable: '_events_v' },
+  { collection: 'events', field: 'В тексте (черновик)', match: 'richtext', table: '_events_v', col: 'version_content', hops: 0, versionTable: '_events_v' },
+  { collection: 'events', field: 'Галерея (черновик)', match: 'fk', table: '_events_v_version_gallery', col: 'image_id', hops: 1, versionTable: '_events_v' },
+
+  // services → _services_v
+  { collection: 'services', field: 'Обложка (черновик)', match: 'fk', table: '_services_v', col: 'version_hero_image_id', hops: 0, versionTable: '_services_v' },
+  { collection: 'services', field: 'Описание (черновик)', match: 'richtext', table: '_services_v', col: 'version_description', hops: 0, versionTable: '_services_v' },
+]
+
+/** Полный набор: main-таблицы + версионные (`_v`) черновики. Движок строит UNION ALL по нему. */
+export const ALL_MEDIA_SOURCES: MediaSource[] = [...MEDIA_SOURCES, ...MEDIA_VERSION_SOURCES]
