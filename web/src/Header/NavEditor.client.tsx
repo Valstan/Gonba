@@ -12,8 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useAdminMode } from '@/providers/AdminMode'
-
-export type NavItem = { label: string; href: string }
+import type { NavItem } from './nav-data'
 
 /**
  * Inline-редактор пунктов главного меню (видим редактору при логине).
