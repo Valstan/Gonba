@@ -1,0 +1,45 @@
+{
+  // knip — статический dead-code-сканер (директива brain #036, report-only).
+  // Запуск: `corepack pnpm deadcode`. Никогда не валит build/CI — это локальный
+  // гигиенический прогон раз в месяц; кандидаты триажатся по #028, не авто-удаляются;
+  // «живое, но не подключённое» уходит в re-триаж #033, не удаляется молча.
+  //
+  // ── ГЛАВНАЯ ГРАБЛЯ СТЕКА (Payload + Next) ───────────────────────────────────
+  // Фреймворк дёргает код БЕЗ статических импортов → без настройки knip объявит
+  // его «мёртвым» и шум похоронит сигнал. Что покрыто и как:
+  //   • payload.config.ts + admin/importMap.js — knip достаёт их сам через route-group
+  //     (payload)/ (layout импортит `@payload-config` и importMap), поэтому в `entry`
+  //     их перечислять НЕ нужно (knip ругается «redundant»). importMap статически
+  //     импортирует все кастомные admin-компоненты (в конфигах они — строковые пути,
+  //     резолвятся в рантайме; родня G38) → так они считаются использованными.
+  //   • migrations/** — Payload грузит их в рантайме через migrationDir, не import'ом
+  //     → объявляем entry явно, иначе каждая миграция = «unused file».
+  //   • Next conventions (page/layout/route/sitemap/...) — покрывает встроенный
+  //     next-плагин knip автоматически.
+  //
+  // ВАЖНО про Next route-handler'ы: `generateMetadata`/`generateStaticParams`/
+  // `revalidate` Next читает ТОЛЬКО из самого page.tsx/route.ts. Если их экспортит
+  // вложенный компонент (напр. sections/[slug]/SectionDetailPage.tsx) — Next их
+  // игнорирует, и knip честно метит как unused export. Это сигнал, не false-positive.
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    // Payload грузит миграции динамически по migrationDir (не статическим import'ом).
+    "src/migrations/**/*.ts",
+    // next-sitemap.config.cjs вызывается из build:raw (`next-sitemap --config …`),
+    // а не импортируется — без entry knip метит конфиг как unused file.
+    "next-sitemap.config.cjs"
+  ],
+  "ignoreDependencies": [
+    // Поставляется самим Next (маркер серверных модулей) — не наш package.json dep.
+    "server-only",
+    // Используются через CLI/конфиг, а не import-граф → knip их не видит как «used».
+    "eslint", // `next lint` + eslint.config.mjs
+    "eslint-config-next", // расширяется в eslint.config.mjs через FlatCompat
+    "prettier", // форматтер: CLI/редактор, без import в коде
+    "playwright", // браузерный рантайм для @playwright/test (e2e)
+    "playwright-core"
+  ],
+  // next-sitemap.config.cjs вызывается из build:raw (`next-sitemap --config …`),
+  // а не импортируется — без этого knip метит конфиг как unused file.
+  "ignoreBinaries": []
+}
