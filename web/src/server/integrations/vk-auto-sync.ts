@@ -208,6 +208,20 @@ export function vkPostUrl(ownerId: number, postId: number): string {
   return `https://vk.com/wall${ownerId}_${postId}`
 }
 
+/**
+ * Идемпотентность VK-постов по СТАБИЛЬНОМУ ключу `vk-<groupId>-<postId>`, а не по
+ * полному slug. Полный slug несёт text-suffix (`vk-123-41-privet`), который меняется
+ * при правке текста / смене формата генерации → совпадение по полному slug пропускало
+ * старый импорт и плодило дубль (как 19→25 мая). Якорный матч: slug РАВЕН stable либо
+ * начинается со `stable + '-'` (разделитель суффикса). Хвостовой `-` обязателен —
+ * иначе `vk-123-41` ложно совпал бы с `vk-123-417`. Чистая функция (юнит-тест без БД);
+ * применяется поверх `like`-кандидатов (Payload `like` = contains, грубый отбор).
+ */
+export function matchesStableVkSlug(slug: string | null | undefined, slugStable: string): boolean {
+  if (!slug) return false
+  return slug === slugStable || slug.startsWith(`${slugStable}-`)
+}
+
 /** Все фото-вложения поста → массив URL самого крупного размера каждого фото. */
 export function extractVkPhotoUrls(post: VkWallPost): string[] {
   if (!post.attachments) return []
@@ -524,16 +538,23 @@ export async function syncVkSource(
       ? `${slugStable}-${textSuffix}`.substring(0, 100).replace(/-+$/, '')
       : slugStable
 
-    // Idempotency: если пост с таким slug уже есть (повторный запуск, ручной
-    // импорт через vk-import.ts с тем же ownerId+postId), не создаём дубль —
-    // просто двигаем lastSyncedPostId, чтобы следующий запуск перешёл дальше.
-    const existing = await payload.find({
+    // Idempotency по СТАБИЛЬНОМУ ключу `vk-<groupId>-<postId>` (а НЕ по полному slug):
+    // text-suffix или смена формата генерации не должны плодить дубль. Грубо берём
+    // кандидатов через `like` (Payload `like` = contains), затем якорный отбор
+    // matchesStableVkSlug — чтобы `vk-123-41` не совпал с `vk-123-417`. Найдён —
+    // двигаем lastSyncedPostId, чтобы следующий запуск перешёл дальше.
+    const candidates = await payload.find({
       collection: 'posts',
       overrideAccess: true,
-      limit: 1,
-      where: { slug: { equals: slug } },
+      depth: 0,
+      pagination: false,
+      select: { slug: true },
+      where: { slug: { like: slugStable } },
     })
-    if (existing.docs[0]) {
+    const existingDoc = candidates.docs.find((d) =>
+      matchesStableVkSlug((d as { slug?: string | null }).slug, slugStable),
+    )
+    if (existingDoc) {
       await payload.update({
         collection: 'vk-auto-sync',
         id: sourceId,
@@ -548,7 +569,7 @@ export async function syncVkSource(
       return {
         success: true,
         status: 'success',
-        message: `Пост vk_id=${newPost.id} уже импортирован ранее (slug=${slug})`,
+        message: `Пост vk_id=${newPost.id} уже импортирован ранее (slug=${(existingDoc as { slug?: string | null }).slug ?? slugStable})`,
         postId: newPost.id,
       }
     }

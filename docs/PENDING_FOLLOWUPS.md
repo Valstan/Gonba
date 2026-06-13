@@ -144,7 +144,7 @@ _Сейчас нет._
 
 - ~~🟢 **`last_error` не очищается при `success`.**~~ **✅ Сделано 2026-05-31** (PR fix/vk-clear-last-error) — `lastError: null` добавлен во все три «здоровых» ветки `syncVkSource` (no-new-posts, idempotent-success, created-success). Старый текст ошибки больше не висит рядом со `status=success`. typecheck чистый.
 
-- 🟢 _(aging: added 2026-05-29 · snoozed 1 · touch 2026-06-10 · fresh)_ **Idempotency VK-постов по `(ownerId, postId)`, а не по slug.** Текущий idempotency-check PR #50 ищет существующий пост по новому slug'у — при смене формата slug'а (как 19→25 мая) старый импорт не находится и создаётся дубль. Корневой фикс: дедуп по стабильному внешнему ключу `(ownerId, postId)` (хранить в поле Post или искать по префиксу slug `vk-<groupId>-<postId>`). Тогда смена формата текст-суффикса не плодит дубли. Отложено пользователем 2026-05-29.
+- ~~🟢 **Idempotency VK-постов по `(ownerId, postId)`, а не по slug.**~~ **✅ Сделано 2026-06-13** (PR `fix/vk-idempotency-stable-slug`, владелец снял отложку). Дедуп теперь по СТАБИЛЬНОМУ ключу `vk-<groupId>-<postId>`: чистая `matchesStableVkSlug(slug, stable)` (slug === stable ИЛИ startsWith `stable + '-'`) поверх `like`-кандидатов — смена text-суффикса/формата больше не плодит дубль. Хвостовой `-` обязателен → `vk-123-41` НЕ матчит `vk-123-417` (анти-дубль-инвариант). Без миграции. Юнит-тест `tests/int/vk-idempotency.int.spec.ts` (6 кейсов вкл. false-positive guard); формат slug'ов + поведение `like`→anchored сверены на prod-производной БД (machine B: like=1, anchored=1). _Контекст: смена формата slug 19→25 мая плодила дубли (PR #50 искал по полному slug)._
 
 ### Windows dev-setup (обнаружено 2026-05-25)
 
