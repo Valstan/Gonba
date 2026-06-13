@@ -15,6 +15,7 @@ import {
   deleteYandexResource,
   getPublicDownloadUrl,
   getYandexResource,
+  moveYandexResource,
   publishYandexResource,
   uploadLocalFileToYandex,
 } from '../server/integrations/yandex-disk'
@@ -184,22 +185,78 @@ export const Media: CollectionConfig = {
         const mediaRoot = path.resolve(dirname, '../../public/media')
         const localPath = path.join(mediaRoot, doc.filename)
 
-        try {
-          await fs.access(localPath)
-        } catch {
-          // After Phase 3 (this commit) Yandex-synced files are removed from
-          // local disk immediately. So on `update` with `filenameChanged=true`
-          // (rename), the file no longer exists locally to re-upload. We can't
-          // re-derive the new filename on Y.Disk without moving — that's a
-          // follow-up (see plan: rename-after-purge). For now: warn + skip.
-          req.payload.logger.warn(`Yandex sync skipped: file missing at ${localPath}`)
-          return
-        }
-
         const mediaBaseRaw = process.env.YANDEX_DISK_MEDIA_PATH || '/media'
         const mediaBase = mediaBaseRaw.startsWith('/') ? mediaBaseRaw : `/${mediaBaseRaw}`
         const baseTrimmed = mediaBase.endsWith('/') ? mediaBase.slice(0, -1) : mediaBase
         const targetPath = `${baseTrimmed}/${doc.id}-${doc.filename}`
+
+        let localFileExists = true
+        try {
+          await fs.access(localPath)
+        } catch {
+          localFileExists = false
+        }
+
+        if (!localFileExists) {
+          // After Phase 3, Yandex-synced files are removed from local disk. So on a
+          // RENAME (filenameChanged with no local copy), there's nothing to re-upload —
+          // instead MOVE the resource on Y.Disk so yandexPath follows the new filename
+          // (otherwise yandexPath drifts from doc.filename). Verified on prod 2026-06-13:
+          // move keeps resource_id+sha256, re-publish regenerates the public link, the
+          // old path 404s. move/publish are the same helpers the admin Y.Disk file
+          // manager uses (battle-tested). Non-rename file-missing → warn + skip as before.
+          if (
+            operation === 'update' &&
+            previousDoc?.yandexPath &&
+            previousDoc.yandexPath !== targetPath
+          ) {
+            try {
+              await moveYandexResource(previousDoc.yandexPath, targetPath)
+              await publishYandexResource(targetPath)
+              const resource = await getYandexResource(targetPath, [
+                'path',
+                'resource_id',
+                'public_key',
+                'public_url',
+                'sha256',
+              ])
+              const publicKey = resource.public_key
+              const publicUrl = publicKey ? (await getPublicDownloadUrl(publicKey)).href : undefined
+
+              await req.payload.update({
+                collection: 'media',
+                id: doc.id,
+                data: {
+                  yandexPath: targetPath,
+                  yandexResourceId: resource.resource_id ?? doc.yandexResourceId ?? null,
+                  yandexPublicKey: publicKey ?? null,
+                  yandexPublicUrl: publicUrl ?? resource.public_url ?? null,
+                  yandexSha256: resource.sha256 ?? doc.yandexSha256 ?? null,
+                  yandexCheckedAt: new Date().toISOString(),
+                  yandexError: null,
+                },
+                overrideAccess: true,
+                req,
+                context: { skipYandexSync: true },
+              })
+            } catch (error) {
+              const message = (error as Error).message
+              req.payload.logger.error(`Yandex rename/move failed for media ${doc.id}: ${message}`)
+              await req.payload.update({
+                collection: 'media',
+                id: doc.id,
+                data: { yandexError: message },
+                overrideAccess: true,
+                req,
+                context: { skipYandexSync: true },
+              })
+            }
+            return
+          }
+
+          req.payload.logger.warn(`Yandex sync skipped: file missing at ${localPath}`)
+          return
+        }
 
         try {
           await uploadLocalFileToYandex(localPath, targetPath)
