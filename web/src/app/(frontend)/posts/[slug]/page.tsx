@@ -12,6 +12,7 @@ import type { Post } from '@/payload-types'
 
 import { PostHero } from '@/heros/PostHero'
 import { generateMeta } from '@/utilities/generateMeta'
+import { withRetry } from '@/utilities/withRetry'
 import PageClient from './page.client'
 import { LivePreviewListener } from '@/components/LivePreviewListener'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
@@ -123,18 +124,22 @@ const queryPostBySlug = cache(async ({ slug }: { slug: string }) => {
 
   const payload = await getPayload({ config: configPromise })
 
-  const result = await payload.find({
-    collection: 'posts',
-    draft,
-    limit: 1,
-    overrideAccess: draft,
-    pagination: false,
-    where: {
-      slug: {
-        equals: slug,
+  // pool #040: ретрай против транзиентного сбоя БД. Бросает после ретраев →
+  // ISR не кэширует ложный 404; null (0 docs) = реально нет → штатный 404.
+  const result = await withRetry(() =>
+    payload.find({
+      collection: 'posts',
+      draft,
+      limit: 1,
+      overrideAccess: draft,
+      pagination: false,
+      where: {
+        slug: {
+          equals: slug,
+        },
       },
-    },
-  })
+    }),
+  )
 
   return result.docs?.[0] || null
 })
