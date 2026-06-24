@@ -3,6 +3,7 @@ import { draftMode } from 'next/headers'
 import { cache } from 'react'
 import { getPayload } from 'payload'
 import type { ProjectsSelect } from '@/payload-types'
+import { withRetry } from '@/utilities/withRetry'
 
 export type { ProjectSectionKey, ProjectRecord } from './shared'
 export { DEFAULT_PROJECT_SECTIONS } from './shared'
@@ -44,20 +45,25 @@ export const queryProjectBySlug = cache(async ({ slug }: { slug: string }) => {
   const { isEnabled: draft } = await draftMode()
   const payload = await getPayload({ config: configPromise })
 
-  const result = await payload.find({
-    collection: 'projects',
-    draft,
-    limit: 1,
-    overrideAccess: draft,
-    pagination: false,
-    where: {
-      slug: {
-        equals: slug,
+  // pool #040: ретрай против транзиентного сбоя БД. Бросает после ретраев →
+  // ISR/layout не кэширует ложный 404 на проекте; null (0 docs) = реально нет.
+  // Высокий рычаг: этот хелпер оборачивает layout всех вкладок проекта + главную.
+  const result = await withRetry(() =>
+    payload.find({
+      collection: 'projects',
+      draft,
+      limit: 1,
+      overrideAccess: draft,
+      pagination: false,
+      where: {
+        slug: {
+          equals: slug,
+        },
       },
-    },
-    depth: 1,
-    select: getSelect(),
-  })
+      depth: 1,
+      select: getSelect(),
+    }),
+  )
 
   const doc = result.docs?.[0]
   return (doc as ProjectRecord | undefined) || null
@@ -67,15 +73,20 @@ export const queryProjects = async (opts?: { includeInactive?: boolean }) => {
   const payload = await getPayload({ config: configPromise })
   const filter = opts?.includeInactive ? undefined : { isActive: { equals: true } }
 
-  const result = await payload.find({
-    collection: 'projects',
-    depth: 1,
-    limit: 100,
-    sort: 'sortOrder,-updatedAt',
-    overrideAccess: false,
-    ...(filter ? { where: filter } : {}),
-    select: getSelect(),
-  })
+  // pool #040: ретрай против транзиентного сбоя БД. Бросает после ретраев (не
+  // глотает в []) → рендер прерывается и НЕ кэшируется пустым; покрывает главную
+  // (force-dynamic), /usadba и /projects, которые зовут этот хелпер.
+  const result = await withRetry(() =>
+    payload.find({
+      collection: 'projects',
+      depth: 1,
+      limit: 100,
+      sort: 'sortOrder,-updatedAt',
+      overrideAccess: false,
+      ...(filter ? { where: filter } : {}),
+      select: getSelect(),
+    }),
+  )
 
   return result.docs as ProjectRecord[]
 }

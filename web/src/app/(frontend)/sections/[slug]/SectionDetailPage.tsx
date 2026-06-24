@@ -9,6 +9,7 @@ import { CollectionArchive } from '@/components/CollectionArchive'
 import type { CardPostData } from '@/components/Card'
 import { Media } from '@/components/Media'
 import type { Media as MediaType } from '@/payload-types'
+import { withRetry } from '@/utilities/withRetry'
 
 type Args = {
   params: Promise<{
@@ -73,20 +74,27 @@ export default async function SectionDetailPage({ params: paramsPromise }: Args)
 
   const payload = await getPayload({ config: configPromise })
 
-  // Получаем проект, привязанный к секции
+  // Получаем проект, привязанный к секции.
+  // pool #040: эта страница — ISR (`revalidate = 600`), а каждый запрос ниже завёрнут
+  // в try/catch → null/[]. Без ретрая транзиентный сбой БД во время ревалидации
+  // закэшировал бы пустой/нулевой рендер на всё окно. `withRetry` гасит транзиент
+  // повторами; внешний try/catch оставлен как last-resort деградация при стойком
+  // сбое (секция/сайдбар скрываются, но страница не падает в 500).
   let project: ProjectDoc | null = null
   try {
-    const projectRes = await payload.find({
-      collection: 'projects',
-      depth: 2,
-      limit: 1,
-      where: {
-        slug: {
-          equals: section.projectSlug,
+    const projectRes = await withRetry(() =>
+      payload.find({
+        collection: 'projects',
+        depth: 2,
+        limit: 1,
+        where: {
+          slug: {
+            equals: section.projectSlug,
+          },
         },
-      },
-      overrideAccess: false,
-    })
+        overrideAccess: false,
+      }),
+    )
     project = (projectRes.docs[0] as ProjectDoc) || null
   } catch {
     project = null
@@ -96,23 +104,25 @@ export default async function SectionDetailPage({ params: paramsPromise }: Args)
   let posts: CardPostData[] = []
   if (section.enabledSections.includes('posts')) {
     try {
-      const postsRes = await payload.find({
-        collection: 'posts',
-        depth: 2,
-        limit: 6,
-        where: {
-          ...(project ? { project: { equals: project.id } } : {}),
-        },
-        sort: '-publishedAt',
-        overrideAccess: false,
-        select: {
-          title: true,
-          slug: true,
-          categories: true,
-          meta: true,
-          heroImage: true,
-        },
-      })
+      const postsRes = await withRetry(() =>
+        payload.find({
+          collection: 'posts',
+          depth: 2,
+          limit: 6,
+          where: {
+            ...(project ? { project: { equals: project.id } } : {}),
+          },
+          sort: '-publishedAt',
+          overrideAccess: false,
+          select: {
+            title: true,
+            slug: true,
+            categories: true,
+            meta: true,
+            heroImage: true,
+          },
+        }),
+      )
       posts = postsRes.docs as CardPostData[]
     } catch {
       posts = []
@@ -123,16 +133,18 @@ export default async function SectionDetailPage({ params: paramsPromise }: Args)
   let events: EventDoc[] = []
   if (section.enabledSections.includes('events')) {
     try {
-      const eventsRes = await payload.find({
-        collection: 'events',
-        depth: 2,
-        limit: 4,
-        where: {
-          ...(project ? { project: { equals: project.id } } : {}),
-        },
-        sort: 'startDate',
-        overrideAccess: false,
-      })
+      const eventsRes = await withRetry(() =>
+        payload.find({
+          collection: 'events',
+          depth: 2,
+          limit: 4,
+          where: {
+            ...(project ? { project: { equals: project.id } } : {}),
+          },
+          sort: 'startDate',
+          overrideAccess: false,
+        }),
+      )
       events = eventsRes.docs as EventDoc[]
     } catch {
       events = []
@@ -143,23 +155,25 @@ export default async function SectionDetailPage({ params: paramsPromise }: Args)
   let services: ServiceDoc[] = []
   if (section.enabledSections.includes('services')) {
     try {
-      const servicesRes = await payload.find({
-        collection: 'services',
-        depth: 2,
-        limit: 6,
-        where: {
-          ...(project ? { project: { equals: project.id } } : {}),
-        },
-        sort: '-updatedAt',
-        overrideAccess: false,
-        select: {
-          title: true,
-          summary: true,
-          slug: true,
-          price: true,
-          currency: true,
-        },
-      })
+      const servicesRes = await withRetry(() =>
+        payload.find({
+          collection: 'services',
+          depth: 2,
+          limit: 6,
+          where: {
+            ...(project ? { project: { equals: project.id } } : {}),
+          },
+          sort: '-updatedAt',
+          overrideAccess: false,
+          select: {
+            title: true,
+            summary: true,
+            slug: true,
+            price: true,
+            currency: true,
+          },
+        }),
+      )
       services = servicesRes.docs as ServiceDoc[]
     } catch {
       services = []
@@ -170,22 +184,24 @@ export default async function SectionDetailPage({ params: paramsPromise }: Args)
   let products: ProductDoc[] = []
   if (section.enabledSections.includes('shop')) {
     try {
-      const productsRes = await payload.find({
-        collection: 'products',
-        depth: 2,
-        limit: 6,
-        where: {
-          ...(project ? { project: { equals: project.id } } : {}),
-        },
-        sort: '-updatedAt',
-        overrideAccess: false,
-        select: {
-          title: true,
-          slug: true,
-          price: true,
-          currency: true,
-        },
-      })
+      const productsRes = await withRetry(() =>
+        payload.find({
+          collection: 'products',
+          depth: 2,
+          limit: 6,
+          where: {
+            ...(project ? { project: { equals: project.id } } : {}),
+          },
+          sort: '-updatedAt',
+          overrideAccess: false,
+          select: {
+            title: true,
+            slug: true,
+            price: true,
+            currency: true,
+          },
+        }),
+      )
       products = productsRes.docs as ProductDoc[]
     } catch {
       products = []

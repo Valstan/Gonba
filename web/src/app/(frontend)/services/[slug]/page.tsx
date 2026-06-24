@@ -7,6 +7,7 @@ import { Media } from '@/components/Media'
 import RichText from '@/components/RichText'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
 import { AdminOverlay } from '@/components/AdminOverlay'
+import { withRetry } from '@/utilities/withRetry'
 
 export async function generateStaticParams() {
   const payload = await getPayload({ config: configPromise })
@@ -83,18 +84,22 @@ export default async function ServicePage({ params: paramsPromise }: Args) {
 const queryServiceBySlug = cache(async ({ slug }: { slug: string }) => {
   const payload = await getPayload({ config: configPromise })
 
-  const result = await payload.find({
-    collection: 'services',
-    draft: false,
-    limit: 1,
-    overrideAccess: false,
-    pagination: false,
-    where: {
-      slug: {
-        equals: slug,
+  // pool #040: ретрай против транзиентного сбоя БД. Бросает после ретраев →
+  // ISR не кэширует ложный 404; null (0 docs) = реально нет → штатный 404.
+  const result = await withRetry(() =>
+    payload.find({
+      collection: 'services',
+      draft: false,
+      limit: 1,
+      overrideAccess: false,
+      pagination: false,
+      where: {
+        slug: {
+          equals: slug,
+        },
       },
-    },
-  })
+    }),
+  )
 
   return result.docs?.[0] || null
 })
