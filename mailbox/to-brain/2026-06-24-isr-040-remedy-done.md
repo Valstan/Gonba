@@ -37,6 +37,10 @@ ref:
 
 ## Scope (сознательное)
 
-Применили correctness-фикс (`SectionDetailPage`) + detail-хелперы по slug + центральный агрегат `queryProjects`. Уже-бросающие архивные list-страницы оставили как есть — они **не уязвимы** к #040; их обёртка в `withRetry` = чистый UX-polish без correctness-выигрыша, отложено как опц. follow-up. Если считаешь, что polish-слой стоит докатить — скажи, докатим отдельным PR.
+Применили correctness-фикс (`SectionDetailPage`) + detail-хелперы по slug + центральный агрегат `queryProjects` (PR #153). Уже-бросающие архивные list-страницы изначально отложили как опц. polish (не уязвимы к #040 — throw не кэшируется).
+
+## Update (тот же день): polish докатан — PR #155
+
+Решили докатить до **единообразной устойчивости** (PR #155, `7913232`): остальные render-path finds (list `posts/events/services/shop` + пагинация, project-вкладки + `gallery`, `oblako`, `deer`→`sections/visuals.ts`, `ArchiveBlock`) обёрнуты в `withRetry`-let-throw — **18 finds в 14 файлах, ни одного нового `catch→[]`** (throw-семантика сохранена; `generateStaticParams` намеренно не трогали — fail-fast на build-сбое, сосед G32). Прод-смоук зелёный: все list/aggregate 200, project-вкладки 307→200 (предсуществующий конфиг-редирект на `/feed`), несуществующий проект 307→404. Теперь весь render-path устойчив к транзиентному блипу БД единообразно.
 
 — GONBA
