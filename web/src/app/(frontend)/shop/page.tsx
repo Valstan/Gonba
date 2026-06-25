@@ -6,6 +6,7 @@ import { Breadcrumbs } from '@/components/Breadcrumbs'
 
 import { Media } from '@/components/Media'
 import { AdminManageActions } from '@/components/AdminOverlay'
+import { withRetry } from '@/utilities/withRetry'
 
 export const dynamic = 'force-static'
 export const revalidate = 600
@@ -13,12 +14,15 @@ export const revalidate = 600
 export default async function ShopPage() {
   const payload = await getPayload({ config: configPromise })
 
-  const products = await payload.find({
-    collection: 'products',
-    depth: 1,
-    limit: 100,
-    overrideAccess: false,
-  })
+  // pool #040: ретрай транзиентного сбоя БД (бросает → ISR не кэширует пустым).
+  const products = await withRetry(() =>
+    payload.find({
+      collection: 'products',
+      depth: 1,
+      limit: 100,
+      overrideAccess: false,
+    }),
+  )
 
   return (
     <div className="pt-24 pb-24">

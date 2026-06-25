@@ -6,6 +6,7 @@ import React from 'react'
 import RichText from '@/components/RichText'
 
 import { CollectionArchive } from '@/components/CollectionArchive'
+import { withRetry } from '@/utilities/withRetry'
 
 export const ArchiveBlock: React.FC<
   ArchiveBlockProps & {
@@ -26,20 +27,23 @@ export const ArchiveBlock: React.FC<
       else return category
     })
 
-    const fetchedPosts = await payload.find({
-      collection: 'posts',
-      depth: 1,
-      limit,
-      ...(flattenedCategories && flattenedCategories.length > 0
-        ? {
-            where: {
-              categories: {
-                in: flattenedCategories,
+    // pool #040: ретрай транзиентного сбоя БД (бросает → ISR не кэширует пустым).
+    const fetchedPosts = await withRetry(() =>
+      payload.find({
+        collection: 'posts',
+        depth: 1,
+        limit,
+        ...(flattenedCategories && flattenedCategories.length > 0
+          ? {
+              where: {
+                categories: {
+                  in: flattenedCategories,
+                },
               },
-            },
-          }
-        : {}),
-    })
+            }
+          : {}),
+      }),
+    )
 
     posts = fetchedPosts.docs
   } else {

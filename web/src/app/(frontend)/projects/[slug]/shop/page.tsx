@@ -6,6 +6,7 @@ import { notFound } from 'next/navigation'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
 import { Media } from '@/components/Media'
 import { queryProjectBySlug } from '../../queries'
+import { withRetry } from '@/utilities/withRetry'
 
 export const dynamic = 'force-static'
 export const revalidate = 600
@@ -37,18 +38,21 @@ export default async function ProjectShopPage({ params: paramsPromise }: Args) {
   if (!project) return notFound()
 
   const payload = await getPayload({ config: configPromise })
-  const products = await payload.find({
-    collection: 'products',
-    depth: 1,
-    sort: '-updatedAt',
-    limit: 100,
-    overrideAccess: false,
-    where: {
-      project: {
-        equals: project.id,
+  // pool #040: ретрай транзиентного сбоя БД (бросает → ISR не кэширует пустым).
+  const products = await withRetry(() =>
+    payload.find({
+      collection: 'products',
+      depth: 1,
+      sort: '-updatedAt',
+      limit: 100,
+      overrideAccess: false,
+      where: {
+        project: {
+          equals: project.id,
+        },
       },
-    },
-  })
+    }),
+  )
 
   return (
     <main className="pb-20 pt-24">

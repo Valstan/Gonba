@@ -10,6 +10,7 @@ import { Media } from '@/components/Media'
 import RichText from '@/components/RichText'
 import { ProjectDetailEditor } from '@/components/InlineEdit/ProjectDetailEditor.client'
 import { queryProjectBySlug } from '../queries'
+import { withRetry } from '@/utilities/withRetry'
 
 type Args = {
   params: Promise<{
@@ -60,56 +61,64 @@ export default async function ProjectPage({ params: paramsPromise }: Args) {
       })
     : []
 
+  // pool #040: каждый запрос с ретраем транзиентного сбоя БД (бросает → ISR не
+  // кэширует пустым). Promise.all отклонится при стойком сбое → рендер прерван.
   const [featuredPosts, upcomingEvents, projectServices] = await Promise.all([
-    payload.find({
-      collection: 'posts',
-      depth: 1,
-      limit: 3,
-      where: {
-        project: {
-          equals: projectId,
+    withRetry(() =>
+      payload.find({
+        collection: 'posts',
+        depth: 1,
+        limit: 3,
+        where: {
+          project: {
+            equals: projectId,
+          },
         },
-      },
-      sort: '-publishedAt',
-      overrideAccess: false,
-      select: {
-        title: true,
-        slug: true,
-        categories: true,
-        meta: true,
-      },
-    }),
-    payload.find({
-      collection: 'events',
-      depth: 1,
-      limit: 3,
-      where: {
-        project: {
-          equals: projectId,
+        sort: '-publishedAt',
+        overrideAccess: false,
+        select: {
+          title: true,
+          slug: true,
+          categories: true,
+          meta: true,
         },
-      },
-      sort: 'startDate',
-      overrideAccess: false,
-    }),
-    payload.find({
-      collection: 'services',
-      depth: 1,
-      limit: 6,
-      where: {
-        project: {
-          equals: projectId,
+      }),
+    ),
+    withRetry(() =>
+      payload.find({
+        collection: 'events',
+        depth: 1,
+        limit: 3,
+        where: {
+          project: {
+            equals: projectId,
+          },
         },
-      },
-      sort: '-updatedAt',
-      overrideAccess: false,
-      select: {
-        title: true,
-        summary: true,
-        slug: true,
-        price: true,
-        currency: true,
-      },
-    }),
+        sort: 'startDate',
+        overrideAccess: false,
+      }),
+    ),
+    withRetry(() =>
+      payload.find({
+        collection: 'services',
+        depth: 1,
+        limit: 6,
+        where: {
+          project: {
+            equals: projectId,
+          },
+        },
+        sort: '-updatedAt',
+        overrideAccess: false,
+        select: {
+          title: true,
+          summary: true,
+          slug: true,
+          price: true,
+          currency: true,
+        },
+      }),
+    ),
   ])
 
   const hasFeed = !enabledSections || enabledSections.includes('feed') || enabledSections.includes('posts') || enabledSections.includes('events')

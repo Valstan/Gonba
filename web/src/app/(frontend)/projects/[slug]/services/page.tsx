@@ -6,6 +6,7 @@ import { notFound } from 'next/navigation'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
 import { Media } from '@/components/Media'
 import { queryProjectBySlug } from '../../queries'
+import { withRetry } from '@/utilities/withRetry'
 
 export const dynamic = 'force-static'
 export const revalidate = 600
@@ -37,26 +38,29 @@ export default async function ProjectServicesPage({ params: paramsPromise }: Arg
   if (!project) return notFound()
 
   const payload = await getPayload({ config: configPromise })
-  const services = await payload.find({
-    collection: 'services',
-    depth: 1,
-    sort: '-updatedAt',
-    limit: 100,
-    overrideAccess: false,
-    where: {
-      project: {
-        equals: project.id,
+  // pool #040: ретрай транзиентного сбоя БД (бросает → ISR не кэширует пустым).
+  const services = await withRetry(() =>
+    payload.find({
+      collection: 'services',
+      depth: 1,
+      sort: '-updatedAt',
+      limit: 100,
+      overrideAccess: false,
+      where: {
+        project: {
+          equals: project.id,
+        },
       },
-    },
-    select: {
-      title: true,
-      slug: true,
-      summary: true,
-      price: true,
-      currency: true,
-      heroImage: true,
-    },
-  })
+      select: {
+        title: true,
+        slug: true,
+        summary: true,
+        price: true,
+        currency: true,
+        heroImage: true,
+      },
+    }),
+  )
 
   return (
     <main className="pb-20 pt-24">
