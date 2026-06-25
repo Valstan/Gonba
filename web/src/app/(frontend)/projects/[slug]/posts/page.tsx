@@ -7,6 +7,7 @@ import { CollectionArchive } from '@/components/CollectionArchive'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
 import { PageRange } from '@/components/PageRange'
 import { queryProjectBySlug } from '../../queries'
+import { withRetry } from '@/utilities/withRetry'
 
 export const dynamic = 'force-static'
 export const revalidate = 600
@@ -44,26 +45,29 @@ export default async function ProjectPostsPage({ params: paramsPromise, searchPa
   const currentPage = Number.isInteger(page) && page > 0 ? page : 1
 
   const payload = await getPayload({ config: configPromise })
-  const postsResult = await payload.find({
-    collection: 'posts',
-    depth: 1,
-    page: currentPage,
-    limit: 12,
-    sort: '-publishedAt',
-    overrideAccess: false,
-    where: {
-      project: {
-        equals: project.id,
+  // pool #040: ретрай транзиентного сбоя БД (бросает → ISR не кэширует пустым).
+  const postsResult = await withRetry(() =>
+    payload.find({
+      collection: 'posts',
+      depth: 1,
+      page: currentPage,
+      limit: 12,
+      sort: '-publishedAt',
+      overrideAccess: false,
+      where: {
+        project: {
+          equals: project.id,
+        },
       },
-    },
-    select: {
-      title: true,
-      slug: true,
-      categories: true,
-      meta: true,
-      heroImage: true,
-    },
-  })
+      select: {
+        title: true,
+        slug: true,
+        categories: true,
+        meta: true,
+        heroImage: true,
+      },
+    }),
+  )
 
   return (
     <main className="pb-20 pt-24">

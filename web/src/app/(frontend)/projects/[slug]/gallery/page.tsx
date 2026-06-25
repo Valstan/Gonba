@@ -8,6 +8,7 @@ import { ProjectGalleryEditor } from '@/components/InlineEdit/ProjectGalleryEdit
 import { YandexGallerySection } from '@/components/Gallery/YandexGallerySection'
 import { listYandexGalleryFolder, type YandexGalleryItem } from '@/server/integrations/yandex-disk-gallery'
 import { queryProjectBySlug } from '../../queries'
+import { withRetry } from '@/utilities/withRetry'
 import type { Media as MediaType } from '@/payload-types'
 
 const YANDEX_PREFIX = (process.env.YANDEX_PUBLIC_GALLERY_PREFIX || '/public-galleries/').toLowerCase()
@@ -80,34 +81,40 @@ export default async function ProjectGalleryPage({ params: paramsPromise }: Args
 
   const payload = await getPayload({ config: configPromise })
 
+  // pool #040: каждый запрос с ретраем транзиентного сбоя БД (бросает → ISR не
+  // кэширует пустым). Yandex-листинг ниже остаётся под своим try/catch (внешний API).
   const [projectPosts, galleryEvents] = await Promise.all([
-    payload.find({
-      collection: 'posts',
-      depth: 1,
-      sort: '-publishedAt',
-      limit: 50,
-      overrideAccess: false,
-      where: {
-        project: {
-          equals: project.id,
+    withRetry(() =>
+      payload.find({
+        collection: 'posts',
+        depth: 1,
+        sort: '-publishedAt',
+        limit: 50,
+        overrideAccess: false,
+        where: {
+          project: {
+            equals: project.id,
+          },
         },
-      },
-      select: {
-        heroImage: true,
-      },
-    }),
-    payload.find({
-      collection: 'events',
-      depth: 1,
-      sort: '-startDate',
-      limit: 12,
-      overrideAccess: false,
-      where: {
-        project: {
-          equals: project.id,
+        select: {
+          heroImage: true,
         },
-      },
-    }),
+      }),
+    ),
+    withRetry(() =>
+      payload.find({
+        collection: 'events',
+        depth: 1,
+        sort: '-startDate',
+        limit: 12,
+        overrideAccess: false,
+        where: {
+          project: {
+            equals: project.id,
+          },
+        },
+      }),
+    ),
   ])
 
   const postImages = projectPosts.docs.map((post) => post.heroImage)

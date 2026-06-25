@@ -10,6 +10,7 @@ import PageClient from './page.client'
 import { notFound } from 'next/navigation'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
 import { AdminManageActions } from '@/components/AdminOverlay'
+import { withRetry } from '@/utilities/withRetry'
 
 export const revalidate = 600
 
@@ -27,20 +28,23 @@ export default async function Page({ params: paramsPromise }: Args) {
 
   if (!Number.isInteger(sanitizedPageNumber)) notFound()
 
-  const posts = await payload.find({
-    collection: 'posts',
-    depth: 1,
-    limit: 12,
-    page: sanitizedPageNumber,
-    overrideAccess: false,
-    select: {
-      title: true,
-      slug: true,
-      categories: true,
-      meta: true,
-      heroImage: true,
-    },
-  })
+  // pool #040: ретрай транзиентного сбоя БД (бросает → ISR не кэширует пустым).
+  const posts = await withRetry(() =>
+    payload.find({
+      collection: 'posts',
+      depth: 1,
+      limit: 12,
+      page: sanitizedPageNumber,
+      overrideAccess: false,
+      select: {
+        title: true,
+        slug: true,
+        categories: true,
+        meta: true,
+        heroImage: true,
+      },
+    }),
+  )
 
   return (
     <div className="pt-24 pb-24">

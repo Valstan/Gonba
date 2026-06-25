@@ -4,6 +4,7 @@ import { cache } from 'react'
 
 import type { Media as PayloadMedia } from '@/payload-types'
 import { sections, type SectionDefinition } from './data'
+import { withRetry } from '@/utilities/withRetry'
 
 type VisualMedia = PayloadMedia
 
@@ -17,21 +18,26 @@ const scoreByKeywords = (item: VisualMedia, keywords: string[]) => {
 const loadMediaPool = cache(async (): Promise<VisualMedia[]> => {
   const payload = await getPayload({ config: configPromise })
 
+  // pool #040: каждый запрос с ретраем транзиентного сбоя БД (бросает → ISR не кэширует пустым).
   const [mediaResult, projectsResult] = await Promise.all([
-    payload.find({
-      collection: 'media',
-      overrideAccess: false,
-      depth: 0,
-      limit: 140,
-      sort: '-updatedAt',
-    }),
-    payload.find({
-      collection: 'projects',
-      overrideAccess: false,
-      depth: 1,
-      limit: 30,
-      sort: '-updatedAt',
-    }),
+    withRetry(() =>
+      payload.find({
+        collection: 'media',
+        overrideAccess: false,
+        depth: 0,
+        limit: 140,
+        sort: '-updatedAt',
+      }),
+    ),
+    withRetry(() =>
+      payload.find({
+        collection: 'projects',
+        overrideAccess: false,
+        depth: 1,
+        limit: 30,
+        sort: '-updatedAt',
+      }),
+    ),
   ])
 
   const mediaDocs = mediaResult.docs.filter(

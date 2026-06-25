@@ -5,6 +5,7 @@ import React from 'react'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
 import { AdminManageActions } from '@/components/AdminOverlay'
 import { Media } from '@/components/Media'
+import { withRetry } from '@/utilities/withRetry'
 
 export const dynamic = 'force-static'
 export const revalidate = 600
@@ -12,12 +13,15 @@ export const revalidate = 600
 export default async function EventsPage() {
   const payload = await getPayload({ config: configPromise })
 
-  const events = await payload.find({
-    collection: 'events',
-    depth: 1,
-    limit: 50,
-    overrideAccess: false,
-  })
+  // pool #040: ретрай транзиентного сбоя БД (бросает → ISR не кэширует пустым).
+  const events = await withRetry(() =>
+    payload.find({
+      collection: 'events',
+      depth: 1,
+      limit: 50,
+      overrideAccess: false,
+    }),
+  )
 
   return (
     <div className="pt-24 pb-24">

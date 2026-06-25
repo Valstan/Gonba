@@ -4,6 +4,7 @@ import { getPayload } from 'payload'
 
 import { Breadcrumbs } from '@/components/Breadcrumbs'
 import { CloudGallery, type CloudImage } from '@/components/CloudGallery/CloudGallery.client'
+import { withRetry } from '@/utilities/withRetry'
 
 export const dynamic = 'force-static'
 export const revalidate = 600
@@ -19,19 +20,22 @@ export const metadata: Metadata = {
 export default async function CloudPage() {
   const payload = await getPayload({ config: configPromise })
 
-  const result = await payload.find({
-    collection: 'media',
-    depth: 0,
-    limit: PER_PAGE,
-    page: 1,
-    sort: '-createdAt',
-    overrideAccess: false,
-    where: {
-      mimeType: {
-        like: 'image',
+  // pool #040: ретрай транзиентного сбоя БД (бросает → ISR не кэширует пустым).
+  const result = await withRetry(() =>
+    payload.find({
+      collection: 'media',
+      depth: 0,
+      limit: PER_PAGE,
+      page: 1,
+      sort: '-createdAt',
+      overrideAccess: false,
+      where: {
+        mimeType: {
+          like: 'image',
+        },
       },
-    },
-  })
+    }),
+  )
 
   const initialItems: CloudImage[] = result.docs
     .map((doc) => ({
