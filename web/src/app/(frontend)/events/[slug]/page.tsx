@@ -10,6 +10,8 @@ import type { Event } from '@/payload-types'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
 import { AdminOverlay } from '@/components/AdminOverlay'
 import { withRetry } from '@/utilities/withRetry'
+import { JsonLd } from '@/components/seo/JsonLd'
+import { eventJsonLd } from '@/seo/jsonld'
 
 export async function generateStaticParams() {
   const payload = await getPayload({ config: configPromise })
@@ -51,6 +53,7 @@ export default async function EventPage({ params: paramsPromise }: Args) {
       label="событие"
     >
       <article className="pt-16 pb-16">
+        <JsonLd data={eventJsonLd(event, url)} />
         <div className="container">
           <Breadcrumbs
             items={[

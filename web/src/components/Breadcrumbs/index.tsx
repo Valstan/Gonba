@@ -1,6 +1,9 @@
 import Link from 'next/link'
 import React from 'react'
 
+import { JsonLd } from '@/components/seo/JsonLd'
+import { breadcrumbJsonLd } from '@/seo/jsonld'
+
 type Breadcrumb = {
   href?: string
   label: string
@@ -30,8 +33,11 @@ export const Breadcrumbs: React.FC<Props> = ({ items, variant = 'default' }) => 
     : 'hover:text-foreground transition-colors'
 
   return (
-    <nav className="mb-4 text-sm" aria-label="Хлебные крошки">
-      <ol className={listClass}>
+    <>
+      {/* pool #051 (GEO): BreadcrumbList — серверно, на каждой странице с крошками. */}
+      <JsonLd data={breadcrumbJsonLd(items)} />
+      <nav className="mb-4 text-sm" aria-label="Хлебные крошки">
+        <ol className={listClass}>
         {items.map((item, index) => {
           const isLast = index === items.length - 1
 
@@ -52,7 +58,8 @@ export const Breadcrumbs: React.FC<Props> = ({ items, variant = 'default' }) => 
             </li>
           )
         })}
-      </ol>
-    </nav>
+        </ol>
+      </nav>
+    </>
   )
 }

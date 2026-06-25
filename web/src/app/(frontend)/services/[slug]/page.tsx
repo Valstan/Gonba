@@ -8,6 +8,8 @@ import RichText from '@/components/RichText'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
 import { AdminOverlay } from '@/components/AdminOverlay'
 import { withRetry } from '@/utilities/withRetry'
+import { JsonLd } from '@/components/seo/JsonLd'
+import { serviceJsonLd } from '@/seo/jsonld'
 
 export async function generateStaticParams() {
   const payload = await getPayload({ config: configPromise })
@@ -49,6 +51,7 @@ export default async function ServicePage({ params: paramsPromise }: Args) {
       label="сервис"
     >
       <article className="pt-16 pb-16">
+        <JsonLd data={serviceJsonLd(service, url)} />
         <div className="container">
           <Breadcrumbs
             items={[

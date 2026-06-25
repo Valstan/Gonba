@@ -7,6 +7,8 @@ import { ProjectDecor, resolveProjectTheme, type DecorMotif } from '@/components
 import { ProjectProvider } from '@/providers/ProjectContext'
 import { normalizeSections } from '../shared'
 import { queryProjectBySlug } from '../queries'
+import { JsonLd } from '@/components/seo/JsonLd'
+import { projectJsonLd } from '@/seo/jsonld'
 
 export const revalidate = 600
 
@@ -30,6 +32,8 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
 
   return (
     <ProjectProvider project={project} enabledSections={enabledSections}>
+      {/* pool #051 (GEO): Organization-узел проекта — серверно, на всех вкладках. */}
+      <JsonLd data={projectJsonLd(project, `/projects/${project.slug || slug}`)} />
       <div
         className="relative isolate min-h-screen"
         style={

@@ -17,6 +17,8 @@ import { draftMode } from 'next/headers'
 
 import './globals.css'
 import { getServerSideURL } from '@/utilities/getURL'
+import { JsonLd } from '@/components/seo/JsonLd'
+import { organizationJsonLd, websiteJsonLd } from '@/seo/jsonld'
 
 const ptSerif = PT_Serif({
   subsets: ['cyrillic', 'latin'],
@@ -59,6 +61,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <InitTheme />
         <link href="/favicon.ico" rel="icon" sizes="32x32" />
         <link href="/favicon.svg" rel="icon" type="image/svg+xml" />
+        {/* pool #051 (GEO): WebSite + Organization — серверно, ноль JS в браузер. */}
+        <JsonLd data={[websiteJsonLd(), organizationJsonLd()]} />
       </head>
       <body>
         <Providers>
@@ -83,6 +87,5 @@ export const metadata: Metadata = {
   openGraph: mergeOpenGraph(),
   twitter: {
     card: 'summary_large_image',
-    creator: '@payloadcms',
   },
 }
