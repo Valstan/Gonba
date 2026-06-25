@@ -13,6 +13,8 @@ import type { Post } from '@/payload-types'
 import { PostHero } from '@/heros/PostHero'
 import { generateMeta } from '@/utilities/generateMeta'
 import { withRetry } from '@/utilities/withRetry'
+import { JsonLd } from '@/components/seo/JsonLd'
+import { articleJsonLd } from '@/seo/jsonld'
 import PageClient from './page.client'
 import { LivePreviewListener } from '@/components/LivePreviewListener'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
@@ -61,6 +63,7 @@ export default async function Post({ params: paramsPromise }: Args) {
 
   return (
     <>
+      <JsonLd data={articleJsonLd(post, url)} />
       <article className="pt-16 pb-16">
         {/* z-20 поднимает крошки над PostHero (у него -mt-[10.4rem] + relative z-10),
             иначе hero перехватывает клики по ссылкам крошек. overlay — белый текст
