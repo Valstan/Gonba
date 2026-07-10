@@ -123,6 +123,12 @@ VK токены (для `vk:import`):
 `VK_TOKEN_VALSTAN`, `VK_TOKEN_VITA`
 - Также поддерживаются варианты `VK_TOKEN_{groupId}` и `VK_TOKEN_GROUP_{groupId}`
 
+«Народная лента» (UGC, `/lenta`; degraded без кредов — загрузка отдаёт 503, сайт живёт):
+
+- `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` — Yandex Object Storage (бакет public-read; presigned PUT напрямую из браузера)
+- `S3_ENDPOINT` (умолч. `https://storage.yandexcloud.net`), `S3_REGION` (умолч. `ru-central1`), `S3_PUBLIC_BASE_URL` (умолч. `<endpoint>/<bucket>`; переопределить при CDN)
+- `UGC_MAX_PHOTO_MB` (12), `UGC_MAX_VIDEO_MB` (100), `UGC_MAX_FILES` (20), `UGC_REPORT_HIDE_THRESHOLD` (3), `UGC_IP_SALT`/`UGC_OWNER_SALT` (умолч. `PAYLOAD_SECRET`)
+
 ## Технологии и версии
 
 Ключевые:

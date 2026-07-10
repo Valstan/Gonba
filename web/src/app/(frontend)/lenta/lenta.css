@@ -1,0 +1,1227 @@
+/* «Народная лента» (UGC) — стили портированы из Sabantuy (festive.css), палитра
+   заменена на бренд-токены GONBA (лесной зелёный/янтарь/глина/песок). Этап 1
+   docs/plans/sabantuy-borrowings.md. Классы lenta-* и lightbox-* — только эта фича. */
+/* Меню удаления одного кадра из полноэкранного лайтбокса (раскрыв вверх) */
+.lightbox-del {
+  position: relative;
+  display: inline-flex;
+}
+
+.lightbox-del-menu {
+  bottom: calc(100% + 8px);
+  right: 0;
+  z-index: 3;
+}
+
+/* Ссылка-действие в лайтбоксе (переход в медиатеку) */
+.lightbox-act--link {
+  text-decoration: none;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* ── Лайтбокс — просмотр фото поверх страницы ─────────────────────────────── */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1rem;
+  background: rgba(10, 28, 18, 0.93);
+  animation: lb-fade 0.18s ease;
+}
+
+.lightbox-fig {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-width: min(1100px, 94vw);
+}
+
+.lightbox-fig img {
+  display: block;
+  max-width: 100%;
+  max-height: 80vh;
+  margin: 0 auto;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 12px 44px rgba(0, 0, 0, 0.55);
+}
+
+.lightbox-video {
+  display: block;
+  max-width: 100%;
+  max-height: 80vh;
+  margin: 0 auto;
+  border-radius: 8px;
+  background: #000;
+  box-shadow: 0 12px 44px rgba(0, 0, 0, 0.55);
+}
+
+.lightbox-fig figcaption {
+  color: var(--brand-sand);
+  text-align: center;
+  font-size: 0.95rem;
+}
+
+.lightbox-btn {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 247, 230, 0.4);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  cursor: pointer;
+  border-radius: 999px;
+  line-height: 1;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+
+.lightbox-btn:hover {
+  background: rgba(232, 181, 58, 0.9);
+  color: #3a2400;
+}
+
+.lightbox-close {
+  top: 1rem;
+  right: 1.1rem;
+  width: 44px;
+  height: 44px;
+  font-size: 1.8rem;
+}
+
+.lightbox-nav {
+  top: 50%;
+  transform: translateY(-50%);
+  width: 52px;
+  height: 52px;
+  font-size: 2.4rem;
+  padding-bottom: 5px;
+}
+
+.lightbox-nav.prev {
+  left: 0.6rem;
+}
+
+.lightbox-nav.next {
+  right: 0.6rem;
+}
+
+.lightbox-count {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--brand-sand);
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+}
+
+/* Панель действий лайтбокса (под медиа): лайк-тюльпан · на весь экран · удалить. */
+.lightbox-actions {
+  position: absolute;
+  bottom: 1.1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  z-index: 2;
+}
+
+.lightbox-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 44px;
+  padding: 0 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 247, 230, 0.4);
+  background: rgba(0, 0, 0, 0.42);
+  color: #fff;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.lightbox-act svg {
+  display: block;
+}
+
+.lightbox-act:hover {
+  background: rgba(232, 181, 58, 0.92);
+  color: #3a2400;
+}
+
+.lightbox-like.is-on {
+  border-color: #c8203f;
+  background: rgba(200, 32, 63, 0.22);
+}
+
+.lightbox-act--danger:hover {
+  background: #a3242f;
+  border-color: #a3242f;
+  color: #fff;
+}
+
+/* Разворот на весь экран: убираем поля/скругления, медиа занимает максимум, подпись прячем. */
+.lightbox.is-expanded {
+  padding: 0;
+}
+
+.lightbox.is-expanded .lightbox-fig {
+  max-width: 100vw;
+}
+
+.lightbox.is-expanded .lightbox-fig img,
+.lightbox.is-expanded .lightbox-video {
+  max-width: 100vw;
+  max-height: 100vh;
+  border-radius: 0;
+}
+
+.lightbox.is-expanded .lightbox-fig figcaption {
+  display: none;
+}
+
+/* ── «Народная лента» (UGC, /lenta) ────────────────────────────────────────── */
+.lenta-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.25rem;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.4rem;
+}
+
+.lenta-filter {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.lenta-chip {
+  font: inherit;
+  font-size: 0.92rem;
+  cursor: pointer;
+  padding: 0.34rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--brand-forest);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.lenta-chip:hover {
+  border-color: var(--brand-amber);
+}
+
+.lenta-chip.is-active {
+  background: var(--brand-forest);
+  border-color: var(--brand-forest);
+  color: var(--brand-sand);
+}
+
+.lenta-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1.25rem;
+}
+
+.lenta-card {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+
+.lenta-card:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.lenta-media {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: var(--brand-forest);
+  display: grid;
+  gap: 2px;
+  overflow: hidden;
+}
+
+/* Мозаика поста (пост-в-стиле-ВК): 1 файл — на всю плитку; 2 — рядом; 3 — крупный
+   слева + два справа; 4 и больше — сетка 2×2 (на 4-й «+N»). */
+.lenta-media--n1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+
+.lenta-media--n2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+
+.lenta-media--n3 { grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; }
+
+.lenta-media--n3 .lenta-thumb:first-child { grid-row: 1 / 3; }
+
+.lenta-media--n4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+
+.lenta-thumb {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  background: var(--brand-forest);
+  overflow: hidden;
+}
+
+.lenta-thumb > img,
+.lenta-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* «+N» поверх последней плитки, когда файлов больше 4. */
+.lenta-thumb-more {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 1.7rem;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.lenta-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 1.2rem;
+  padding-left: 0.18rem;
+}
+
+.lenta-fallback {
+  font-size: 2.6rem;
+  opacity: 0.85;
+}
+
+.lenta-badge {
+  position: absolute;
+  top: 0.55rem;
+  left: 0.55rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  color: var(--brand-sand);
+  background: var(--brand-forest);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+.lenta-badge--festival {
+  background: var(--brand-clay);
+}
+
+.lenta-card-body {
+  padding: 0.75rem 0.85rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.lenta-caption {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.lenta-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.lenta-author {
+  font-weight: 600;
+  color: var(--brand-forest);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lenta-stats {
+  display: inline-flex;
+  gap: 0.7rem;
+  flex-shrink: 0;
+}
+
+/* ── Лента: верх (загрузка + контролы) ─────────────────────────────────────── */
+.lenta-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem 1.25rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.4rem;
+}
+
+.lenta-upload-btn {
+  white-space: nowrap;
+}
+
+/* ── Лента: вкладки Лента / Рейтинг ─────────────────────────────────────────── */
+.lenta-tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1.4rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.lenta-tab {
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.55rem 1rem;
+  border: none;
+  background: none;
+  color: var(--muted);
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.lenta-tab:hover {
+  color: var(--brand-forest);
+}
+
+.lenta-tab.is-active {
+  color: var(--brand-forest);
+  border-bottom-color: var(--brand-amber);
+}
+
+/* ── Игра «Фотобитва»: плавающая кнопка ─────────────────────────────────────── */
+.lenta-battle-fab {
+  position: fixed;
+  left: 50%;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 60;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.7rem 1.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--brand-amber);
+  background: var(--brand-forest);
+  color: #fff7e6;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
+  white-space: nowrap;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.lenta-battle-fab:hover {
+  transform: translateX(-50%) translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.34);
+}
+
+/* ── «Смотреть подряд» — вертикальный свайп-просмотр ленты (стиль клипов) ───── */
+.lenta-flow {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: #0a1c12;
+}
+
+.lenta-flow-scroll {
+  height: 100%;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.lenta-flow-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.lenta-flow-slide {
+  position: relative;
+  height: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.lenta-flow-media {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lenta-flow-media img,
+.lenta-flow-media video {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* «Взрыв» тюльпана при двойном тапе — как лайк в клипах */
+.lenta-flow-burst {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: #c8203f;
+  animation: flow-burst 0.7s ease forwards;
+}
+
+.lenta-flow-meta {
+  position: absolute;
+  left: 1rem;
+  right: 5rem;
+  bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  color: #fff7e6;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+}
+
+.lenta-flow-meta strong {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.lenta-flow-meta p {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.lenta-flow-rail {
+  position: absolute;
+  right: 0.75rem;
+  bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+  display: grid;
+  gap: 1rem;
+  justify-items: center;
+}
+
+.lenta-flow-act {
+  font: inherit;
+  display: grid;
+  justify-items: center;
+  gap: 0.15rem;
+  padding: 0.55rem;
+  min-width: 52px;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  background: rgba(10, 28, 18, 0.55);
+  color: #fff7e6;
+  font-size: 1.25rem;
+}
+
+.lenta-flow-act span {
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.lenta-flow-act.is-on {
+  color: #ffd9df;
+}
+
+.lenta-flow-close {
+  position: absolute;
+  top: calc(0.75rem + env(safe-area-inset-top, 0px));
+  right: 0.75rem;
+  z-index: 2;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  background: rgba(10, 28, 18, 0.6);
+  color: #fff7e6;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.lenta-flow-counter {
+  position: absolute;
+  top: calc(1.35rem + env(safe-area-inset-top, 0px));
+  left: 1rem;
+  z-index: 2;
+  color: rgba(255, 247, 230, 0.85);
+  font-size: 0.85rem;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.lenta-flow-hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(0.6rem + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 2;
+  color: rgba(255, 247, 230, 0.9);
+  font-size: 0.85rem;
+  pointer-events: none;
+  animation: flow-hint 1.6s ease infinite;
+}
+
+/* Кнопка входа в просмотр на /lenta — заметная, гранатово-золотая */
+.lenta-flow-open {
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.65rem 1.3rem;
+  border-radius: 999px;
+  border: 1px solid var(--brand-amber);
+  background: linear-gradient(120deg, #a11031, #c8203f);
+  color: #fff7e6;
+  box-shadow: 0 4px 14px rgba(161, 16, 49, 0.35);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.lenta-flow-open:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(161, 16, 49, 0.45);
+}
+
+/* ── Лента: действия на карточке ───────────────────────────────────────────── */
+.lenta-actions {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  margin-top: 0.15rem;
+}
+
+.lenta-act {
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0.28rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--brand-forest);
+  line-height: 1;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.lenta-act:hover:not(:disabled) {
+  border-color: var(--brand-amber);
+}
+
+.lenta-act.is-on {
+  border-color: var(--brand-amber);
+  background: #fff7e6;
+}
+
+.lenta-act--like {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.lenta-act--like svg {
+  display: block;
+}
+
+.lenta-act--like.is-on {
+  border-color: #c8203f;
+  background: #fff0f2;
+}
+
+.lenta-stat {
+  font-size: 0.9rem;
+  padding: 0.28rem 0.4rem;
+  line-height: 1;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.lenta-act--report {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.lenta-act:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.lenta-act--danger {
+  color: #a3242f;
+}
+
+.lenta-act--danger:hover:not(:disabled) {
+  border-color: #a3242f;
+  background: #fdeced;
+}
+
+.lenta-act-err {
+  margin: 0.3rem 0 0;
+  font-size: 0.8rem;
+  color: #a3242f;
+}
+
+.lenta-byline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.lenta-mine {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--brand-forest);
+  background: #fff7e6;
+  border: 1px solid var(--brand-amber);
+  border-radius: 999px;
+  padding: 0.08rem 0.5rem;
+}
+
+/* ── Лента: комментарии ────────────────────────────────────────────────────── */
+.lenta-comments {
+  margin-top: 0.6rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.lenta-comments-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.88rem;
+  max-height: 9rem;
+  overflow-y: auto;
+}
+
+.lenta-comment-author {
+  font-weight: 600;
+  color: var(--brand-forest);
+}
+
+.lenta-comment-actions {
+  margin-left: 0.4rem;
+  white-space: nowrap;
+}
+
+.lenta-link-btn {
+  font: inherit;
+  font-size: 0.8rem;
+  background: none;
+  border: none;
+  padding: 0 0.25rem;
+  cursor: pointer;
+  color: var(--brand-forest);
+  text-decoration: underline;
+}
+
+.lenta-link-btn:hover:not(:disabled) {
+  color: #9a6b00;
+}
+
+.lenta-link-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.lenta-link-btn--danger {
+  color: #a3242f;
+}
+
+.lenta-comment-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.lenta-comment-edit textarea {
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.lenta-comment-edit-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.lenta-comments-empty,
+.lenta-comments-loading {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.lenta-comments-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.lenta-comments-name,
+.lenta-comments-input {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.lenta-comments-form .btn-primary {
+  align-self: flex-start;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.9rem;
+}
+
+/* ── Лента: форма загрузки (модалка) ───────────────────────────────────────── */
+.lenta-upload-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.lenta-upload-hint {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.lenta-upload-preview {
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--brand-forest);
+  max-height: 16rem;
+  display: flex;
+  justify-content: center;
+}
+
+.lenta-upload-preview img,
+.lenta-upload-preview video {
+  max-width: 100%;
+  max-height: 16rem;
+  object-fit: contain;
+}
+
+/* Мульти-загрузка (пост-в-стиле-ВК): сетка превью выбранных файлов с удалением. */
+.lenta-upload-count {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.lenta-upload-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 0.4rem;
+}
+
+.lenta-upload-thumb {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--brand-forest);
+}
+
+.lenta-upload-thumb img,
+.lenta-upload-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.lenta-upload-thumb-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 1rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lenta-upload-thumb-badge {
+  position: absolute;
+  bottom: 2px;
+  left: 2px;
+  font-size: 0.9rem;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.lenta-upload-filebtn.is-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.lenta-upload-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+}
+
+.lenta-upload-field textarea,
+.lenta-upload-field input {
+  font: inherit;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.lenta-upload-consent {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.lenta-upload-consent input {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+}
+
+.lenta-upload-progress {
+  position: relative;
+  background: #eee;
+  border-radius: 999px;
+  height: 1.3rem;
+  overflow: hidden;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand-forest);
+}
+
+.lenta-upload-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--brand-amber);
+  transition: width 0.2s ease;
+}
+
+.lenta-upload-progress span {
+  position: relative;
+  z-index: 1;
+}
+
+.lenta-upload-error {
+  color: var(--brand-clay);
+  font-size: 0.88rem;
+  margin: 0;
+}
+
+.lenta-upload-success {
+  text-align: center;
+  font-size: 1.05rem;
+  padding: 1.5rem 0.5rem;
+  color: var(--brand-forest);
+}
+
+/* ── Лента: выбор источника (камера / файл) ────────────────────────────────── */
+.lenta-upload-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.lenta-upload-filebtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.92rem;
+  cursor: pointer;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--brand-forest);
+}
+
+.lenta-upload-filebtn:hover {
+  border-color: var(--brand-amber);
+}
+
+.lenta-upload-filebtn input[type='file'] {
+  display: none;
+}
+
+/* ── Лента: встроенная камера ──────────────────────────────────────────────── */
+.lenta-cam {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.lenta-cam--msg {
+  align-items: center;
+  text-align: center;
+  gap: 1rem;
+  padding: 1rem 0.5rem;
+}
+
+.lenta-cam-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  max-height: 60vh;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lenta-cam-stage video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lenta-cam-timer {
+  position: absolute;
+  top: 0.6rem;
+  left: 0.6rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(200, 32, 63, 0.85);
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+}
+
+.lenta-cam-flip {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 1.3rem;
+  cursor: pointer;
+}
+
+.lenta-cam-modes {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: center;
+}
+
+.lenta-cam-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  position: relative;
+}
+
+.lenta-cam-shutter {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  border: 4px solid var(--brand-amber);
+  background: #fff;
+  color: var(--brand-forest);
+  font-size: 1.6rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s ease;
+}
+
+.lenta-cam-shutter:active {
+  transform: scale(0.92);
+}
+
+.lenta-cam-shutter:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.lenta-cam-shutter.is-video {
+  color: var(--brand-clay);
+}
+
+.lenta-cam-shutter.is-rec {
+  background: var(--brand-clay);
+  color: #fff;
+  border-color: var(--brand-clay);
+}
+
+.lenta-cam-cancel {
+  position: absolute;
+  right: 0;
+  font: inherit;
+  font-size: 0.9rem;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* --- Дополнения GONBA: кнопка, пустая лента и модал загрузки (у Sabantuy эти классы
+   жили в глобальных стилях; здесь — scoped к фиче, чтобы не задеть остальной сайт). --- */
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.15rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--brand-forest);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.12);
+  transform: translateY(-1px);
+}
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.placeholder {
+  padding: 3rem 1.5rem;
+  border: 1px dashed var(--border);
+  border-radius: 1rem;
+  text-align: center;
+  color: var(--muted-foreground, #6b7280);
+  background: var(--card);
+}
+
+.lenta-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 4vh 1rem;
+  background: rgba(20, 28, 22, 0.62);
+  overflow-y: auto;
+}
+.lenta-modal-box {
+  width: 100%;
+  max-width: 30rem;
+  border-radius: 1rem;
+  background: var(--card, #fff);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  padding: 1.1rem 1.25rem 1.4rem;
+}
+.lenta-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.lenta-modal-head h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0;
+}
+.lenta-modal-close {
+  border: none;
+  background: none;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--muted-foreground, #6b7280);
+}
+.lenta-modal-close:hover {
+  color: var(--brand-clay);
+}
