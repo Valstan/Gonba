@@ -15,6 +15,12 @@ import { Projects } from './collections/Projects'
 import { Orders } from './collections/Orders'
 import { Services } from './collections/Services'
 import { Users } from './collections/Users'
+// «Народная лента» (UGC, этап 1 sabantuy-borrowings)
+import { ContentReports } from './collections/ContentReports'
+import { SubmissionComments } from './collections/SubmissionComments'
+import { SubmissionReactions } from './collections/SubmissionReactions'
+import { SubmissionViews } from './collections/SubmissionViews'
+import { Submissions } from './collections/Submissions'
 import { VkImportQueue } from './collections/VkImportQueue'
 import { VkAutoSync } from './collections/VkAutoSync'
 import { Messages } from './collections/Messages'
@@ -139,6 +145,11 @@ export default buildConfig({
     Media,
     Categories,
     Users,
+    Submissions,
+    SubmissionComments,
+    SubmissionReactions,
+    SubmissionViews,
+    ContentReports,
   ],
   cors: [getServerSideURL()].filter(Boolean),
   globals: [Header, Footer, HomeCarousel, VkAutoSyncSettings],
