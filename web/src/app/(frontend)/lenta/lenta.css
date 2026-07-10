@@ -1,6 +1,6 @@
 /* «Народная лента» (UGC) — стили портированы из Sabantuy (festive.css), палитра
    заменена на бренд-токены GONBA (лесной зелёный/янтарь/глина/песок). Этап 1
-   docs/plans/sabantuy-borrowings.md. Классы .lenta-*/.lightbox* — только эта фича. */
+   docs/plans/sabantuy-borrowings.md. Классы lenta-* и lightbox-* — только эта фича. */
 /* Меню удаления одного кадра из полноэкранного лайтбокса (раскрыв вверх) */
 .lightbox-del {
   position: relative;
