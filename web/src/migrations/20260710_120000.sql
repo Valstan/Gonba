@@ -1,5 +1,5 @@
 -- Mirror of 20260710_120000.ts up() for direct psql apply (fallback G6).
--- «Народная лента» (UGC): 6 таблиц + enum-ы. Idempotent & additive.
+-- «Народная лента» (UGC): 6 таблиц + enum-ы + FK-колонки в payload_locked_documents_rels.
 -- ВАЖНО: FK дочерних таблиц — ON DELETE CASCADE (анти-G135), не drizzle-дефолт SET NULL.
 BEGIN;
 
@@ -150,5 +150,39 @@ DO $$
           FOREIGN KEY ("submission_id") REFERENCES "public"."submissions"("id") ON DELETE CASCADE;
       END IF;
     END $$;
+
+ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "submissions_id" integer;
+    ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "submission_comments_id" integer;
+    ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "submission_reactions_id" integer;
+    ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "submission_views_id" integer;
+    ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "content_reports_id" integer;
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'payload_locked_documents_rels_submissions_fk') THEN
+        ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_submissions_fk"
+          FOREIGN KEY ("submissions_id") REFERENCES "public"."submissions"("id") ON DELETE CASCADE;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'payload_locked_documents_rels_submission_comments_fk') THEN
+        ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_submission_comments_fk"
+          FOREIGN KEY ("submission_comments_id") REFERENCES "public"."submission_comments"("id") ON DELETE CASCADE;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'payload_locked_documents_rels_submission_reactions_fk') THEN
+        ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_submission_reactions_fk"
+          FOREIGN KEY ("submission_reactions_id") REFERENCES "public"."submission_reactions"("id") ON DELETE CASCADE;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'payload_locked_documents_rels_submission_views_fk') THEN
+        ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_submission_views_fk"
+          FOREIGN KEY ("submission_views_id") REFERENCES "public"."submission_views"("id") ON DELETE CASCADE;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'payload_locked_documents_rels_content_reports_fk') THEN
+        ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_content_reports_fk"
+          FOREIGN KEY ("content_reports_id") REFERENCES "public"."content_reports"("id") ON DELETE CASCADE;
+      END IF;
+    END $$;
+    CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_submissions_id_idx" ON "payload_locked_documents_rels" ("submissions_id");
+    CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_submission_comments_id_idx" ON "payload_locked_documents_rels" ("submission_comments_id");
+    CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_submission_reactions_id_idx" ON "payload_locked_documents_rels" ("submission_reactions_id");
+    CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_submission_views_id_idx" ON "payload_locked_documents_rels" ("submission_views_id");
+    CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_content_reports_id_idx" ON "payload_locked_documents_rels" ("content_reports_id");
 
 COMMIT;

@@ -175,6 +175,48 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
       END IF;
     END $$;
   `)
+
+  // 5) Payload document-lock table: колонки-FK каждой новой коллекции в
+  //    payload_locked_documents_rels. Payload пишет туда блокировки документа на
+  //    update/delete через Local API — без этих колонок операция падает
+  //    "column ..._id does not exist" (грабля G6/G7: migrate:create завис на drizzle-
+  //    промпте и НЕ сгенерил эти ALTER'ы; drizzle push на dev их создаёт, потому баг
+  //    виден только на проде). Всё ON DELETE CASCADE, как штатно генерит Payload.
+  await db.execute(sql`
+    ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "submissions_id" integer;
+    ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "submission_comments_id" integer;
+    ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "submission_reactions_id" integer;
+    ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "submission_views_id" integer;
+    ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "content_reports_id" integer;
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'payload_locked_documents_rels_submissions_fk') THEN
+        ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_submissions_fk"
+          FOREIGN KEY ("submissions_id") REFERENCES "public"."submissions"("id") ON DELETE CASCADE;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'payload_locked_documents_rels_submission_comments_fk') THEN
+        ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_submission_comments_fk"
+          FOREIGN KEY ("submission_comments_id") REFERENCES "public"."submission_comments"("id") ON DELETE CASCADE;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'payload_locked_documents_rels_submission_reactions_fk') THEN
+        ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_submission_reactions_fk"
+          FOREIGN KEY ("submission_reactions_id") REFERENCES "public"."submission_reactions"("id") ON DELETE CASCADE;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'payload_locked_documents_rels_submission_views_fk') THEN
+        ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_submission_views_fk"
+          FOREIGN KEY ("submission_views_id") REFERENCES "public"."submission_views"("id") ON DELETE CASCADE;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'payload_locked_documents_rels_content_reports_fk') THEN
+        ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_content_reports_fk"
+          FOREIGN KEY ("content_reports_id") REFERENCES "public"."content_reports"("id") ON DELETE CASCADE;
+      END IF;
+    END $$;
+    CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_submissions_id_idx" ON "payload_locked_documents_rels" ("submissions_id");
+    CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_submission_comments_id_idx" ON "payload_locked_documents_rels" ("submission_comments_id");
+    CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_submission_reactions_id_idx" ON "payload_locked_documents_rels" ("submission_reactions_id");
+    CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_submission_views_id_idx" ON "payload_locked_documents_rels" ("submission_views_id");
+    CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_content_reports_id_idx" ON "payload_locked_documents_rels" ("content_reports_id");
+  `)
 }
 
 export async function down({ db }: MigrateDownArgs): Promise<void> {
@@ -184,6 +226,11 @@ export async function down({ db }: MigrateDownArgs): Promise<void> {
     DROP TABLE IF EXISTS "submission_reactions";
     DROP TABLE IF EXISTS "submission_views";
     DROP TABLE IF EXISTS "content_reports";
+    ALTER TABLE "payload_locked_documents_rels" DROP COLUMN IF EXISTS "submissions_id";
+    ALTER TABLE "payload_locked_documents_rels" DROP COLUMN IF EXISTS "submission_comments_id";
+    ALTER TABLE "payload_locked_documents_rels" DROP COLUMN IF EXISTS "submission_reactions_id";
+    ALTER TABLE "payload_locked_documents_rels" DROP COLUMN IF EXISTS "submission_views_id";
+    ALTER TABLE "payload_locked_documents_rels" DROP COLUMN IF EXISTS "content_reports_id";
     DROP TABLE IF EXISTS "submissions";
     DROP TYPE IF EXISTS "public"."enum_submissions_kind";
     DROP TYPE IF EXISTS "public"."enum_submissions_status";
