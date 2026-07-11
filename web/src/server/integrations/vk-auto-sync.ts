@@ -4,6 +4,7 @@ import type { Payload } from 'payload'
 import type { Post } from '@/payload-types'
 
 import { parseVkCommunityIdentifier } from './vk-auto-sync-resolve'
+import { gatewayCall, isGatewayConfigured } from './vk-gateway'
 
 const VK_API_VERSION = '5.199'
 
@@ -105,6 +106,20 @@ async function fetchVkPosts(
   count: number = 3,
   retries: number = 2,
 ): Promise<VkWallPost[]> {
+  // Приоритет — шлюз SARAFAN (если задан ключ): он исполняет wall.get своим токеном
+  // со своего IP, обходя IP-binding/баны наших локальных токенов. Токен/версию API
+  // подставляет сам шлюз. Ошибка шлюза пробрасывается (прогон пометится error) —
+  // на локальные токены НЕ откатываемся (они и так протухли, это лишний шум/бан-риск).
+  if (isGatewayConfigured()) {
+    const response = await gatewayCall<{ count: number; items: VkWallPost[] }>('wall.get', {
+      owner_id: ownerId,
+      count: Math.min(count, 10),
+      filter: 'owner',
+      extended: 0,
+    })
+    return response.items ?? []
+  }
+
   const tokenPool = getVkTokenPool()
 
   // Если preferredToken заблокирован, пробуем другие

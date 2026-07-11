@@ -122,6 +122,13 @@ VK токены (для `vk:import`):
 
 `VK_TOKEN_VALSTAN`, `VK_TOKEN_VITA`
 - Также поддерживаются варианты `VK_TOKEN_{groupId}` и `VK_TOKEN_GROUP_{groupId}`
+- **Устарели как основной путь** (2026-07-11): VK привязывает user-токен к IP выпуска → на сервере Гоньбы `error 5`/баны. Основной путь чтения VK — **шлюз SARAFAN** (ниже). Локальные токены остаются fallback'ом, когда ключ шлюза не задан.
+
+VK через шлюз SARAFAN (read-only, основной путь с 2026-07-11):
+
+- `SARAFAN_GATEWAY_KEY` — ключ проекта `GATEWAY_KEY_GONBA` (запрашивается у владельца SARAFAN, лежит в `/etc/setka/setka.env` на боксе SARAFAN). Без него — degraded (vk-auto-sync идёт прежним путём через локальные токены).
+- `SARAFAN_GATEWAY_URL` (умолч. `https://3931b3fe50ab.vps.myjino.ru`; при переезде VPS SARAFAN обновить), `SARAFAN_GATEWAY_TIMEOUT_MS` (умолч. 12000).
+- Контракт — sibling `setka/docs/GATEWAY.md` (ADR-0007). Read-only: `wall.get`/`groups.getById`/`users.get`/`resolveScreenName`. Квоты 30/мин, 5000/день на ключ (429+Retry-After). Зависимость зафиксирована письмом в brain.
 
 «Народная лента» (UGC, `/lenta`; degraded без кредов — загрузка отдаёт 503, сайт живёт):
 
