@@ -10,6 +10,8 @@
  * (`-groupId`), у личной страницы — положительный (`+userId`).
  */
 
+import { gatewayCall, isGatewayConfigured } from './vk-gateway'
+
 const VK_API_VERSION = '5.199'
 
 export type VkIdentifier = {
@@ -99,33 +101,44 @@ export async function fetchVkGroupMeta(
   identifier: { groupId?: number; screenName?: string },
   token: string | null | undefined,
 ): Promise<VkGroupMeta | null> {
-  if (!token) return null
   const groupKey = identifier.screenName || (identifier.groupId != null ? String(identifier.groupId) : null)
   if (!groupKey) return null
 
-  const params = new URLSearchParams({
-    group_ids: groupKey,
-    fields: 'description,members_count,photo_200,photo_100,photo_50,activity,screen_name',
-    access_token: token,
-    v: VK_API_VERSION,
-  })
-
-  let res: Response
-  try {
-    res = await fetch(`https://api.vk.com/method/groups.getById?${params.toString()}`, {
-      // VK иногда отвечает медленно; чтобы хук Payload не висел вечно — таймаут.
-      signal: AbortSignal.timeout(8000),
-    })
-  } catch {
-    return null
+  // Метаданные тоже через шлюз SARAFAN (если задан ключ) — как и wall.get. Без ключа
+  // (или при сбое шлюза) откатываемся на локальный токен, если он передан.
+  const fields = 'description,members_count,photo_200,photo_100,photo_50,activity,screen_name'
+  let data: unknown = null
+  if (isGatewayConfigured()) {
+    try {
+      const response = await gatewayCall('groups.getById', { group_ids: groupKey, fields })
+      data = { response }
+    } catch {
+      data = null
+    }
   }
-  if (!res.ok) return null
-
-  let data: unknown
-  try {
-    data = await res.json()
-  } catch {
-    return null
+  if (data == null) {
+    if (!token) return null
+    const params = new URLSearchParams({
+      group_ids: groupKey,
+      fields,
+      access_token: token,
+      v: VK_API_VERSION,
+    })
+    let res: Response
+    try {
+      res = await fetch(`https://api.vk.com/method/groups.getById?${params.toString()}`, {
+        // VK иногда отвечает медленно; чтобы хук Payload не висел вечно — таймаут.
+        signal: AbortSignal.timeout(8000),
+      })
+    } catch {
+      return null
+    }
+    if (!res.ok) return null
+    try {
+      data = await res.json()
+    } catch {
+      return null
+    }
   }
   const root = data as { response?: { groups?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>; error?: unknown }
   if (root?.error) return null
@@ -164,30 +177,40 @@ export async function fetchVkUserMeta(
   userId: number | null | undefined,
   token: string | null | undefined,
 ): Promise<VkGroupMeta | null> {
-  if (!token || !userId) return null
+  if (!userId) return null
 
-  const params = new URLSearchParams({
-    user_ids: String(userId),
-    fields: 'photo_200,photo_100,photo_50,screen_name,status',
-    access_token: token,
-    v: VK_API_VERSION,
-  })
-
-  let res: Response
-  try {
-    res = await fetch(`https://api.vk.com/method/users.get?${params.toString()}`, {
-      signal: AbortSignal.timeout(8000),
-    })
-  } catch {
-    return null
+  const fields = 'photo_200,photo_100,photo_50,screen_name,status'
+  let data: unknown = null
+  if (isGatewayConfigured()) {
+    try {
+      const response = await gatewayCall('users.get', { user_ids: String(userId), fields })
+      data = { response }
+    } catch {
+      data = null
+    }
   }
-  if (!res.ok) return null
-
-  let data: unknown
-  try {
-    data = await res.json()
-  } catch {
-    return null
+  if (data == null) {
+    if (!token) return null
+    const params = new URLSearchParams({
+      user_ids: String(userId),
+      fields,
+      access_token: token,
+      v: VK_API_VERSION,
+    })
+    let res: Response
+    try {
+      res = await fetch(`https://api.vk.com/method/users.get?${params.toString()}`, {
+        signal: AbortSignal.timeout(8000),
+      })
+    } catch {
+      return null
+    }
+    if (!res.ok) return null
+    try {
+      data = await res.json()
+    } catch {
+      return null
+    }
   }
   const root = data as { response?: Array<Record<string, unknown>>; error?: unknown }
   if (root?.error) return null
