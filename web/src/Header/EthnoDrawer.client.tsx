@@ -75,6 +75,25 @@ export const EthnoDrawer: React.FC<DrawerData> = ({ groups, extraLinks, contacts
             </div>
           )}
 
+          {/* Экосистема Малмыжа (mandate brain 26.07): бренд-фиксированная ссылка на
+              каталог сервисов ЕСА, не выбор редактора — потому в коде, не в Payload.
+              Punycode вход.вмалмыже.рф — как в директиве. */}
+          <div className="ethno-drawer__group">
+            <a
+              href="https://xn--b1ae3a1a.xn--80adkdyec4j.xn--p1ai/services"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <div>
+                <strong>Сервисы Малмыжа</strong>
+                <span>каталог сайтов района</span>
+              </div>
+              <svg className="ethno-arrow" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" />
+              </svg>
+            </a>
+          </div>
+
           <div className="ethno-drawer__footer">
             <h3>{contacts.heading}</h3>
             <p>
