@@ -7,6 +7,7 @@ import { JetBrains_Mono, Manrope, PT_Serif } from 'next/font/google'
 import React from 'react'
 
 import { AdminBar } from '@/components/AdminBar'
+import { Analytics } from '@/components/analytics/Analytics.client'
 import { SiteDecor } from '@/components/SiteDecor.client'
 import { Footer } from '@/Footer/Component'
 import { Header } from '@/Header/Component'
@@ -76,6 +77,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <Header />
           {children}
           <Footer />
+          {/* Счётчики (Метрика+LI): env-gated, consent-first — см. Analytics.client.tsx */}
+          <Analytics />
         </Providers>
       </body>
     </html>
