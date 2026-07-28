@@ -179,6 +179,35 @@ Payload:
 - `POST /yadisk-api/sync` — сверка/обновление Yandex-метаданных медиа батчами (admin/manager)
 - `tsx scripts/russify.ts` — русификация/seed контента (см. `web/scripts/russify.ts`)
 
+### Миграции: снапшот и сверка с продом (G192, 2026-07-28)
+
+Мы — **push-first гибрид**: в `payload_migrations` прода есть строка `dev` (batch −1) — часть
+схемы приехала `pushDevSchema`'ем, не миграциями. Следствия (GOTCHAS G192 + поправка Сабантуя):
+
+- **Цепочка миграций не самодостаточна** — «прогнать `up()` на чистой БД» не сработает.
+  Проверка корректности = **сверка конфиг ↔ прод**, не реплей.
+- **drizzle-kit диффит против последнего `.json`-снапшота** рядом с миграциями, не против БД.
+  Устаревший снапшот → правдоподобная, но неполная миграция. Актуальный снапшот:
+  `web/src/migrations/20260728_120000.json` (пересобран против конфига, verify: `migrate:create --skip-empty` видит 0 изменений).
+
+Инструменты (оба read-only):
+
+- `corepack pnpm tsx scripts/write-schema-snapshot.ts [--name YYYYMMDD_HHMMSS]` — пересобрать
+  снапшот против **актуального конфига** (пишет только `.json`; сначала измерь дрейф probe'ом).
+- `corepack pnpm tsx scripts/probe-schema-drift.ts` — сверка конфиг ↔ БД, на которую смотрит
+  `DATABASE_URL`. Направлять на **копию** прод-схемы:
+  ```bash
+  ssh GONBA "sudo -u postgres pg_dump -s gonba" > /tmp/prod-schema.sql
+  # createdb gonba_probe + psql -f, затем:
+  DATABASE_URL=postgres://…/gonba_probe corepack pnpm tsx scripts/probe-schema-drift.ts
+  ```
+  Классифицирует: шум drizzle-kit (`SET DEFAULT` на уже стоящих дефолтах) / осознанный дрейф
+  (3 FK `submission_*` CASCADE, анти-G135 — allowlist в скрипте) / настоящий дрейф (exit 1).
+  Гейт проверен в обе стороны 2026-07-28: чистая прод-копия → exit 0; выброшенная колонка → exit 1 (#104).
+
+**Правило дальше:** каждая новая миграция = **три файла** (`.ts` + `.sql` + `.json`); снапшот
+коммитить вместе с миграцией, `down()` читать глазами до применения.
+
 ## Деплой
 
 ### Удалённый доступ к серверу (SSH)
