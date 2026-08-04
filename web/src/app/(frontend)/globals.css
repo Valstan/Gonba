@@ -1624,7 +1624,12 @@ html {
   .project-world-hero::after { background: linear-gradient(0deg, color-mix(in oklab, var(--project-world-surface) 98%, white) 0 38%, color-mix(in oklab, var(--project-world-surface) 76%, transparent) 67%, transparent 92%); }
   .project-world-hero__art { background-position: 68% center; }
   .project-world-hero__content { width: 100%; min-height: inherit; padding: 1.5rem; }
-  .project-world-hero__title { font-size: clamp(2.6rem, 13vw, 4.25rem); }
+  .project-world-hero__title {
+    max-width: 100%;
+    font-size: clamp(2.35rem, 11vw, 3.65rem);
+    hyphens: auto;
+    overflow-wrap: anywhere;
+  }
   .project-switcher__grid { grid-template-columns: 1fr; }
 }
 

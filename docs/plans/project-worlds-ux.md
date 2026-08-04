@@ -22,7 +22,7 @@
 - [x] Переосмыслить `/projects/<slug>` как содержательный обзор.
 - [x] Сгенерировать четыре тематических арт-полотна и подключить по профилю проекта.
 - [x] Добавить reduced-motion и responsive-поведение.
-- [ ] Визуально проверить живые данные desktop/mobile (локальная БД сейчас недоступна без admin-start).
+- [x] Визуально проверить живые данные desktop/mobile: главная, project hero, switcher, console и horizontal overflow.
 - [ ] После стабилизации удалить orphaned orbit-код и CSS отдельным deadcode-PR.
 
 ## Арт-профили

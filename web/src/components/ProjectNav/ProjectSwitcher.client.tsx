@@ -12,6 +12,9 @@ type Props = {
   projects: ProjectRecord[]
 }
 
+const projectLabel = (project: ProjectRecord) =>
+  project.shortLabel && project.shortLabel !== 'Проект' ? project.shortLabel : project.title
+
 export function ProjectSwitcher({ current, projects }: Props) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
@@ -45,7 +48,7 @@ export function ProjectSwitcher({ current, projects }: Props) {
         onClick={() => setOpen((value) => !value)}
       >
         <span className="project-switcher__eyebrow">Сейчас внутри</span>
-        <strong>{current.shortLabel || current.title}</strong>
+        <strong>{projectLabel(current)}</strong>
         <span className="project-switcher__chevron" aria-hidden>⌄</span>
       </button>
 
@@ -67,7 +70,7 @@ export function ProjectSwitcher({ current, projects }: Props) {
                   style={{ '--switcher-art': `url("${world.art}")` } as React.CSSProperties}
                   aria-current={active ? 'page' : undefined}
                 >
-                  <span>{project.shortLabel || project.title}</span>
+                  <span>{projectLabel(project)}</span>
                   <small>{world.eyebrow.split(' · ')[0]}</small>
                 </Link>
               )
