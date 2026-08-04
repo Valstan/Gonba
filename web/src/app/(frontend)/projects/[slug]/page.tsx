@@ -11,6 +11,7 @@ import RichText from '@/components/RichText'
 import { ProjectDetailEditor } from '@/components/InlineEdit/ProjectDetailEditor.client'
 import { queryProjectBySlug } from '../queries'
 import { withRetry } from '@/utilities/withRetry'
+import { resolveProjectWorld } from '@/components/ProjectWorld/theme'
 
 type Args = {
   params: Promise<{
@@ -38,6 +39,7 @@ export default async function ProjectPage({ params: paramsPromise }: Args) {
   const payload = await getPayload({ config: configPromise })
   const projectId = project.id
   const projectEditUrl = `/admin/collections/projects/${projectId}`
+  const world = resolveProjectWorld(project)
   const enabledSections = Array.isArray(project.enabledSections) && project.enabledSections.length > 0 ? project.enabledSections : null
 
   // Данные для inline-редактора проекта (depth=1 → heroImage уже объект с url).
@@ -133,8 +135,8 @@ export default async function ProjectPage({ params: paramsPromise }: Args) {
       editUrl={projectEditUrl}
       label="проект"
     >
-      <article className="pb-20 pt-28">
-      <div className="container">
+      <article className="pb-20 pt-5 md:pt-8">
+      <div className="container project-world-breadcrumbs">
         <Breadcrumbs
           items={[
             { href: '/', label: 'Главная' },
@@ -144,45 +146,49 @@ export default async function ProjectPage({ params: paramsPromise }: Args) {
         />
       </div>
 
-      <div className="container rounded-3xl border border-border/80 bg-card/80 p-6 md:p-10">
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="text-3xl font-semibold">{project.title}</h1>
-          <ProjectDetailEditor
-            project={{
-              id: projectId,
-              title: project.title || '',
-              summary: project.summary || '',
-              description: project.description,
-              heroImageId,
-              heroImageUrl,
-              contacts: {
-                phone: project.contacts?.phone || '',
-                email: project.contacts?.email || '',
-                whatsApp: project.contacts?.whatsApp || '',
-              },
-              location: {
-                address: project.location?.address || '',
-                mapUrl: project.location?.mapUrl || '',
-                coordinates: project.location?.coordinates || '',
-              },
-              gallery: galleryItems,
-            }}
-          />
-        </div>
-        <p className="mt-4 max-w-2xl text-muted-foreground">{project.summary || 'Проектное пространство проекта и его активная программа.'}</p>
+      <header className="container project-world-hero">
+        <div className="project-world-hero__art" aria-hidden />
+        <div className="project-world-hero__content">
+          <p className="project-world-hero__eyebrow">{world.eyebrow}</p>
+          <div className="flex items-start justify-between gap-3">
+            <h1 className="project-world-hero__title">{project.title}</h1>
+            <ProjectDetailEditor
+              project={{
+                id: projectId,
+                title: project.title || '',
+                summary: project.summary || '',
+                description: project.description,
+                heroImageId,
+                heroImageUrl,
+                contacts: {
+                  phone: project.contacts?.phone || '',
+                  email: project.contacts?.email || '',
+                  whatsApp: project.contacts?.whatsApp || '',
+                },
+                location: {
+                  address: project.location?.address || '',
+                  mapUrl: project.location?.mapUrl || '',
+                  coordinates: project.location?.coordinates || '',
+                },
+                gallery: galleryItems,
+              }}
+            />
+          </div>
+          <p className="project-world-hero__summary">{project.summary || world.invitation}</p>
 
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Link href={`/projects/${project.slug}/feed`} className="min-h-11 inline-flex items-center rounded-full border border-border bg-background px-4 py-2 text-sm font-medium">
-            Жизнь проекта
-          </Link>
-          <Link href={`/projects/${project.slug}/lavka`} className="min-h-11 inline-flex items-center rounded-full border border-border bg-background px-4 py-2 text-sm font-medium">
-            Лавка
-          </Link>
-          <Link href={`/projects/${project.slug}/contacts`} className="min-h-11 inline-flex items-center rounded-full border border-border bg-background px-4 py-2 text-sm font-medium">
-            Контакты
-          </Link>
+          <nav className="project-world-hero__actions" aria-label="Быстрый вход в проект">
+            <Link href={`/projects/${project.slug}/feed`} className="project-world-hero__action is-primary">
+              Что происходит
+            </Link>
+            <Link href={`/projects/${project.slug}/gallery`} className="project-world-hero__action">
+              Смотреть фото
+            </Link>
+            <Link href={`/projects/${project.slug}/contacts`} className="project-world-hero__action">
+              Связаться
+            </Link>
+          </nav>
         </div>
-      </div>
+      </header>
 
       <div className="container mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
         <section className="space-y-6">

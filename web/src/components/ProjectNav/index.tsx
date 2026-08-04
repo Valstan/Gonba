@@ -7,6 +7,7 @@ import React from 'react'
 import { Media } from '@/components/Media'
 import { DEFAULT_PROJECT_SECTIONS, type ProjectSectionKey } from '@/app/(frontend)/projects/shared'
 import { useProjectContext } from '@/providers/ProjectContext'
+import { ProjectSwitcher } from './ProjectSwitcher.client'
 
 const SECTION_TITLES: Record<ProjectSectionKey, string> = {
   feed: 'Жизнь проекта',
@@ -21,7 +22,7 @@ const buildSectionHref = (projectSlug: string, section: ProjectSectionKey | 'hom
 
 export const ProjectNav: React.FC = () => {
   const pathname = usePathname()
-  const { project, enabledSections } = useProjectContext()
+  const { project, projects, enabledSections } = useProjectContext()
 
   if (!project) return null
 
@@ -30,30 +31,25 @@ export const ProjectNav: React.FC = () => {
   const sections = visibleSections.filter((item): item is ProjectSectionKey => item in SECTION_TITLES)
 
   return (
-    <div className="hidden border-b border-border bg-card/60 backdrop-blur md:block">
-      <div className="container flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <Link href={buildSectionHref(project.slug, 'home')} className="flex items-center gap-3 min-w-0">
-          {project.logo ? (
-            <Media
-              resource={project.logo}
-              className="size-10 rounded-full border border-white/20 bg-white/80 object-cover shadow-sm"
-            />
-          ) : null}
-          <span className="truncate text-sm font-semibold sm:text-base">{project.shortLabel || project.title}</span>
-        </Link>
+    <div className="project-dock hidden md:block">
+      <div className="container project-dock__inner">
+        <div className="project-dock__identity">
+          {project.logo ? <Media resource={project.logo} className="project-dock__logo" /> : null}
+          <ProjectSwitcher current={project} projects={projects} />
+        </div>
 
-        <nav>
-          <ul className="flex flex-wrap items-center gap-2 sm:justify-end">
+        <nav aria-label="Разделы проекта">
+          <ul className="project-dock__sections">
             <li>
               <Link
                 href={buildSectionHref(project.slug, 'home')}
-                className={`min-h-11 inline-flex items-center whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+                className={`project-dock__link ${
                   pathname === buildSectionHref(project.slug, 'home')
-                    ? 'border-[var(--project-accent)] bg-[color:var(--project-accent-soft,transparent)] text-[var(--project-accent)]'
-                    : 'border-border/90 hover:bg-accent/40'
+                    ? 'is-active'
+                    : ''
                 }`}
               >
-                Главная
+                Обзор
               </Link>
             </li>
             {sections.map((section) => {
@@ -64,10 +60,10 @@ export const ProjectNav: React.FC = () => {
                 <li key={section}>
                   <Link
                     href={href}
-                    className={`min-h-11 inline-flex items-center whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+                    className={`project-dock__link ${
                       active
-                        ? 'border-[var(--project-accent)] bg-[color:var(--project-accent-soft,transparent)] text-[var(--project-accent)]'
-                        : 'border-border/90 hover:bg-accent/40'
+                        ? 'is-active'
+                        : ''
                     }`}
                   >
                     {SECTION_TITLES[section]}
