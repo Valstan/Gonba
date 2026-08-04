@@ -262,7 +262,7 @@ jobs:
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_only) }}
         run: |
           set -e
-          MARKER='homeOrbit__itemWrap'   # маркер орбит-карусели на / (ADR-0006)
+          MARKER='project-atlas'   # маркер визуального атласа проектов на / (ADR-0008)
           BODY=$(ssh GONBA "curl -s --max-time 20 http://127.0.0.1:3000/")
           COUNT=$(printf '%s' "${BODY}" | grep -o "${MARKER}" | wc -l | tr -d ' ')
           echo "Маркер '${MARKER}' на / (local): ${COUNT} вхождений"
