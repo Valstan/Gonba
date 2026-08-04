@@ -23,7 +23,7 @@ type TabConfig = {
 const TABS: TabConfig[] = [
   {
     key: 'home',
-    label: 'Главная',
+    label: 'Обзор',
     Icon: HomeIcon,
     href: (slug) => `/projects/${slug}`,
     isActive: (pathname, slug) => pathname === `/projects/${slug}`,

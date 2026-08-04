@@ -6,11 +6,13 @@ import type { ProjectRecord, ProjectSectionKey } from '@/app/(frontend)/projects
 
 type ProjectContextValue = {
   project: ProjectRecord | null
+  projects: ProjectRecord[]
   enabledSections: ProjectSectionKey[]
 }
 
 const defaultValue: ProjectContextValue = {
   project: null,
+  projects: [],
   enabledSections: [],
 }
 
@@ -18,11 +20,12 @@ const ProjectContext = createContext<ProjectContextValue>(defaultValue)
 
 type ProjectProviderProps = {
   project: ProjectRecord
+  projects?: ProjectRecord[]
   enabledSections?: ProjectSectionKey[]
   children: React.ReactNode
 }
 
-export const ProjectProvider: React.FC<ProjectProviderProps> = ({ project, enabledSections, children }) => {
+export const ProjectProvider: React.FC<ProjectProviderProps> = ({ project, projects = [], enabledSections, children }) => {
   // Если явно передан нормализованный список — используем его.
   // Иначе фильтруем raw-значение (с потерей legacy ключей, но это деградация).
   const finalSections: ProjectSectionKey[] = enabledSections ??
@@ -32,7 +35,7 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ project, enabl
         ) as ProjectSectionKey[])
       : [])
 
-  return <ProjectContext value={{ project, enabledSections: finalSections }}>{children}</ProjectContext>
+  return <ProjectContext value={{ project, projects, enabledSections: finalSections }}>{children}</ProjectContext>
 }
 
 export const useProjectContext = (): ProjectContextValue => {

@@ -7,6 +7,17 @@ import redirects from './redirects.js'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 
+// Локальный dev может открываться и как localhost, и как 127.0.0.1 (browser QA,
+// curl, reverse-proxy). Payload строит абсолютный media URL из origin запроса,
+// поэтому оба host должны быть разрешены Next/Image только в development.
+const developmentImageHosts =
+  process.env.NODE_ENV === 'development'
+    ? [
+        { protocol: 'http', hostname: 'localhost', port: '3000' },
+        { protocol: 'http', hostname: '127.0.0.1', port: '3000' },
+      ]
+    : []
+
 const NEXT_PUBLIC_SERVER_URL =
   process.env.NEXT_PUBLIC_SERVER_URL ||
   (process.env.VERCEL_PROJECT_PRODUCTION_URL
@@ -30,6 +41,7 @@ const nextConfig = {
   outputFileTracingRoot: dirname,
   images: {
     remotePatterns: [
+      ...developmentImageHosts,
       ...[NEXT_PUBLIC_SERVER_URL /* 'https://example.com' */].map((item) => {
         const url = new URL(item)
 

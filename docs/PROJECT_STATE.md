@@ -56,11 +56,11 @@ scripts/                      — общие deploy/dev помощники
 ## Frontend (публичный сайт)
 
 - Маршруты:
-  - `/` — orbit-карусель проектов (`HomeCarouselMenuClient` + `HomeProjectGridMobile`), ADR-0006. Кружки курируются полем `Projects.showInOrbit` (1:1, без дублей; центр — `gonba`). Вращение — единая `--orbit-rot` через rAF.
+  - `/` — прямой визуальный атлас проектов (`ProjectAtlas`): карточки ведут сразу в проект, generated art дополняет реальные hero/logo. Орбита ADR-0006 снята с пользовательского маршрута, legacy-компоненты временно оставлены для безопасного отката; новая модель — ADR-0008.
   - `/usadba` — этно-модерн лендинг (Hero / 4 группы / Глава / Цитата), ADR-0004 → переехал сюда с `/` (ADR-0006).
   - `/orbit` — `redirect('/')` (legacy, орбита теперь на главной).
   - `/projects` — адаптивная сетка цветных плашек (`EditableProjectsGrid`); поддерживает фильтр `?group=stay|do|see|shop` (по `homepageGroup`).
-  - `/projects/[slug]/` — страница проекта с табами `feed | lavka | gallery | chat | contacts`
+  - `/projects/[slug]/` — полноценный обзор проектного «мира»; sticky dock и mobile switcher позволяют менять проект и раздел без возврата в каталог. Разделы: `feed | lavka | gallery | chat | contacts`, не образуют последовательную вложенную воронку (ADR-0008).
   - `/posts/[slug]/`, `/events/[slug]/`, `/services/[slug]/`, `/shop/[slug]/`
   - `/search`, `/contact`
   - `/api/health` — readiness/liveness

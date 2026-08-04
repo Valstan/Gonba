@@ -84,6 +84,13 @@ export async function Footer() {
         <div className="ethno-footer__legal">
           <span>© {year} Гоньба · все права сохранены</span>
           <span>{legalAddress}</span>
+          <a
+            href="https://xn--80adkmnnb2b.xn--80adkdyec4j.xn--p1ai/"
+            rel="author"
+            className="ethno-footer__author"
+          >
+            Сделано программистом Валентином Савиных
+          </a>
         </div>
 
         <FooterEditor description={description} columns={columns} legalAddress={legalAddress} />
