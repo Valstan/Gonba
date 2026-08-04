@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { resolve } from 'node:path'
 
 describe('Next image development hosts', () => {
   it('keeps both local browser origins in the checked-in config', async () => {
     const source = await import('node:fs/promises').then((fs) =>
-      fs.readFile(new URL('../../next.config.js', import.meta.url), 'utf8'),
+      fs.readFile(resolve(process.cwd(), 'next.config.js'), 'utf8'),
     )
 
     expect(source).toContain("hostname: 'localhost'")
