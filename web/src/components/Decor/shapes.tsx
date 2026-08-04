@@ -93,13 +93,17 @@ export function pickTheme(
 
 /* ───────────────────── SVG-мотивы (viewBox 0 0 100 100) ───────────────────── */
 
+// Округление trig-координат: сервер и клиент сериализуют float→string с разной
+// точностью (32.67949192431123 vs …236) → hydration mismatch. 3 знаков хватает.
+const r3 = (n: number): number => Math.round(n * 1000) / 1000
+
 function flower(cx: number, cy: number, r: number, key: string): ReactElement {
   const petals = [0, 1, 2, 3, 4].map((i) => {
     const a = (i * 2 * Math.PI) / 5 - Math.PI / 2
-    const px = cx + Math.cos(a) * r
-    const py = cy + Math.sin(a) * r
+    const px = r3(cx + Math.cos(a) * r)
+    const py = r3(cy + Math.sin(a) * r)
     return (
-      <ellipse key={i} cx={px} cy={py} rx={r * 0.62} ry={r * 0.32} transform={`rotate(${(a * 180) / Math.PI + 90} ${px} ${py})`} />
+      <ellipse key={i} cx={px} cy={py} rx={r * 0.62} ry={r * 0.32} transform={`rotate(${r3((a * 180) / Math.PI + 90)} ${px} ${py})`} />
     )
   })
   return (
@@ -128,7 +132,7 @@ const SHAPES: Record<RenderMotif, () => ReactElement> = {
     <g stroke="currentColor" strokeWidth={1.5}>
       {Array.from({ length: 7 }, (_, i) => {
         const a = (i / 6) * (Math.PI / 2)
-        return <line key={i} x1={0} y1={0} x2={Math.cos(a) * 94} y2={Math.sin(a) * 94} />
+        return <line key={i} x1={0} y1={0} x2={r3(Math.cos(a) * 94)} y2={r3(Math.sin(a) * 94)} />
       })}
     </g>
   ),
@@ -166,7 +170,7 @@ const SHAPES: Record<RenderMotif, () => ReactElement> = {
       {Array.from({ length: 12 }, (_, i) => {
         const a = (i / 12) * 2 * Math.PI
         return (
-          <line key={i} x1={50 + Math.cos(a) * 20} y1={50 + Math.sin(a) * 20} x2={50 + Math.cos(a) * 34} y2={50 + Math.sin(a) * 34} strokeLinecap="round" />
+          <line key={i} x1={r3(50 + Math.cos(a) * 20)} y1={r3(50 + Math.sin(a) * 20)} x2={r3(50 + Math.cos(a) * 34)} y2={r3(50 + Math.sin(a) * 34)} strokeLinecap="round" />
         )
       })}
     </g>
