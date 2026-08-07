@@ -52,6 +52,11 @@ const WORLDS: Record<ProjectWorldKey, Omit<ProjectWorldTheme, 'key' | 'signature
   },
 }
 
+const PROJECT_ART: Record<string, string> = {
+  'konnyy-klub-gmalyzh': '/art/editorial/horse-club-hero.webp',
+  'sadovaya-feya-gulfiya-kharisovna': '/api/media/file/363',
+}
+
 export function resolveProjectWorld(project: ProjectRecord): ProjectWorldTheme {
   let key: ProjectWorldKey
 
@@ -67,7 +72,16 @@ export function resolveProjectWorld(project: ProjectRecord): ProjectWorldTheme {
   const signatures: ProjectSignature[] = ['round', 'cut', 'woven', 'folio']
   const signatureSeed = hashString(`${project.slug || project.id}-signature`)
 
-  return { key, ...WORLDS[key], signature: signatures[signatureSeed % signatures.length] }
+  return {
+    key,
+    ...WORLDS[key],
+    art: PROJECT_ART[project.slug || ''] || WORLDS[key].art,
+    signature: signatures[signatureSeed % signatures.length],
+  }
+}
+
+export function projectCoverArt(project: ProjectRecord): string | null {
+  return PROJECT_ART[project.slug || ''] || null
 }
 
 export function projectWorldStyle(project: ProjectRecord, accent: string): CSSProperties {

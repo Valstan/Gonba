@@ -2,7 +2,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 
 import type { ProjectRecord } from '@/app/(frontend)/projects/shared'
-import { resolveProjectWorld } from './theme'
+import { projectCoverArt, resolveProjectWorld } from './theme'
 
 function mediaUrl(media: unknown): string | null {
   if (!media || typeof media !== 'object') return null
@@ -17,7 +17,7 @@ export function ProjectAtlas({ projects }: { projects: ProjectRecord[] }) {
     <div className="project-atlas" role="list">
       {projects.map((project, index) => {
         const world = resolveProjectWorld(project)
-        const image = mediaUrl(project.heroImage) || mediaUrl(project.logo)
+        const image = projectCoverArt(project) || mediaUrl(project.heroImage) || mediaUrl(project.logo)
         const label = project.shortLabel && project.shortLabel !== 'Проект' ? project.shortLabel : project.title
 
         return (
