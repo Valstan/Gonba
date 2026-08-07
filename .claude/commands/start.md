@@ -1,5 +1,5 @@
 ---
-description: Открыть новую сессию разработки GONBA — git pull, прочитать source-of-truth доки, отчёт о состоянии.
+description: Открыть новую сессию разработки GONBA — синхронизировать свой репо, двухканально прочитать mailbox и source-of-truth доки, дать отчёт.
 argument-hint: (без аргументов)
 allowed-tools: Read, Bash, Glob, Grep, AskUserQuestion, mcp__ccd_session__mark_chapter
 ---
@@ -8,7 +8,7 @@ allowed-tools: Read, Bash, Glob, Grep, AskUserQuestion, mcp__ccd_session__mark_c
 
 Задача: за один заход войти в полный контекст проекта и доложить пользователю что нового, какие хвосты и чем заняться.
 
-**Никаких изменений** — только чтение и git-sync.
+**Никаких изменений** — только чтение и git-sync собственного репозитория.
 
 ## Шаг 0. Git sync — ДО чтения handoff (pool #032)
 
@@ -21,6 +21,35 @@ allowed-tools: Read, Bash, Glob, Grep, AskUserQuestion, mcp__ccd_session__mark_c
 - `git status --short --branch` ещё раз — оценить ahead/behind
 
 **`git pull --ff-only` без подтверждения** только если: мы на `main`, есть `behind` без `ahead`, рабочее дерево чистое. Иначе — отчитаться и подождать решения (handoff при этом читать из текущего рабочего дерева, помечая в отчёте, что состояние могло устареть).
+
+Синхронизация разрешена **только в GONBA**. В `../brain_matrica/` и любых других sibling-репо запрещены `clone`, `fetch`, `pull`, `checkout` и иные синхронизирующие или изменяющие команды: там может одновременно работать другая сессия.
+
+## Шаг 0.05. Входящий mailbox — два read-only канала
+
+До чтения handoff собери входящие `brain → GONBA` из двух независимых источников:
+
+1. Локальная копия: `../brain_matrica/mailboxes/GONBA/from-brain/*.md` (только корень, без `DRAFTS/` и `ARCHIVE/`).
+2. GitHub `main`: `Valstan/brain_matrica`, путь `mailboxes/GONBA/from-brain`, через `gh api` или web — без изменения локального brain-клона.
+
+Пример безопасного GitHub-чтения:
+
+```bash
+gh api "repos/Valstan/brain_matrica/contents/mailboxes/GONBA/from-brain?ref=main" --jq '.[].name'
+gh api -H "Accept: application/vnd.github.raw" \
+  "repos/Valstan/brain_matrica/contents/mailboxes/GONBA/from-brain/<file>.md?ref=main"
+```
+
+Набор писем = **объединение** обоих источников по имени файла. Письмо, видимое лишь в одном канале, всё равно входит в набор.
+
+Если одноимённое письмо различается:
+
+- локальная версия с незакоммиченными изменениями (`git -C ../brain_matrica status --short -- <path>`) — более свежий кандидат;
+- иначе сравни последний локальный коммит этого файла (`git -C ../brain_matrica log -1 --format=%ct -- <path>`) с последним коммитом этого пути на GitHub (`gh api "repos/Valstan/brain_matrica/commits?path=<path>&sha=main"`);
+- если порядок надёжно не определяется, прочитай обе версии, явно отметь конфликт и ничего не перезаписывай.
+
+Свежесть определяется **для каждого письма отдельно**. Нельзя переносить свежесть одного письма или репозитория на другой. Если GitHub-канал недоступен, прямо пометь отчёт как локальный неполный срез — не компенсируй это `fetch`/`pull` чужого репо.
+
+Доложи пользователю количество и список писем в формате `[urgency COMPLIANCE]` **до** чтения `docs/SESSION_HANDOFF.md`; `high` выдели отдельно. Retroactive: `kind: directive` без `compliance` = MUST, `kind: idea` без `compliance` = SHOULD.
 
 ## Шаг 0.1. Активная нитка из прошлой сессии
 
