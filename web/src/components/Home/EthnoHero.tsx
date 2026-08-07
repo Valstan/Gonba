@@ -26,7 +26,7 @@ export const EthnoHero: React.FC<EthnoHeroProps> = ({ project }) => {
   const eyebrow = '· село на правом берегу Вятки ·'
   const subtitle =
     project?.excerpt ||
-    'Десять проектов, которые держат село живым: храм, эко-отель, мастерские, конный клуб, ремёсла.'
+    'Двенадцать проектов, которые держат село живым: храм, эко-отель, мастерские, конный клуб, ремёсла.'
 
   return (
     <section className="ethno-hero">

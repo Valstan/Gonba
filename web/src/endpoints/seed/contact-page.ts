@@ -34,6 +34,11 @@ export const contact: (args: ContactArgs) => RequiredDataFromCollectionSlug<'pag
       description: 'Локальные продукты и сборы.',
       url: 'https://vk.com/club229001043',
     },
+    {
+      title: 'Садовая фея Гульфия Харисовна',
+      description: 'Садовые истории, растения и практический опыт.',
+      url: 'https://vk.com/id86086407',
+    },
   ]
 
   return {

@@ -74,7 +74,7 @@ export default async function ProjectChatPage({ params: paramsPromise }: Args) {
           <ChatBoard projectSlug={project.slug as string} initialMessages={initialMessages} placeholder={placeholder} />
         ) : (
           <p className="rounded-2xl border border-border bg-card/60 p-6 text-sm text-muted-foreground">
-            Чат можно включить в админке: проект → раздел «Чат» → галочка «Включить».
+            Здесь пока нельзя оставить сообщение. Связаться с командой проекта можно через раздел контактов.
           </p>
         )}
       </section>
