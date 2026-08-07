@@ -66,7 +66,9 @@ export default async function ProductPage({ params: paramsPromise }: Args) {
           <h1 className="mt-3 text-4xl font-semibold md:text-6xl">{product.title}</h1>
           {product.summary && <p className="mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground">{product.summary}</p>}
           <p className="mt-6 inline-flex rounded-full bg-emerald-950 px-6 py-3 text-base font-semibold text-amber-50 shadow-lg">
-            {product.price != null ? `${product.price} ${product.currency || '₽'}` : 'Цена по запросу'}
+            {product.price != null
+              ? `${product.price} ${product.currency === 'RUB' ? '₽' : product.currency || '₽'}`
+              : 'Цена по запросу'}
           </p>
         </div>
         {product.images && product.images.length > 0 && (
