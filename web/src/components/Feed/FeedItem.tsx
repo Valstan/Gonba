@@ -39,9 +39,9 @@ export const FeedItem: React.FC<Props> = ({ entry, projectSlug }) => {
     const mm = date ? date.toLocaleString('ru-RU', { month: 'short' }).replace('.', '') : null
     const time = date ? date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : null
     return (
-      <article className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card/80 shadow-sm transition-shadow hover:shadow-md">
+      <article className={`project-feed-card project-feed-card--event group relative overflow-hidden border shadow-sm${ev.heroImage ? '' : ' project-feed-card--text'}`}>
         {ev.heroImage ? (
-          <div className="aspect-[16/9] overflow-hidden">
+          <div className="project-feed-card__media overflow-hidden">
             <Media
               resource={ev.heroImage}
               className="h-full w-full"
@@ -49,10 +49,10 @@ export const FeedItem: React.FC<Props> = ({ entry, projectSlug }) => {
             />
           </div>
         ) : null}
-        <div className="relative flex flex-1 flex-col gap-3 p-4">
+        <div className="project-feed-card__body relative flex flex-1 flex-col gap-3 p-4">
           {dd && mm ? (
             <div
-              className="absolute left-4 top-0 -translate-y-1/2 rounded-xl border bg-card px-3 py-1.5 text-center shadow-sm"
+              className="project-feed-card__date absolute left-4 top-0 -translate-y-1/2 border bg-card px-3 py-1.5 text-center shadow-sm"
               style={{ borderColor: 'var(--project-accent)' }}
             >
               <div className="text-base font-bold leading-none text-[var(--project-accent)]">{dd}</div>
@@ -88,9 +88,9 @@ export const FeedItem: React.FC<Props> = ({ entry, projectSlug }) => {
   const excerpt = post.meta?.description || null
 
   return (
-    <article className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card/80 shadow-sm transition-shadow hover:shadow-md">
+    <article className={`project-feed-card project-feed-card--post group overflow-hidden border shadow-sm${post.heroImage ? '' : ' project-feed-card--text'}`}>
       {post.heroImage ? (
-        <div className="aspect-[16/9] overflow-hidden">
+        <div className="project-feed-card__media overflow-hidden">
           <Media
             resource={post.heroImage}
             className="h-full w-full"
@@ -98,7 +98,7 @@ export const FeedItem: React.FC<Props> = ({ entry, projectSlug }) => {
           />
         </div>
       ) : null}
-      <div className="flex flex-1 flex-col gap-3 p-4">
+      <div className="project-feed-card__body flex flex-1 flex-col gap-3 p-4">
         <div className="flex items-center gap-2 text-xs">
           <span className="rounded-full bg-[color:var(--project-accent-soft,transparent)] px-2 py-0.5 font-medium text-[var(--project-accent)]">
             {typeLabel}

@@ -4,6 +4,7 @@ import type { ProjectRecord } from '@/app/(frontend)/projects/shared'
 import { hashString } from '@/components/Decor/shapes'
 
 export type ProjectWorldKey = 'hospitality' | 'craft' | 'nature' | 'market'
+export type ProjectSignature = 'round' | 'cut' | 'woven' | 'folio'
 
 export type ProjectWorldTheme = {
   key: ProjectWorldKey
@@ -13,9 +14,10 @@ export type ProjectWorldTheme = {
   ink: string
   surface: string
   glow: string
+  signature: ProjectSignature
 }
 
-const WORLDS: Record<ProjectWorldKey, Omit<ProjectWorldTheme, 'key'>> = {
+const WORLDS: Record<ProjectWorldKey, Omit<ProjectWorldTheme, 'key' | 'signature'>> = {
   hospitality: {
     eyebrow: 'Остановиться · выдохнуть · погостить',
     invitation: 'Место, в которое входят сразу — без лишних дверей.',
@@ -62,7 +64,10 @@ export function resolveProjectWorld(project: ProjectRecord): ProjectWorldTheme {
     key = fallback[hashString(project.slug || String(project.id)) % fallback.length]
   }
 
-  return { key, ...WORLDS[key] }
+  const signatures: ProjectSignature[] = ['round', 'cut', 'woven', 'folio']
+  const signatureSeed = hashString(`${project.slug || project.id}-signature`)
+
+  return { key, ...WORLDS[key], signature: signatures[signatureSeed % signatures.length] }
 }
 
 export function projectWorldStyle(project: ProjectRecord, accent: string): CSSProperties {
@@ -72,5 +77,6 @@ export function projectWorldStyle(project: ProjectRecord, accent: string): CSSPr
     '--project-world-ink': world.ink,
     '--project-world-surface': world.surface,
     '--project-world-glow': accent || world.glow,
+    '--project-card-radius': world.signature === 'round' ? '1.75rem' : world.signature === 'folio' ? '0.65rem' : '1.15rem',
   } as CSSProperties
 }

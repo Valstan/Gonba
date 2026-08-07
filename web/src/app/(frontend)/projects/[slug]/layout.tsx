@@ -48,6 +48,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
           } as CSSProperties
         }
         data-project-world={world.key}
+        data-project-signature={world.signature}
       >
         <ProjectDecor slug={project.slug || slug} accentColor={project.accentColor} decorMotif={decorMotif} />
         <div className="relative z-[1]">
