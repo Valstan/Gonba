@@ -52,7 +52,9 @@ export default async function ServicesPage() {
               {service.summary && <p className="mt-3 line-clamp-3 text-sm text-muted-foreground">{service.summary}</p>}
               <div className="mt-5 flex items-center justify-between gap-3 text-sm">
                 <span className="font-medium text-amber-900">
-                  {service.price != null ? `от ${service.price} ${service.currency || '₽'}` : 'Стоимость по запросу'}
+                  {service.price != null
+                    ? `от ${service.price} ${service.currency === 'RUB' ? '₽' : service.currency || '₽'}`
+                    : 'Стоимость по запросу'}
                 </span>
                 <span aria-hidden="true" className="text-xl text-amber-800">→</span>
               </div>

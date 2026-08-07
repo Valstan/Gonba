@@ -66,7 +66,9 @@ export default async function ServicePage({ params: paramsPromise }: Args) {
           <h1 className="mt-3 max-w-4xl text-4xl font-semibold leading-tight md:text-6xl">{service.title}</h1>
           {service.summary && <p className="mt-5 max-w-3xl text-lg leading-relaxed text-muted-foreground">{service.summary}</p>}
           <p className="mt-6 inline-flex rounded-full border border-amber-900/15 bg-white/60 px-5 py-2 text-sm font-semibold text-amber-950">
-            {service.price != null ? `от ${service.price} ${service.currency || '₽'}` : 'Стоимость уточняйте у команды проекта'}
+            {service.price != null
+              ? `от ${service.price} ${service.currency === 'RUB' ? '₽' : service.currency || '₽'}`
+              : 'Стоимость уточняйте у команды проекта'}
           </p>
         </div>
         {service.heroImage && typeof service.heroImage !== 'string' && (

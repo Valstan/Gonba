@@ -119,7 +119,7 @@ export default async function ProjectFeedPage({ params: paramsPromise, searchPar
         <p className="project-feed__kicker">Свежие вести</p>
         <h1 className="project-feed__title">Жизнь проекта</h1>
         <p className="project-feed__lead">
-          Новости и события — всё, что происходит в проекте «{projectName}».
+          Новости и события — всё, что происходит в проекте {projectName}.
         </p>
         <div className="mt-6">
           <FeedFilters current={filter} />
