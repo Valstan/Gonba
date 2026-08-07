@@ -6,13 +6,14 @@
 
 | Направление | Кто пишет | Где |
 |---|---|---|
-| `brain → GONBA` | brain | `brain_matrica/mailboxes/GONBA/from-brain/*.md` (мы только читаем через `git pull --ff-only`) |
+| `brain → GONBA` | brain | `brain_matrica/mailboxes/GONBA/from-brain/*.md` (читаем локально + с GitHub `main` через API; чужой репо не синхронизируем) |
 | `GONBA → brain` | GONBA | **`mailbox/to-brain/*.md` в этом репо** (коммитим в свой репо через PR) |
 
 ## Что НЕЛЬЗЯ
 
 - ❌ Писать или коммитить в `brain_matrica/mailboxes/GONBA/to-brain/` — устаревшая папка, brain её больше не принимает.
 - ❌ Архивировать что-либо в `brain_matrica/` — это забота brain'а в его собственном репо.
+- ❌ Выполнять `clone` / `fetch` / `pull` / `checkout` в `brain_matrica` или другом sibling-репо; актуальность входящих проверяется через GitHub API/web.
 - ❌ Чистить `mailbox/to-brain/` здесь — MVP без архивации (см. ADR-0001 §Архивация).
 
 ## Формат письма
