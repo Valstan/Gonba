@@ -11,7 +11,7 @@ import RichText from '@/components/RichText'
 import { ProjectDetailEditor } from '@/components/InlineEdit/ProjectDetailEditor.client'
 import { queryProjectBySlug } from '../queries'
 import { withRetry } from '@/utilities/withRetry'
-import { resolveProjectWorld } from '@/components/ProjectWorld/theme'
+import { projectCoverArt, projectEyebrow, projectNarrative } from '@/components/ProjectWorld/theme'
 
 type Args = {
   params: Promise<{
@@ -26,7 +26,7 @@ export async function generateMetadata({ params: paramsPromise }: Args) {
 
   return {
     title: `${project.title} | Проект`,
-    description: project.summary || 'Личный раздел проекта',
+    description: projectNarrative(project),
   }
 }
 
@@ -39,7 +39,7 @@ export default async function ProjectPage({ params: paramsPromise }: Args) {
   const payload = await getPayload({ config: configPromise })
   const projectId = project.id
   const projectEditUrl = `/admin/collections/projects/${projectId}`
-  const world = resolveProjectWorld(project)
+  const narrative = projectNarrative(project)
   const enabledSections = Array.isArray(project.enabledSections) && project.enabledSections.length > 0 ? project.enabledSections : null
 
   // Данные для inline-редактора проекта (depth=1 → heroImage уже объект с url).
@@ -149,7 +149,7 @@ export default async function ProjectPage({ params: paramsPromise }: Args) {
       <header className="container project-world-hero">
         <div className="project-world-hero__art" aria-hidden />
         <div className="project-world-hero__content">
-          <p className="project-world-hero__eyebrow">{world.eyebrow}</p>
+          <p className="project-world-hero__eyebrow">{projectEyebrow(project)}</p>
           <div className="flex items-start justify-between gap-3">
             <h1 className="project-world-hero__title">{project.title}</h1>
             <ProjectDetailEditor
@@ -174,7 +174,7 @@ export default async function ProjectPage({ params: paramsPromise }: Args) {
               }}
             />
           </div>
-          <p className="project-world-hero__summary">{project.summary || world.invitation}</p>
+          <p className="project-world-hero__summary">{narrative}</p>
 
           <nav className="project-world-hero__actions" aria-label="Быстрый вход в проект">
             <Link href={`/projects/${project.slug}/feed`} className="project-world-hero__action is-primary">
@@ -192,7 +192,7 @@ export default async function ProjectPage({ params: paramsPromise }: Args) {
 
       <div className="container mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
         <section className="space-y-6">
-          {project.heroImage ? <Media resource={project.heroImage} className="rounded-xl" /> : null}
+          {project.heroImage && !projectCoverArt(project) ? <Media resource={project.heroImage} className="rounded-xl" /> : null}
 
           {project.description ? (
             <div className="rounded-2xl border border-border/80 bg-card/80 p-5">

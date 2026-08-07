@@ -1,6 +1,7 @@
 import configPromise from '@payload-config'
 import { getPayload } from 'payload'
 import Link from 'next/link'
+import Image from 'next/image'
 import React from 'react'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
 
@@ -48,6 +49,8 @@ export default async function ShopPage() {
                 <Link href={`/shop/${product.slug}`} className="shop-showcase__media" aria-label={product.title}>
                   {product.images?.[0]?.image && typeof product.images[0].image !== 'string' ? (
                     <Media resource={product.images[0].image} imgClassName="h-full w-full object-cover" />
+                  ) : product.slug === 'vyatka-honey' ? (
+                    <Image src="/art/editorial/shop-vitrine.webp" alt="Мёд и гостинцы Малмыжской земли" fill sizes="(max-width: 767px) 100vw, 50vw" className="object-cover" />
                   ) : <span aria-hidden>✦</span>}
                 </Link>
                 <div className="shop-showcase__content">

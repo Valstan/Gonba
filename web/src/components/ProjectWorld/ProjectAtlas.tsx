@@ -2,7 +2,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 
 import type { ProjectRecord } from '@/app/(frontend)/projects/shared'
-import { projectCoverArt, resolveProjectWorld } from './theme'
+import { projectCoverArt, projectEyebrow, projectNarrative, resolveProjectWorld } from './theme'
 
 function mediaUrl(media: unknown): string | null {
   if (!media || typeof media !== 'object') return null
@@ -36,9 +36,9 @@ export function ProjectAtlas({ projects }: { projects: ProjectRecord[] }) {
             ) : null}
             <div className="project-atlas__veil" aria-hidden />
             <div className="project-atlas__content">
-              <span className="project-atlas__eyebrow">{world.eyebrow.split(' · ')[0]}</span>
+              <span className="project-atlas__eyebrow">{projectEyebrow(project).split(' · ')[0]}</span>
               <h2>{label}</h2>
-              <p>{project.excerpt || project.summary || world.invitation}</p>
+              <p>{projectNarrative(project)}</p>
               <span className="project-atlas__enter">Войти в проект <b aria-hidden>↗</b></span>
             </div>
           </Link>

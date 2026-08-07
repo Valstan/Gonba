@@ -57,6 +57,17 @@ const PROJECT_ART: Record<string, string> = {
   'sadovaya-feya-gulfiya-kharisovna': '/api/media/file/363',
 }
 
+const PROJECT_COPY: Record<string, { eyebrow: string; summary: string }> = {
+  'konnyy-klub-gmalyzh': {
+    eyebrow: 'Лошади · забота · простор',
+    summary: 'Конный клуб в Малмыже: знакомство с лошадьми и пони, общение, прогулки и тёплые встречи для всей семьи.',
+  },
+  'sadovaya-feya-gulfiya-kharisovna': {
+    eyebrow: 'Сад · цветы · вдохновение',
+    summary: 'Сад Гульфии Харисовны — живое пространство цветов, полезных идей и бережной заботы о родной земле.',
+  },
+}
+
 export function resolveProjectWorld(project: ProjectRecord): ProjectWorldTheme {
   let key: ProjectWorldKey
 
@@ -82,6 +93,14 @@ export function resolveProjectWorld(project: ProjectRecord): ProjectWorldTheme {
 
 export function projectCoverArt(project: ProjectRecord): string | null {
   return PROJECT_ART[project.slug || ''] || null
+}
+
+export function projectEyebrow(project: ProjectRecord): string {
+  return PROJECT_COPY[project.slug || '']?.eyebrow || resolveProjectWorld(project).eyebrow
+}
+
+export function projectNarrative(project: ProjectRecord): string {
+  return PROJECT_COPY[project.slug || '']?.summary || project.excerpt || project.summary || resolveProjectWorld(project).invitation
 }
 
 export function projectWorldStyle(project: ProjectRecord, accent: string): CSSProperties {
