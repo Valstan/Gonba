@@ -27,8 +27,8 @@ export const FeedFilters: React.FC<Props> = ({ current }) => {
   }
 
   return (
-    <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-      <ul className="flex items-center gap-2 pb-1">
+    <div className="project-feed-filters overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+      <ul className="flex items-center gap-2 pb-1" aria-label="Фильтр ленты">
         {FEED_FILTERS.map((filter) => {
           const active = filter.value === current
           return (
@@ -37,7 +37,7 @@ export const FeedFilters: React.FC<Props> = ({ current }) => {
                 type="button"
                 onClick={() => onSelect(filter.value)}
                 className={cn(
-                  'min-h-11 whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition-colors',
+                  'project-feed-filter min-h-11 whitespace-nowrap border px-4 py-2 text-sm font-medium transition-colors',
                   active
                     ? 'border-[var(--project-accent)] bg-[color:var(--project-accent-soft,transparent)] text-[var(--project-accent)]'
                     : 'border-border/90 hover:bg-accent/40',

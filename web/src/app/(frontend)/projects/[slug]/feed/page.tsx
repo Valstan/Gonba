@@ -103,8 +103,8 @@ export default async function ProjectFeedPage({ params: paramsPromise, searchPar
   const entries = [...upcomingEvents, ...past]
 
   return (
-    <main className="pb-20 pt-24">
-      <section className="container">
+    <main className="project-feed pb-20 pt-16 md:pt-20">
+      <section className="container project-feed__header">
         <div className="hidden md:block">
           <Breadcrumbs
             items={[
@@ -115,8 +115,9 @@ export default async function ProjectFeedPage({ params: paramsPromise, searchPar
             ]}
           />
         </div>
-        <h1 className="mt-4 text-2xl font-semibold sm:text-3xl">Жизнь проекта</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="project-feed__kicker">Свежие вести</p>
+        <h1 className="project-feed__title">Жизнь проекта</h1>
+        <p className="project-feed__lead">
           Новости и события — всё, что происходит в проекте «{project.shortLabel || project.title}».
         </p>
         <div className="mt-6">
@@ -130,7 +131,7 @@ export default async function ProjectFeedPage({ params: paramsPromise, searchPar
             Пока в этой ленте ничего нет — заглядывайте позже.
           </p>
         ) : (
-          <div className="grid gap-6 sm:grid-cols-2">
+          <div className="project-feed__grid">
             {entries.map((entry) => (
               <FeedItem
                 key={`${entry.kind}-${entry.item.id}`}
