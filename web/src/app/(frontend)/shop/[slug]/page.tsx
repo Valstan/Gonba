@@ -50,7 +50,7 @@ export default async function ProductPage({ params: paramsPromise }: Args) {
       editUrl={productEditUrl}
       label="товар"
     >
-      <article className="pt-16 pb-16">
+      <article className="min-h-screen bg-[radial-gradient(circle_at_85%_12%,rgba(211,151,63,0.2),transparent_28%),linear-gradient(180deg,rgba(239,231,201,0.65),transparent_52%)] pt-20 pb-20">
         <JsonLd data={productJsonLd(product, url)} />
         <div className="container">
           <Breadcrumbs
@@ -61,25 +61,33 @@ export default async function ProductPage({ params: paramsPromise }: Args) {
             ]}
           />
         </div>
-        <div className="container">
-          <h1 className="text-3xl font-semibold">{product.title}</h1>
-          {product.summary && <p className="mt-2 text-sm text-muted-foreground">{product.summary}</p>}
-          <p className="mt-2 text-sm text-muted-foreground">
-            {product.price} {product.currency}
+        <div className="container mt-8 max-w-5xl">
+          <p className="text-sm font-semibold tracking-[0.2em] text-amber-800 uppercase">Из лавки на берегу Вятки</p>
+          <h1 className="mt-3 text-4xl font-semibold md:text-6xl">{product.title}</h1>
+          {product.summary && <p className="mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground">{product.summary}</p>}
+          <p className="mt-6 inline-flex rounded-full bg-emerald-950 px-6 py-3 text-base font-semibold text-amber-50 shadow-lg">
+            {product.price != null ? `${product.price} ${product.currency || '₽'}` : 'Цена по запросу'}
           </p>
         </div>
         {product.images && product.images.length > 0 && (
-          <div className="container mt-6 grid gap-4 md:grid-cols-2">
+          <div className="container mt-10 grid max-w-5xl gap-5 md:grid-cols-2">
             {product.images.map((item, index) => (
               <div key={index} className="space-y-2">
-                <Media resource={item.image} className="rounded-lg" />
+                <Media resource={item.image} className="overflow-hidden rounded-[2rem] shadow-lg" />
                 {item.caption && <p className="text-sm text-muted-foreground">{item.caption}</p>}
               </div>
             ))}
           </div>
         )}
+        {(!product.images || product.images.length === 0) && (
+          <div className="container mt-10 max-w-5xl">
+            <div className="flex aspect-[16/6] items-end rounded-[2rem] bg-[radial-gradient(circle_at_72%_28%,rgba(230,181,88,0.42),transparent_25%),linear-gradient(135deg,#315e45,#173c34)] p-8 text-amber-50 shadow-lg">
+              <p className="max-w-md text-lg">Небольшая вещь с характером Вятского края — подробности и фотографии скоро появятся в витрине.</p>
+            </div>
+          </div>
+        )}
         {product.description && (
-          <div className="container mt-6">
+          <div className="container mt-10 max-w-3xl rounded-3xl bg-card/80 p-6 shadow-sm md:p-10">
             <RichText data={product.description} enableGutter={false} />
           </div>
         )}

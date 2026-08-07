@@ -50,7 +50,7 @@ export default async function ServicePage({ params: paramsPromise }: Args) {
       editUrl={serviceEditUrl}
       label="сервис"
     >
-      <article className="pt-16 pb-16">
+      <article className="min-h-screen bg-[linear-gradient(180deg,rgba(238,227,198,0.72),transparent_45%)] pt-20 pb-20">
         <JsonLd data={serviceJsonLd(service, url)} />
         <div className="container">
           <Breadcrumbs
@@ -61,20 +61,21 @@ export default async function ServicePage({ params: paramsPromise }: Args) {
             ]}
           />
         </div>
-        <div className="container">
-          <h1 className="text-3xl font-semibold">{service.title}</h1>
-          {service.summary && <p className="mt-2 text-sm text-muted-foreground">{service.summary}</p>}
-          {service.price !== undefined && (
-            <p className="mt-2 text-sm text-muted-foreground">Цена: {service.price} {service.currency}</p>
-          )}
+        <div className="container mt-8 max-w-5xl">
+          <p className="text-sm font-semibold tracking-[0.2em] text-amber-800 uppercase">Впечатление в Гоньбе</p>
+          <h1 className="mt-3 max-w-4xl text-4xl font-semibold leading-tight md:text-6xl">{service.title}</h1>
+          {service.summary && <p className="mt-5 max-w-3xl text-lg leading-relaxed text-muted-foreground">{service.summary}</p>}
+          <p className="mt-6 inline-flex rounded-full border border-amber-900/15 bg-white/60 px-5 py-2 text-sm font-semibold text-amber-950">
+            {service.price != null ? `от ${service.price} ${service.currency || '₽'}` : 'Стоимость уточняйте у команды проекта'}
+          </p>
         </div>
         {service.heroImage && typeof service.heroImage !== 'string' && (
-          <div className="container mt-6">
-            <Media resource={service.heroImage} className="rounded-xl" />
+          <div className="container mt-10 max-w-5xl">
+            <Media resource={service.heroImage} className="overflow-hidden rounded-[2rem] shadow-xl" />
           </div>
         )}
         {service.description && (
-          <div className="container mt-6">
+          <div className="container mt-10 max-w-3xl rounded-3xl bg-card/80 p-6 shadow-sm md:p-10">
             <RichText data={service.description} enableGutter={false} />
           </div>
         )}

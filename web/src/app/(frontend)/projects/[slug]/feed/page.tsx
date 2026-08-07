@@ -101,6 +101,7 @@ export default async function ProjectFeedPage({ params: paramsPromise, searchPar
   const past = [...postEntries, ...eventEntries.filter((e) => !e.isUpcoming)].sort((a, b) => b.sortKey - a.sortKey)
 
   const entries = [...upcomingEvents, ...past]
+  const projectName = project.shortLabel && project.shortLabel !== 'Проект' ? project.shortLabel : project.title
 
   return (
     <main className="project-feed pb-20 pt-16 md:pt-20">
@@ -118,7 +119,7 @@ export default async function ProjectFeedPage({ params: paramsPromise, searchPar
         <p className="project-feed__kicker">Свежие вести</p>
         <h1 className="project-feed__title">Жизнь проекта</h1>
         <p className="project-feed__lead">
-          Новости и события — всё, что происходит в проекте «{project.shortLabel || project.title}».
+          Новости и события — всё, что происходит в проекте «{projectName}».
         </p>
         <div className="mt-6">
           <FeedFilters current={filter} />

@@ -109,7 +109,7 @@ export const DEFAULT_DRAWER_EXTRA_LINKS: DrawerLink[] = [
 
 export const DEFAULT_DRAWER_CONTACTS: DrawerContacts = {
   heading: 'контакты',
-  body: 'с. Гоньба, Малмыжский р-н\n+7 (8332) 00-00-00\nhello@гоньба.рф',
+  body: 'с. Гоньба, Малмыжский р-н\nСвязаться с командой можно через страницу контактов.',
 }
 
 type DrawerItemDoc = NonNullable<Header['drawerItems']>[number]

@@ -103,7 +103,7 @@ function sleep(ms: number): Promise<void> {
 async function fetchVkPosts(
   ownerId: number,
   preferredToken: string,
-  count: number = 3,
+  count: number = 10,
   retries: number = 2,
 ): Promise<VkWallPost[]> {
   // Приоритет — шлюз SARAFAN (если задан ключ): он исполняет wall.get своим токеном
@@ -235,6 +235,17 @@ export function vkPostUrl(ownerId: number, postId: number): string {
 export function matchesStableVkSlug(slug: string | null | undefined, slugStable: string): boolean {
   if (!slug) return false
   return slug === slugStable || slug.startsWith(`${slugStable}-`)
+}
+
+/**
+ * Выбирает самый старый ещё не импортированный текстовый пост из окна wall.get.
+ * VK возвращает стену от новых записей к старым; выбор первого элемента раньше
+ * перескакивал через накопившийся хвост и мог навсегда оставить посты позади.
+ */
+export function selectNextVkPost(posts: VkWallPost[], lastSyncedPostId: number): VkWallPost | undefined {
+  return posts
+    .filter((post) => post.id > lastSyncedPostId && post.text?.trim().length > 0)
+    .sort((a, b) => a.id - b.id)[0]
 }
 
 /** Все фото-вложения поста → массив URL самого крупного размера каждого фото. */
@@ -453,7 +464,7 @@ export async function syncVkSource(
 
     // Получаем посты из VK с ротацией токенов
     // Используем accessToken из конфига как preferred, но fallback на пул
-    const posts = await fetchVkPosts(ownerId, sourceDoc.accessToken || '', 3)
+    const posts = await fetchVkPosts(ownerId, sourceDoc.accessToken || '', 10)
 
     if (!posts || posts.length === 0) {
       await payload.update({
@@ -470,9 +481,9 @@ export async function syncVkSource(
       return { success: true, status: 'no-new-posts', message: 'Нет новых постов' }
     }
 
-    // Находим первый пост, который ещё не был импортирован
+    // Разбираем доступный хвост от старых записей к новым, не перескакивая очередь.
     const lastId = lastSyncedPostId || 0
-    const newPost = posts.find((p) => p.id > lastId && p.text && p.text.trim().length > 0)
+    const newPost = selectNextVkPost(posts, lastId)
 
     if (!newPost) {
       await payload.update({

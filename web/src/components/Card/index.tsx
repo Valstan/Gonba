@@ -56,7 +56,14 @@ export const Card: React.FC<{
       ref={card.ref}
     >
       <div className="relative w-full ">
-        {!previewImage && <div className="">No image</div>}
+        {!previewImage && (
+          <div
+            aria-hidden="true"
+            className="flex aspect-[16/10] items-end overflow-hidden bg-[radial-gradient(circle_at_78%_24%,rgba(214,164,73,0.35),transparent_28%),linear-gradient(145deg,rgba(48,94,67,0.96),rgba(24,58,48,0.96))] p-5 text-sm text-white/70"
+          >
+            <span className="font-medium tracking-[0.18em] uppercase">Гоньба · Вятка</span>
+          </div>
+        )}
         {previewImage && typeof previewImage !== 'string' && <Media resource={previewImage} size="33vw" />}
       </div>
       <div className="p-4">

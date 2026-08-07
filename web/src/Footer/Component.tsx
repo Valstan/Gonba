@@ -26,8 +26,7 @@ const DEFAULT_COLUMNS: FooterColumn[] = [
     heading: '· Контакты ·',
     items: [
       { label: 'с. Гоньба, Малмыжский р-н', href: '/contact' },
-      { label: '+7 (8332) 00-00-00', href: 'tel:+78332000000' },
-      { label: 'hello@гоньба.рф', href: 'mailto:hello@гоньба.рф' },
+      { label: 'Написать команде', href: '/contact' },
     ],
   },
 ]
