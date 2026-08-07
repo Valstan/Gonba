@@ -25,30 +25,45 @@ export default async function ShopPage() {
   )
 
   return (
-    <div className="pt-24 pb-24">
-      <div className="container">
+    <main className="editorial-page editorial-page--shop pb-24 pt-20">
+      <div className="editorial-page__wash" aria-hidden />
+      <div className="container editorial-page__breadcrumbs">
         <Breadcrumbs items={[{ href: '/', label: 'Главная' }, { label: 'Магазин' }]} />
       </div>
-      <div className="container mb-10 flex flex-wrap items-start justify-between gap-4">
-        <h1 className="text-3xl font-semibold">Магазин</h1>
-        <AdminManageActions addLabel="Добавить товар" addUrl="/admin/collections/products/create" />
-      </div>
-      <div className="container grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {products.docs.map((product) => (
-          <article key={product.id} className="rounded-xl border border-border p-4">
-            {product.images?.[0]?.image && typeof product.images[0].image !== 'string' && (
-              <Media resource={product.images[0].image} className="rounded-lg" />
-            )}
-            <h2 className="mt-4 text-lg font-medium">
-              <Link href={`/shop/${product.slug}`}>{product.title}</Link>
-            </h2>
-            {product.summary && <p className="mt-2 text-sm text-muted-foreground">{product.summary}</p>}
-            <p className="mt-2 text-sm text-muted-foreground">
-              {product.price} {product.currency}
-            </p>
-          </article>
-        ))}
-      </div>
-    </div>
+      <header className="container editorial-hero">
+        <div className="editorial-hero__art" aria-hidden />
+        <div className="editorial-hero__content">
+          <p className="editorial-hero__kicker">Сделано на Малмыжской земле</p>
+          <h1>Витрина вещей с местным характером</h1>
+          <p>Не склад и не безликий каталог — выбор мастеров, хозяйств и проектов Гоньбы. У каждой вещи есть автор и история.</p>
+          <AdminManageActions addLabel="Добавить товар" addUrl="/admin/collections/products/create" />
+        </div>
+      </header>
+      <section className="container editorial-list" aria-label="Витрина товаров">
+        <div className="editorial-list__heading"><span>Местная витрина</span><h2>Выбрано с любовью</h2></div>
+        {products.docs.length ? (
+          <div className="shop-showcase">
+            {products.docs.map((product) => (
+              <article key={product.id} className="shop-showcase__card">
+                <Link href={`/shop/${product.slug}`} className="shop-showcase__media" aria-label={product.title}>
+                  {product.images?.[0]?.image && typeof product.images[0].image !== 'string' ? (
+                    <Media resource={product.images[0].image} imgClassName="h-full w-full object-cover" />
+                  ) : <span aria-hidden>✦</span>}
+                </Link>
+                <div className="shop-showcase__content">
+                  <p className="shop-showcase__eyebrow">Из Гоньбы и окрестностей</p>
+                  <h3><Link href={`/shop/${product.slug}`}>{product.title}</Link></h3>
+                  {product.summary && <div>{product.summary}</div>}
+                  <div className="shop-showcase__footer">
+                    <strong>{product.price} {product.currency}</strong>
+                    <Link href={`/shop/${product.slug}`}>Рассмотреть ↗</Link>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : <p className="editorial-empty">Витрина наполняется — скоро здесь появятся первые вещи и гостинцы.</p>}
+      </section>
+    </main>
   )
 }
