@@ -193,7 +193,8 @@ jobs:
       - name: Pull latest main on prod (репо бокса — для таймеров/скриптов/юнита)
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_only) }}
         run: |
-          ssh GONBA "cd /home/valstan/GONBA && git pull --ff-only origin main 2>&1 | tail -5"
+          EXPECTED_SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          ssh GONBA "set -e; cd /home/valstan/GONBA; git pull --ff-only origin main; test \"\$(git rev-parse HEAD)\" = \"$EXPECTED_SHA\""
 
       - name: Refresh box node_modules if lockfile changed (для vk-sync/media-cache таймеров)
         if: ${{ github.event_name != 'workflow_dispatch' }}
