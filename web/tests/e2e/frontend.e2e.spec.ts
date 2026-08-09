@@ -35,25 +35,21 @@ test.describe('Frontend', () => {
     await expect(page.locator('input#search, input[placeholder="Поиск"]').first()).toBeVisible()
   })
 
-  test('can load projects grid page', async ({ page }) => {
+  test('redirects projects catalog to the homepage showcase', async ({ page }) => {
     const response = await page.goto('/projects')
-    await expect(page).toHaveURL(/\/projects$/)
-    // /projects использует EditableProjectsGrid. Сама страница должна
-    // отдать 200 и иметь видимый <body> — без зависимости от того, есть ли
-    // в БД проекты (в CI БД свежая, пустая). Конкретные плашки проверяет
-    // следующий тест (с test.skip когда пусто).
+    await expect(page).toHaveURL(/\/#projects$/)
     expect(response?.status()).toBeLessThan(400)
-    await expect(page.locator('body')).toBeVisible()
+    await expect(page.locator('#projects')).toBeVisible()
   })
 
-  test('can navigate from projects grid to a project page', async ({ page }) => {
-    await page.goto('/projects')
+  test('can navigate from homepage showcase to a project page', async ({ page }) => {
+    await page.goto('/#projects')
     // Берём первую ссылку «Войти в проект» (на плашке проекта).
-    // Если на /projects ещё нет ни одного активного проекта — тест пропускаем
+    // Если на главной ещё нет ни одного активного проекта — тест пропускаем
     // (это не регресс приложения, а пустая БД, типично для CI).
     const enterLink = page.getByRole('link', { name: /Войти в проект/i }).first()
     const count = await enterLink.count()
-    test.skip(count === 0, 'На /projects нет активных проектов — нечего открывать')
+    test.skip(count === 0, 'На главной нет активных проектов — нечего открывать')
     await enterLink.click()
     await expect(page).toHaveURL(/\/projects\/[^/]+(\/.*)?$/)
     // На странице проекта должен быть либо h1 с названием, либо табы (feed/lavka/chat/...)

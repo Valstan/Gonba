@@ -14,12 +14,8 @@ const DEFAULT_COLUMNS: FooterColumn[] = [
   {
     heading: '· Разделы ·',
     items: [
-      { label: 'Пожить', href: '/projects?group=stay' },
-      { label: 'Делать', href: '/projects?group=do' },
-      { label: 'Смотреть', href: '/projects?group=see' },
-      { label: 'Лавка', href: '/projects?group=shop' },
+      { label: 'Все проекты', href: '/#projects' },
       { label: 'Усадьба', href: '/usadba' },
-      { label: 'О проекте', href: '/projects/about-project' },
     ],
   },
   {
@@ -59,7 +55,11 @@ export async function Footer() {
           <div className="ethno-footer__brand">
             <h2>
               <Link href="/" aria-label="На главную">
-                <span className="ethno-rhomb" aria-hidden="true" style={{ color: 'var(--ochre)', marginRight: '10px' }} />
+                <span
+                  className="ethno-rhomb"
+                  aria-hidden="true"
+                  style={{ color: 'var(--ochre)', marginRight: '10px' }}
+                />
                 Гоньба
               </Link>
             </h2>

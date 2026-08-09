@@ -6,9 +6,17 @@ import type { Header } from '@/payload-types'
 // встроенные по умолчанию (как navItems → DEFAULT_NAV_ITEMS).
 
 export type DrawerLink = { href: string; title: string; subtitle?: string }
-export type DrawerGroup = { modifier?: 'stay' | 'see' | 'shop'; heading: string; items: DrawerLink[] }
+export type DrawerGroup = {
+  modifier?: 'stay' | 'see' | 'shop'
+  heading: string
+  items: DrawerLink[]
+}
 export type DrawerContacts = { heading: string; body: string }
-export type DrawerData = { groups: DrawerGroup[]; extraLinks: DrawerLink[]; contacts: DrawerContacts }
+export type DrawerData = {
+  groups: DrawerGroup[]
+  extraLinks: DrawerLink[]
+  contacts: DrawerContacts
+}
 
 // Структурный тип ссылки из field-хелпера link() (group: type/reference/url/label).
 // Описан вручную, чтобы хелпер не зависел от конкретного места в payload-types.
@@ -40,12 +48,8 @@ export type NavItem = { label: string; href: string }
 
 // Дефолтные пункты — fallback, пока глобал header.navItems пуст.
 export const DEFAULT_NAV_ITEMS: NavItem[] = [
-  { label: 'Пожить', href: '/projects?group=stay' },
-  { label: 'Делать', href: '/projects?group=do' },
-  { label: 'Смотреть', href: '/projects?group=see' },
-  { label: 'Лавка', href: '/projects?group=shop' },
+  { label: 'Все проекты', href: '/#projects' },
   { label: 'Усадьба', href: '/usadba' },
-  { label: 'О проекте', href: '/projects/about-project' },
 ]
 
 export function deriveNavItems(data: Header): NavItem[] {
@@ -62,12 +66,13 @@ export function deriveNavItems(data: Header): NavItem[] {
 // раскладывает пункты по секциям). `extra` рендерится отдельным блоком без
 // заголовка, поэтому в этот порядок не входит.
 const DRAWER_SECTION_ORDER = ['stay', 'do', 'see', 'shop'] as const
-const DRAWER_SECTION_META: Record<string, { heading: string; modifier?: 'stay' | 'see' | 'shop' }> = {
-  stay: { heading: '· Пожить ·', modifier: 'stay' },
-  do: { heading: '· Делать ·' },
-  see: { heading: '· Смотреть ·', modifier: 'see' },
-  shop: { heading: '· Лавка ·', modifier: 'shop' },
-}
+const DRAWER_SECTION_META: Record<string, { heading: string; modifier?: 'stay' | 'see' | 'shop' }> =
+  {
+    stay: { heading: '· Пожить ·', modifier: 'stay' },
+    do: { heading: '· Делать ·' },
+    see: { heading: '· Смотреть ·', modifier: 'see' },
+    shop: { heading: '· Лавка ·', modifier: 'shop' },
+  }
 
 // Встроенные по умолчанию — текущая хардкод-структура (до переноса в Payload).
 // Слаги соответствуют реальным проектам в БД (исправлено 2026-05-30).
@@ -75,13 +80,23 @@ export const DEFAULT_DRAWER_GROUPS: DrawerGroup[] = [
   {
     modifier: 'stay',
     heading: '· Пожить ·',
-    items: [{ href: '/projects/eco-hotel-vyatka', title: 'ЭКО-отель', subtitle: 'над рекой, 6 номеров' }],
+    items: [
+      { href: '/projects/eco-hotel-vyatka', title: 'ЭКО-отель', subtitle: 'над рекой, 6 номеров' },
+    ],
   },
   {
     heading: '· Делать ·',
     items: [
-      { href: '/projects/craft-workshops-gonba', title: 'Ремесленные мастерские', subtitle: 'гончарка, ткачество, валяние' },
-      { href: '/projects/district-excursions', title: 'Экскурсии по району', subtitle: 'Малмыж · Гоньба · Вятка' },
+      {
+        href: '/projects/craft-workshops-gonba',
+        title: 'Ремесленные мастерские',
+        subtitle: 'гончарка, ткачество, валяние',
+      },
+      {
+        href: '/projects/district-excursions',
+        title: 'Экскурсии по району',
+        subtitle: 'Малмыж · Гоньба · Вятка',
+      },
       { href: '/projects/konnyy-klub-gmalyzh', title: 'Конный клуб', subtitle: 'г. Малмыж' },
     ],
   },
@@ -89,8 +104,16 @@ export const DEFAULT_DRAWER_GROUPS: DrawerGroup[] = [
     modifier: 'see',
     heading: '· Смотреть ·',
     items: [
-      { href: '/projects/village-and-temple', title: 'Село и храм', subtitle: 'Покровская церковь, 1808' },
-      { href: '/projects/sadovaya-feya-gulfiya-kharisovna', title: 'Садовая фея', subtitle: 'Гульфия Харисовна' },
+      {
+        href: '/projects/village-and-temple',
+        title: 'Село и храм',
+        subtitle: 'Покровская церковь, 1808',
+      },
+      {
+        href: '/projects/sadovaya-feya-gulfiya-kharisovna',
+        title: 'Садовая фея',
+        subtitle: 'Гульфия Харисовна',
+      },
       { href: '/projects/vyatskaya-lepota', title: 'Вятская лепота', subtitle: 'студия керамики' },
       { href: '/projects/village-events', title: 'События села', subtitle: 'ярмарки, праздники' },
     ],
@@ -98,13 +121,15 @@ export const DEFAULT_DRAWER_GROUPS: DrawerGroup[] = [
   {
     modifier: 'shop',
     heading: '· Лавка ·',
-    items: [{ href: '/projects/vyatskiy-sbor', title: 'Вятскiй сборъ', subtitle: 'травы, иван-чай, мёд' }],
+    items: [
+      { href: '/projects/vyatskiy-sbor', title: 'Вятскiй сборъ', subtitle: 'травы, иван-чай, мёд' },
+    ],
   },
 ]
 
 export const DEFAULT_DRAWER_EXTRA_LINKS: DrawerLink[] = [
   { href: '/usadba', title: 'Усадьба', subtitle: 'история, главы, цитаты' },
-  { href: '/projects', title: 'Все проекты', subtitle: 'полный каталог' },
+  { href: '/#projects', title: 'Все проекты', subtitle: 'единая витрина на главной' },
 ]
 
 export const DEFAULT_DRAWER_CONTACTS: DrawerContacts = {

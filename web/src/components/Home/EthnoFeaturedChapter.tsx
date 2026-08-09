@@ -2,15 +2,7 @@ import Link from 'next/link'
 import React from 'react'
 
 import type { ProjectRecord } from '@/app/(frontend)/projects/shared'
-
-type MediaDoc = { id?: string | number; url?: string | null; alt?: string | null }
-
-function imageUrl(media: unknown): { url: string; alt?: string } | null {
-  if (!media || typeof media !== 'object' || Array.isArray(media)) return null
-  const doc = media as MediaDoc
-  if (!doc.url) return null
-  return { url: String(doc.url), alt: (doc.alt as string) || undefined }
-}
+import { projectCoverImage } from '@/components/ProjectWorld/projectImage'
 
 interface EthnoFeaturedChapterProps {
   project?: ProjectRecord | null
@@ -31,8 +23,9 @@ export const EthnoFeaturedChapter: React.FC<EthnoFeaturedChapterProps> = ({
 }) => {
   if (!project) return null
 
-  const photo = imageUrl(project.heroImage) || imageUrl(project.logo)
-  const roman = chapter ?? (project.chapterRoman as 'I' | 'II' | 'III' | 'IV' | 'V' | undefined) ?? 'I'
+  const photo = projectCoverImage(project)
+  const roman =
+    chapter ?? (project.chapterRoman as 'I' | 'II' | 'III' | 'IV' | 'V' | undefined) ?? 'I'
   const label = chapterLabel || 'село и храм'
   const titleMain = project.title || 'Покровская церковь'
   const titleEm = 'стоит с 1808 года'
@@ -49,15 +42,13 @@ export const EthnoFeaturedChapter: React.FC<EthnoFeaturedChapterProps> = ({
             {photo ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={photo.url}
-                alt={photo.alt ?? titleMain}
+                src={photo}
+                alt={titleMain}
                 className="ethno-featured__photo-img"
                 loading="lazy"
               />
             ) : (
-              <div className="ethno-featured__photo-fallback">
-                {(photo as { alt?: string } | null)?.alt ?? 'Фото проекта'}
-              </div>
+              <div className="ethno-featured__photo-fallback">Фото проекта</div>
             )}
           </div>
           <div>
