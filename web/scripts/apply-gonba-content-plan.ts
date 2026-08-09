@@ -207,10 +207,31 @@ async function main(): Promise<void> {
   }
 
   const staleServices = await payload.find({ collection: 'services', where: { slug: { like: '235385532-' } }, limit: 100, depth: 0, overrideAccess: true })
+  const guestHouseOwner = await project('eco-hotel-booking')
+  for (const stale of staleServices.docs) {
+    console.log(`${APPLY ? 'RELINK' : 'WOULD RELINK'} VK service ${stale.id} ${stale.slug} -> eco-hotel-booking`)
+    if (APPLY) {
+      await payload.update({
+        collection: 'services',
+        id: stale.id,
+        overrideAccess: true,
+        data: { project: guestHouseOwner.id, serviceStatus: 'active', _status: 'published' },
+      })
+    }
+  }
+
   const circusServices = await payload.find({ collection: 'services', where: { slug: { like: '226176537-' } }, limit: 100, depth: 0, overrideAccess: true })
-  for (const stale of [...staleServices.docs, ...circusServices.docs]) {
-    console.log(`${APPLY ? 'ARCHIVE' : 'WOULD ARCHIVE'} stale service ${stale.id} ${stale.slug}`)
-    if (APPLY) await payload.update({ collection: 'services', id: stale.id, overrideAccess: true, data: { serviceStatus: 'archived', _status: 'published' } })
+  const travelersOwner = await project('klub-malmyzhskikh-puteshestvennikov')
+  for (const circus of circusServices.docs) {
+    console.log(`${APPLY ? 'RELINK' : 'WOULD RELINK'} VK service ${circus.id} ${circus.slug} -> klub-malmyzhskikh-puteshestvennikov`)
+    if (APPLY) {
+      await payload.update({
+        collection: 'services',
+        id: circus.id,
+        overrideAccess: true,
+        data: { project: travelersOwner.id, serviceStatus: 'active', _status: 'published' },
+      })
+    }
   }
 
   for (const seed of sourceSeeds) {
