@@ -7,6 +7,7 @@ const CURATED_PROJECT_IMAGES: Record<string, string> = {
   'village-and-temple': '/projects/village-temple-cover.jpg',
   'village-events': '/projects/village-events-cover.webp',
   'craft-workshops-gonba': '/projects/craft-workshops-cover.webp',
+  'vyatskaya-lepota': '/api/media/file/699',
 }
 
 export function projectMediaUrl(media: unknown): string | null {
