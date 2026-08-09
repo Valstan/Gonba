@@ -1,6 +1,6 @@
 # План: полнотекстовый поиск по сайту (Postgres FTS)
 
-**Статус:** Phase 1 ✅ (на проде, `621c20a`) + Phase 2 ✅ «Coverage + подсветка» (2026-06-04, PR feat/fts-search-phase2). Phase 3 (pg_trgm/GIN) отложена. Идея из `brain` (`from-brain/2026-06-04-feature-ideas-fts-events-calendar.md`, одобрена владельцем, `suggest`).
+**Статус:** Phase 1 ✅ (на проде, `621c20a`) + Phase 2 ✅ «Coverage + подсветка» (2026-06-04, PR feat/fts-search-phase2) + Phase 3 ✅ (prod-миграция `20260809_120001` применена 2026-08-09). Идея из `brain` (`from-brain/2026-06-04-feature-ideas-fts-events-calendar.md`, одобрена владельцем, `suggest`).
 
 ## Контекст
 
@@ -62,10 +62,10 @@
 - `search:reindex --collections pages,projects` + проба покрытия: `search_rels` получил pages/projects, `doc.relationTo` резолвится верно (projects «Бронирование ЭКО-отеля», pages «Главная»/«Контакты»). ✅
 - `pnpm typecheck` + `pnpm lint` — чисто.
 
-## Phase 3 — опечатки и perf (код готов, применение prod-миграции требует гейта)
+## Phase 3 — опечатки и perf ✅ (prod 2026-08-09)
 
-- **Опечаткоустойчивость (pg_trgm):** код fallback через `similarity(...)` включается только если FTS дал 0 результатов; при отсутствии расширения поиск безопасно деградирует. Миграция `20260809_120001` создаёт `pg_trgm` и GIN trigram-индекс.
-- **GIN-индекс под FTS_EXPR** (perf) добавлен в ту же идемпотентную миграцию; выражение IMMUTABLE и совпадает 1:1 с запросом. Применение на проде — отдельный DDL-гейт.
+- **Опечаткоустойчивость (pg_trgm):** код fallback через `similarity(...)` включается только если FTS дал 0 результатов; расширение и GIN trigram-индекс созданы миграцией `20260809_120001`.
+- **GIN-индекс под FTS_EXPR** (perf) создан той же идемпотентной миграцией; выражение IMMUTABLE и совпадает 1:1 с запросом.
 
 ## Файлы
 
