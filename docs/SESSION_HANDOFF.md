@@ -1,9 +1,9 @@
 # Session Handoff
 
-**Status:** ACTIVE
+**Status:** CLOSED
 **Updated:** 2026-08-09
 **Branch:** main
-**Last released version:** PR #188 (`5c223ba`); CI, deploy, exact-SHA gate and prod health are green.
+**Last released version:** PR #195 (`61eaace`); CI, E2E, deploy, exact-SHA gate and prod health are green.
 
 ---
 
@@ -11,7 +11,7 @@
 
 Срочная очередь brain закрыта по коду: принят vendor-neutral контракт агентов и выполнен квартальный аудит #036, deploy больше не маскирует неудачный `git pull`, добавлен KARMAN Vault bootstrap и удалены все raw VK-token fallback'и. Прод работает через SARAFAN; `VK_TOKEN_VALSTAN` и `VK_TOKEN_VITA` удалены из env и process environ после root-only backup.
 
-Код VK multi-project routing, FTS Phase 3 и каталог/услуги применены. На проде включены 6 VK-источников, `vkSync.healthy=true`, 0 ошибок/просрочек; конный клуб скрыт, а его историческая запись и импортированные предложения сохранены опубликованными с правильными проектами. Остались внешние шаги владельца: bootstrap-токен Vault, ID Метрики/регистрация LiveInternet, SSH deploy-key rotation до 2026-08-20. Отдельно ждёт подтверждения оставшаяся контентная чистка постов и медиа.
+Код VK multi-project routing, FTS Phase 3 и каталог/услуги применены. На проде включены 6 VK-источников, `vkSync.healthy=true`, 0 ошибок/просрочек; конный клуб скрыт, а его историческая запись и импортированные предложения сохранены опубликованными с правильными проектами. В этой сессии каталог объединён с главной: `/projects` редиректит на `/#projects`, главная показывает все 11 активных проектов, а единый `projectCoverImage` синхронизирует обложки главной, переключателя и тематических карточек. Финальный smoke проверяет 308 redirect и новый anti-stale marker. Остались внешние шаги владельца: bootstrap-токен Vault, ID Метрики/регистрация LiveInternet, SSH deploy-key rotation до 2026-08-20. Отдельно ждёт подтверждения оставшаяся контентная чистка постов и медиа.
 
 ## Следующий шаг
 
@@ -23,8 +23,8 @@
 ## Контекст
 
 - **План:** —
-- **Связанные коммиты сессии:** `1b21276` — vendor-neutral contract и аудит #036; `a4e236e` — fail-fast deploy pull + exact SHA; `eaef7a5` — Vault bootstrap, VK gateway-only и G211 audit.
-- **Прод:** release `5c223ba` активен; public/local health 200; VK health healthy (6 источников, 0 errors, 0 stale). Raw VK-токены отсутствуют в env-файле и окружении процесса. Перед очисткой создан backup `/etc/gonba/gonba.env.bak-vk-token-cleanup-20260809-104634`.
+- **Связанные коммиты сессии:** `61eaace` — unified project showcase, `/projects` redirect, shared cover mapping, updated E2E and deploy smoke.
+- **Прод:** release `61eaace` активен; public/local health 200; `/projects` отвечает `308 Location: /#projects`; финальный deploy smoke зелёный; VK health healthy (6 источников, 0 errors, 0 stale). Raw VK-токены отсутствуют в env-файле и окружении процесса. Перед очисткой создан backup `/etc/gonba/gonba.env.bak-vk-token-cleanup-20260809-104634`.
 - **Открытые вопросы для пользователя:** bootstrap-токен KARMAN; ID Метрики; регистрация LiveInternet; подтверждение оставшейся чистки постов/медиа; SSH deploy-key rotation.
 
 ## Failed approaches (этой нитки)
