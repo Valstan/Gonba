@@ -4,6 +4,7 @@ import { getPayload } from 'payload'
 import { gatewayCall } from '../src/server/integrations/vk-gateway'
 
 const APPLY = process.argv.includes('--apply')
+let activePayload: Awaited<ReturnType<typeof getPayload>> | undefined
 
 const PHONE_OWNER = '8 999 914 22 27'
 const PHONE_LEPOTA = '8 982 390 85 56'
@@ -140,6 +141,7 @@ async function latestCursor(groupId: number): Promise<number> {
 
 async function main(): Promise<void> {
   const payload = await getPayload({ config: configPromise })
+  activePayload = payload
   const projectCache = new Map<string, ProjectDoc>()
   const categoryCache = new Map<string, CategoryDoc>()
 
@@ -265,4 +267,6 @@ async function main(): Promise<void> {
 main().catch((error) => {
   console.error(error instanceof Error ? error.message : String(error))
   process.exitCode = 1
+}).finally(async () => {
+  await activePayload?.db.destroy?.()
 })
