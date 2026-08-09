@@ -402,8 +402,10 @@ html {
   color: var(--ink);
   text-decoration: none;
 }
-.ethno-header__logo .ethno-rhomb { color: var(--ochre); }
-.ethno-header__logo .ethno-rhomb::after { background: var(--paper); }
+.ethno-header__logo img { width: 42px; height: 42px; object-fit: contain; }
+.ethno-header__logo span { display: flex; flex-direction: column; line-height: 1; gap: 5px; }
+.ethno-header__logo strong { font: inherit; }
+.ethno-header__logo small { font-family: var(--mono); font-size: 8px; font-weight: 500; letter-spacing: .13em; text-transform: uppercase; }
 
 .ethno-nav { display: none; }
 @media (min-width: 900px) {

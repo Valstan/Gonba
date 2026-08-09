@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import React from 'react'
 
 import type { Header } from '@/payload-types'
@@ -22,8 +23,11 @@ export const HeaderClient: React.FC<HeaderClientProps> = ({ data }) => {
     <header className="ethno-header">
       <div className="container ethno-header__inner">
         <Link href="/" className="ethno-header__logo" aria-label="На главную">
-          <span className="ethno-rhomb" aria-hidden="true" />
-          Гоньба
+          <Image src="/brand/gonba-mark.png" alt="" width={48} height={48} priority />
+          <span>
+            <strong>Гоньба</strong>
+            <small>Жемчужина Вятки</small>
+          </span>
         </Link>
 
         <nav className="ethno-nav" aria-label="Главная навигация">

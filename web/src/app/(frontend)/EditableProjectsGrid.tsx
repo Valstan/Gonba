@@ -41,7 +41,7 @@ function ViewCard({ project, size }: { project: ProjectRecord; size: CardSize })
         'group relative isolate flex overflow-hidden rounded-3xl shadow-lg ring-1 ring-white/10',
         'transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-2xl active:translate-y-0 active:scale-[0.99]',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80',
-        isHero ? 'min-h-[220px] sm:min-h-[260px] md:col-span-2 lg:col-span-3' : 'min-h-[180px]',
+        isHero ? 'md:col-span-2 lg:col-span-3' : '',
       ].join(' ')}
     >
       <Plate project={project} size={size} />
@@ -58,7 +58,9 @@ function SortableEditCard({
   size: CardSize
   onEdit: (p: ProjectRecord) => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: String(project.id) })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: String(project.id),
+  })
   const isHero = size === 'hero'
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -72,7 +74,7 @@ function SortableEditCard({
       style={style}
       className={[
         'group relative isolate overflow-hidden rounded-3xl shadow-lg ring-2 ring-yellow-400/60',
-        isHero ? 'min-h-[220px] sm:min-h-[260px] md:col-span-2 lg:col-span-3' : 'min-h-[180px]',
+        isHero ? 'md:col-span-2 lg:col-span-3' : '',
       ].join(' ')}
     >
       <Plate project={project} size={size} />
@@ -89,7 +91,15 @@ function SortableEditCard({
         aria-label="Редактировать плашку"
         title="Редактировать"
       >
-        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          viewBox="0 0 24 24"
+          className="h-4 w-4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
         </svg>
@@ -104,7 +114,15 @@ function SortableEditCard({
         aria-label="Перетащить"
         title="Перетащите чтобы поменять порядок"
       >
-        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          viewBox="0 0 24 24"
+          className="h-4 w-4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <circle cx="9" cy="6" r="1" />
           <circle cx="9" cy="12" r="1" />
           <circle cx="9" cy="18" r="1" />
@@ -117,7 +135,10 @@ function SortableEditCard({
   )
 }
 
-export const EditableProjectsGrid: React.FC<Props> = ({ initialProjects, centerSlug = 'gonba' }) => {
+export const EditableProjectsGrid: React.FC<Props> = ({
+  initialProjects,
+  centerSlug = 'gonba',
+}) => {
   const [projects, setProjects] = useState<ProjectRecord[]>(initialProjects)
   const [isAdmin, setIsAdmin] = useState(false)
   const [editMode, setEditMode] = useState(false)
@@ -139,7 +160,10 @@ export const EditableProjectsGrid: React.FC<Props> = ({ initialProjects, centerS
   const center = projects.find((p) => p.slug === centerSlug) ?? null
   const others = useMemo(() => projects.filter((p) => p.slug !== center?.slug), [projects, center])
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
 
   const persistOrder = useCallback(async (ordered: ProjectRecord[]) => {
     setSavingOrder(true)
@@ -182,7 +206,8 @@ export const EditableProjectsGrid: React.FC<Props> = ({ initialProjects, centerS
     void persistOrder(newProjects)
   }
 
-  const editingProject = editingId != null ? projects.find((p) => p.id === editingId) ?? null : null
+  const editingProject =
+    editingId != null ? (projects.find((p) => p.id === editingId) ?? null) : null
 
   const handleSaved = (updates: Partial<ProjectRecord>) => {
     if (editingId == null) return
@@ -202,7 +227,15 @@ export const EditableProjectsGrid: React.FC<Props> = ({ initialProjects, centerS
               onClick={() => setEditMode(true)}
               className="inline-flex items-center gap-1.5 rounded-full border border-input bg-background px-3 py-1.5 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
             >
-              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                className="h-3.5 w-3.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
               </svg>
@@ -210,7 +243,7 @@ export const EditableProjectsGrid: React.FC<Props> = ({ initialProjects, centerS
             </button>
           </div>
         ) : null}
-        <div className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
           {center ? <ViewCard key={center.id} project={center} size="hero" /> : null}
           {others.map((p) => (
             <ViewCard key={p.id} project={p} size="normal" />
@@ -225,12 +258,18 @@ export const EditableProjectsGrid: React.FC<Props> = ({ initialProjects, centerS
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-yellow-400/50 bg-yellow-50 p-3 text-sm">
         <div className="flex items-center gap-2">
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-yellow-400 text-xs font-bold text-yellow-900">!</span>
+          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-yellow-400 text-xs font-bold text-yellow-900">
+            !
+          </span>
           <span className="font-medium">Режим правки плашек.</span>
-          <span className="text-muted-foreground">Перетаскивайте за «⋮⋮», нажимайте «✎» чтобы изменить.</span>
+          <span className="text-muted-foreground">
+            Перетаскивайте за «⋮⋮», нажимайте «✎» чтобы изменить.
+          </span>
         </div>
         <div className="flex items-center gap-2">
-          {savingOrder ? <span className="text-xs text-muted-foreground">Сохраняем порядок…</span> : null}
+          {savingOrder ? (
+            <span className="text-xs text-muted-foreground">Сохраняем порядок…</span>
+          ) : null}
           {orderError ? <span className="text-xs text-destructive">{orderError}</span> : null}
           <button
             type="button"
@@ -242,7 +281,7 @@ export const EditableProjectsGrid: React.FC<Props> = ({ initialProjects, centerS
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
         {center ? (
           // Центральный проект редактируется (✎), но не перетаскивается (зафиксирован сверху)
           <div className="md:col-span-2 lg:col-span-3">
@@ -253,7 +292,12 @@ export const EditableProjectsGrid: React.FC<Props> = ({ initialProjects, centerS
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={others.map((p) => String(p.id))} strategy={rectSortingStrategy}>
             {others.map((p) => (
-              <SortableEditCard key={p.id} project={p} size="normal" onEdit={(pr) => setEditingId(pr.id)} />
+              <SortableEditCard
+                key={p.id}
+                project={p}
+                size="normal"
+                onEdit={(pr) => setEditingId(pr.id)}
+              />
             ))}
           </SortableContext>
         </DndContext>
@@ -269,9 +313,15 @@ export const EditableProjectsGrid: React.FC<Props> = ({ initialProjects, centerS
   )
 }
 
-function FixedHeroEditCard({ project, onEdit }: { project: ProjectRecord; onEdit: (p: ProjectRecord) => void }) {
+function FixedHeroEditCard({
+  project,
+  onEdit,
+}: {
+  project: ProjectRecord
+  onEdit: (p: ProjectRecord) => void
+}) {
   return (
-    <div className="relative isolate overflow-hidden rounded-3xl shadow-lg ring-2 ring-yellow-400/60 min-h-[220px] sm:min-h-[260px]">
+    <div className="relative isolate overflow-hidden rounded-3xl shadow-lg ring-2 ring-yellow-400/60">
       <Plate project={project} size="hero" />
       <button
         type="button"
@@ -284,7 +334,15 @@ function FixedHeroEditCard({ project, onEdit }: { project: ProjectRecord; onEdit
         aria-label="Редактировать плашку"
         title="Редактировать"
       >
-        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          viewBox="0 0 24 24"
+          className="h-4 w-4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
         </svg>

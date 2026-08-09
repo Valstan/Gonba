@@ -32,6 +32,14 @@ const FALLBACK_PALETTE = [
 
 export type CardSize = 'hero' | 'normal'
 
+const PROJECT_FALLBACK_IMAGES: Record<string, string> = {
+  'deer-farm': '/projects/deer-farm-cover.webp',
+  'district-excursions': '/projects/rural-tourism-cover.webp',
+  'village-and-temple': '/projects/village-temple-cover.jpg',
+  'village-events': '/projects/village-events-cover.webp',
+  'craft-workshops-gonba': '/projects/craft-workshops-cover.webp',
+}
+
 function hashSlug(slug: string): number {
   let h = 0
   for (let i = 0; i < slug.length; i++) h = (h * 31 + slug.charCodeAt(i)) | 0
@@ -56,9 +64,9 @@ export function imageSrc(media: unknown): string | null {
   return `/media/${url}`
 }
 
-export function pickImage(p: Pick<ProjectRecord, 'logo' | 'heroImage' | 'gallery'>): string | null {
-  const fromLogo = imageSrc(p.logo)
-  if (fromLogo) return fromLogo
+export function pickImage(
+  p: Pick<ProjectRecord, 'logo' | 'heroImage' | 'gallery' | 'slug'>,
+): string | null {
   const fromHero = imageSrc(p.heroImage)
   if (fromHero) return fromHero
   if (Array.isArray(p.gallery) && p.gallery.length > 0) {
@@ -67,7 +75,7 @@ export function pickImage(p: Pick<ProjectRecord, 'logo' | 'heroImage' | 'gallery
       if (src) return src
     }
   }
-  return null
+  return PROJECT_FALLBACK_IMAGES[p.slug] || imageSrc(p.logo)
 }
 
 export function projectLabel(p: Pick<ProjectRecord, 'shortLabel' | 'title'>): string {
@@ -83,66 +91,74 @@ export function projectHref(p: Pick<ProjectRecord, 'homeLink' | 'slug'>): string
 export function Plate({ project, size }: { project: ProjectRecord; size: CardSize }) {
   const accent = resolveAccent(project)
   const src = pickImage(project)
+  const logoSrc = project.slug === 'gonba' ? '/brand/gonba-mark.png' : imageSrc(project.logo)
   const label = projectLabel(project)
   const isHero = size === 'hero'
 
-  const bgStyle: React.CSSProperties = {
-    backgroundImage: `linear-gradient(135deg, ${accent} 0%, color-mix(in srgb, ${accent} 60%, #000 40%) 100%)`,
-    backgroundColor: accent,
-  }
+  const bgStyle: React.CSSProperties = { backgroundColor: accent }
 
   return (
     <div className="relative h-full w-full text-white" style={bgStyle}>
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-black/0 to-white/10" />
+      {src ? (
+        <Image
+          src={src}
+          alt=""
+          fill
+          sizes={isHero ? '(min-width: 1024px) 1200px, 100vw' : '(min-width: 1024px) 33vw, 100vw'}
+          className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+          unoptimized={src.startsWith('/api/')}
+        />
+      ) : (
+        <div
+          aria-hidden
+          className="absolute inset-0 opacity-30"
+          style={{
+            backgroundImage: 'radial-gradient(circle at 80% 20%, white 0 2px, transparent 3px)',
+            backgroundSize: '28px 28px',
+          }}
+        />
+      )}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-black/5" />
+      <div
+        className="pointer-events-none absolute inset-0 opacity-50"
+        style={{ background: `linear-gradient(110deg, ${accent}66 0%, transparent 55%)` }}
+      />
+
       <div
         className={[
-          'relative z-10 flex h-full w-full',
-          isHero ? 'flex-col gap-4 p-6 sm:flex-row sm:items-center sm:gap-6 sm:p-7' : 'flex-row items-stretch gap-3 p-4',
+          'relative z-10 flex h-full flex-col justify-end',
+          isHero ? 'min-h-[360px] p-6 sm:min-h-[430px] sm:p-9 lg:p-11' : 'min-h-[290px] p-5 sm:p-6',
         ].join(' ')}
       >
-        <div
-          className={[
-            'relative flex-none overflow-hidden rounded-2xl bg-white/10 ring-1 ring-white/20',
-            isHero
-              ? 'aspect-[4/3] w-full sm:aspect-square sm:w-[40%] sm:max-w-[260px]'
-              : 'aspect-square w-24 self-center sm:w-28',
-          ].join(' ')}
-        >
-          {src ? (
-            <Image
-              src={src}
-              alt={label}
-              fill
-              sizes={isHero ? '(min-width: 1024px) 260px, 80vw' : '120px'}
-              className="object-cover"
-              unoptimized
-            />
-          ) : (
-            <div
-              aria-hidden
-              className="pointer-events-none absolute -bottom-6 -right-4 select-none text-[10rem] font-black leading-none opacity-[0.18]"
-              style={{ color: 'rgba(255,255,255,0.9)' }}
-            >
-              {(label || 'П').trim().charAt(0).toUpperCase()}
-            </div>
-          )}
-        </div>
-
-        <div className={['flex min-w-0 flex-1 flex-col', isHero ? 'gap-3' : 'gap-1.5'].join(' ')}>
+        <div className={['flex min-w-0 flex-col', isHero ? 'max-w-3xl gap-3' : 'gap-2'].join(' ')}>
           <div className="flex items-center gap-2">
             <span
               className={[
                 'inline-flex items-center rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white/90 backdrop-blur-sm',
-                isHero ? '' : 'hidden sm:inline-flex',
+                isHero ? '' : '',
               ].join(' ')}
             >
-              {isHero ? 'Главный проект' : 'Проект'}
+              {isHero ? 'Гоньба · Жемчужина Вятки' : 'Направление'}
             </span>
+            {logoSrc ? (
+              <span className="ml-auto inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#fffaf0]/95 p-1.5 shadow-lg ring-1 ring-black/10">
+                <Image
+                  src={logoSrc}
+                  alt=""
+                  width={44}
+                  height={44}
+                  className="h-full w-full object-contain"
+                  unoptimized={logoSrc.startsWith('/api/')}
+                />
+              </span>
+            ) : null}
           </div>
           <h3
             className={[
               'font-semibold leading-tight tracking-tight',
-              isHero ? 'text-2xl sm:text-3xl md:text-4xl' : 'text-lg sm:text-xl',
+              isHero
+                ? 'max-w-2xl font-serif text-3xl sm:text-5xl md:text-6xl'
+                : 'font-serif text-2xl sm:text-3xl',
             ].join(' ')}
           >
             {label}
@@ -151,7 +167,9 @@ export function Plate({ project, size }: { project: ProjectRecord; size: CardSiz
             <p
               className={[
                 'text-white/85',
-                isHero ? 'line-clamp-3 text-sm sm:text-base md:line-clamp-4' : 'line-clamp-2 text-sm',
+                isHero
+                  ? 'line-clamp-3 max-w-2xl text-sm sm:text-lg md:line-clamp-4'
+                  : 'line-clamp-2 text-sm sm:text-base',
               ].join(' ')}
             >
               {project.summary}
@@ -159,18 +177,26 @@ export function Plate({ project, size }: { project: ProjectRecord; size: CardSiz
           ) : null}
           <span
             className={[
-              'mt-auto inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-sm font-medium backdrop-blur-sm',
-              isHero ? 'w-fit text-sm sm:text-base' : 'w-fit text-xs',
+              'mt-2 inline-flex w-fit items-center gap-1.5 rounded-full border border-white/25 bg-white/15 px-3 py-1.5 text-sm font-medium backdrop-blur-sm transition-colors group-hover:bg-white group-hover:text-black',
+              isHero ? 'text-sm sm:text-base' : 'text-xs',
             ].join(' ')}
           >
             Войти в проект
-            <svg aria-hidden viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              aria-hidden
+              viewBox="0 0 16 16"
+              className="h-3.5 w-3.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M3 8h10M9 4l4 4-4 4" />
             </svg>
           </span>
         </div>
       </div>
-      <div aria-hidden className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full opacity-30 blur-2xl" style={{ backgroundColor: 'rgba(255,255,255,0.65)' }} />
     </div>
   )
 }
