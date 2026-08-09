@@ -27,7 +27,14 @@
     "src/migrations/**/*.ts",
     // next-sitemap.config.cjs вызывается из build:raw (`next-sitemap --config …`),
     // а не импортируется — без entry knip метит конфиг как unused file.
-    "next-sitemap.config.cjs"
+    "next-sitemap.config.cjs",
+    // Операционные CLI запускаются вручную и через runbook'и, не import-графом.
+    "scripts/dedupe-media.ts",
+    "scripts/migrate-enabled-sections.ts",
+    "scripts/probe-schema-drift.ts",
+    "scripts/seed-vk-auto-sync.ts",
+    "scripts/sync-project-hub-topology.ts",
+    "scripts/write-schema-snapshot.ts"
   ],
   "ignoreDependencies": [
     // Поставляется самим Next (маркер серверных модулей) — не наш package.json dep.
