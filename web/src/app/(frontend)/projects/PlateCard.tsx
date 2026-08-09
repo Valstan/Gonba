@@ -33,6 +33,7 @@ const FALLBACK_PALETTE = [
 export type CardSize = 'hero' | 'normal'
 
 const PROJECT_FALLBACK_IMAGES: Record<string, string> = {
+  gonba: '/projects/gonba-cover.webp',
   'deer-farm': '/projects/deer-farm-cover.webp',
   'district-excursions': '/projects/rural-tourism-cover.webp',
   'village-and-temple': '/projects/village-temple-cover.jpg',
@@ -69,13 +70,15 @@ export function pickImage(
 ): string | null {
   const fromHero = imageSrc(p.heroImage)
   if (fromHero) return fromHero
+  const curatedFallback = PROJECT_FALLBACK_IMAGES[p.slug]
+  if (curatedFallback) return curatedFallback
   if (Array.isArray(p.gallery) && p.gallery.length > 0) {
     for (const item of p.gallery) {
       const src = imageSrc((item as { image?: unknown })?.image)
       if (src) return src
     }
   }
-  return PROJECT_FALLBACK_IMAGES[p.slug] || imageSrc(p.logo)
+  return imageSrc(p.logo)
 }
 
 export function projectLabel(p: Pick<ProjectRecord, 'shortLabel' | 'title'>): string {
