@@ -75,7 +75,7 @@ gh api -H "Accept: application/vnd.github.raw" \
 
 Прочитай **полностью** в одном параллельном блоке:
 
-1. [`CLAUDE.md`](../../CLAUDE.md) — entry point, правила работы и уроки прошлых сессий
+1. [`AGENTS.md`](../../AGENTS.md) — канонический entry point, правила работы и уроки прошлых сессий
 2. [`docs/PROJECT_STATE.md`](../../docs/PROJECT_STATE.md) — архитектурная картина
 3. [`docs/PENDING_FOLLOWUPS.md`](../../docs/PENDING_FOLLOWUPS.md) — открытые задачи и техдолги
 

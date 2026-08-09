@@ -50,7 +50,7 @@ node -e "const fs=require('fs');const f=process.argv[1];const b=fs.readFileSync(
 corepack pnpm -C web run typecheck    # tsc --noEmit
 corepack pnpm -C web run lint          # next lint
 ```
-Если правка существенная и нужен прод-билд — собирать **`build:raw`** (НЕ `pnpm run build` — он под watchdog и умирает по idle-timeout на молчании Next 15; см. CLAUDE.md):
+Если правка существенная и нужен прод-билд — собирать **`build:raw`** (НЕ `pnpm run build` — он под watchdog и умирает по idle-timeout на молчании Next 15; см. AGENTS.md):
 ```bash
 corepack pnpm -C web run build:raw     # next build && next-sitemap (генератор встроен, не на post-хуке)
 ```

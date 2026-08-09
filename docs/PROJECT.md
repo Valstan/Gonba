@@ -222,7 +222,7 @@ Payload:
 - Ключ: ed25519 (`~/.ssh/id_ed25519_gonba_deploy`) — **изолированный per-project ключ**, не используется на других серверах. См. раздел «SSH deploy-key — ротация» ниже.
 - ОС сервера: Ubuntu Linux 24.04 (ядро 6.8.x)
 
-**На локалке алиас `GONBA` в `~/.ssh/config`:**
+**На локалке алиас `GONBA` в `~/.ssh/config`** (имя файла ключа может отличаться по машине; ниже canonical per-project вариант):
 
 ```
 Host GONBA
@@ -365,7 +365,7 @@ gh secret set GONBA_BUILD_ENV --repo Valstan/Gonba < <(составить-фай
 
 | Машина | comment в `.pub` | Авторизован | Примечание |
 |---|---|---|---|
-| Windows-dev (`HOME-PC`) | `gonba-deploy@HOME-PC-20260529` | 2026-05-29 | passphraseless, alias `GONBA` через `IdentityFile ~/.ssh/id_ed25519_gonba_deploy` + `IdentitiesOnly yes`. **НЕ** в GH secret (только локальный SSH). На этой машине generic `id_ed25519` — ключ MatricaRMZ-сервера, для GONBA не авторизован. |
+| Windows-dev (`HOME-PC`) | текущий публичный ключ `~/.ssh/id_ed25519.pub` | подтверждено 2026-08-09 | alias `GONBA` использует `IdentityFile ~/.ssh/id_ed25519` + `IdentitiesOnly yes`; read-only probe успешен. **НЕ** в GH secret (только локальный SSH). Старое описание отдельного `id_ed25519_gonba_deploy` для этой машины оказалось протухшим. |
 
 Если при security-аудите в `authorized_keys` встретится `gonba-deploy@HOME-PC-*` — это легитимный dev-ключ, не компрометация (ср. cleanup dispatch #0007).
 

@@ -43,6 +43,8 @@ GONBA — под управлением meta-репо `brain_matrica` (`../brain
 | `recommend` | SHOULD | Применить (можно с адаптацией). Если совсем не подходит — `mailbox/to-brain/` с обоснованием отказа. Молчать нельзя. |
 | `suggest` | MAY | По усмотрению. Применил — приветствуется feedback. Отложил — молча. |
 
+**Приоритизация на `/start`:** непрочитанный или незакрытый `high MUST` автоматически становится первым пунктом рабочего плана текущей сессии, выше handoff и обычного пользовательского backlog. Исключения — активный прод-инцидент или явный новый приоритет владельца; тогда в `mailbox/to-brain/` сразу фиксируются причина отложения и триггер возврата. Одного показа письма в стартовом отчёте недостаточно: MUST обязан попасть в исполняемый план или получить явный статус.
+
 ### Чтобы написать brain (исходящие — в свой репо)
 
 Создать файл `mailbox/to-brain/YYYY-MM-DD-slug.md` **в этом репо** (НЕ в `brain_matrica/`):
@@ -103,12 +105,12 @@ Read-сторона того же шкафа, что и #009 (#009 — «наш�
 | [`docs/SESSION_HANDOFF.md`](docs/SESSION_HANDOFF.md) | **Sticky note из прошлой сессии:** статус (ACTIVE/IDLE), текущая нитка, следующий шаг. **Читать первым** (шаг 0 в `/start`). Обновляется через `/close_session`. История — `git log -- docs/SESSION_HANDOFF.md`. |
 | [`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md) | Архитектурная картина: стек, структура репо, интеграции, прод-инфраструктура, кэш-инвалидация. Стабильное «как устроено сейчас». |
 | [`docs/PENDING_FOLLOWUPS.md`](docs/PENDING_FOLLOWUPS.md) | Открытые задачи и техдолги с приоритетами 🔴⏳🟡🟢. Хвосты из предыдущих сессий. |
-| [`docs/plans/`](docs/plans/) | Многоэтапные планы (plan mode → файл сюда, не в `~/.Codex/plans/`). См. `docs/plans/README.md`. |
+| [`docs/plans/`](docs/plans/) | Многоэтапные планы (plan mode → файл сюда, не во внешнюю vendor-specific папку планов). См. `docs/plans/README.md`. |
 | [`docs/PROJECT.md`](docs/PROJECT.md) | Функциональная документация (env, скрипты, систем-операции). Менее «архитектурный», более «справочный». |
 | [`docs/RELEASE_STABILITY_CHECKLIST.md`](docs/RELEASE_STABILITY_CHECKLIST.md) | Pre-release checklist. Морально устарел — см. `/reliz`. |
 | [`docs/adr/`](docs/adr/) | Architectural Decision Records — **почему** мы выбрали тот или иной архитектурный подход. Читать когда возникает вопрос «а почему так?». |
 | [`web/AGENTS.md`](web/AGENTS.md) | Правила Payload CMS разработки (типизация, безопасность Local API, hooks). |
-| [`../brain_matrica/`](../brain_matrica/) | **Meta-репо стратегического управления** GONBA / MatricaRMZ / setka / KARMAN: cross-project ADRs, pool идей, tech-radar, реестр проектов, mailboxes. Repo: [`brain_matrica`](https://github.com/Valstan/brain_matrica). **Read-only** для GONBA-сессии (asymmetric mailbox scheme, ADR-0001 v3). Идеи в pool — письмо в **свой** `mailbox/to-brain/` с `kind=idea`, не прямое редактирование brain. Cross-project ADRs: [ADR-0001](../brain_matrica/adr/0001-brain-projects-mailboxes.md) (mailbox), [ADR-0002](../brain_matrica/adr/0002-pr-only-flow-no-direct-push.md) (PR-only flow). Fallback `~/.Codex/cross-project-ideas/` — legacy, не использовать. |
+| [`../brain_matrica/`](../brain_matrica/) | **Meta-репо стратегического управления** GONBA / MatricaRMZ / setka / KARMAN: cross-project ADRs, pool идей, tech-radar, реестр проектов, mailboxes. Repo: [`brain_matrica`](https://github.com/Valstan/brain_matrica). **Read-only** для GONBA-сессии (asymmetric mailbox scheme, ADR-0001 v3). Идеи в pool — письмо в **свой** `mailbox/to-brain/` с `kind=idea`, не прямое редактирование brain. Cross-project ADRs: [ADR-0001](../brain_matrica/adr/0001-brain-projects-mailboxes.md) (mailbox), [ADR-0002](../brain_matrica/adr/0002-pr-only-flow-no-direct-push.md) (PR-only flow). Legacy vendor-specific fallback-пути не использовать. |
 | [`mailbox/`](mailbox/) | **Исходящая почта в brain** (asymmetric scheme). Письма пишем в `mailbox/to-brain/YYYY-MM-DD-slug.md`, коммитим через PR в свой репо. См. [`mailbox/README.md`](mailbox/README.md) и §📬 Mailbox check выше. |
 
 Slash-команда `/start` всё это читает автоматически и выдаёт сводку.
@@ -122,7 +124,14 @@ Slash-команда `/start` всё это читает автоматичес�
 3. **Релиз** — `/reliz` ведёт через commit → push → PR → merge → build:raw через systemd-run → restart gonba → проверки. Один шаг = один диалог. После merge в `main` автоматически запускается CI и `.github/workflows/deploy-prod.yml`. **Тело PR = changelog** (хронология живёт в `git log` + PR, не в отдельном журнале — [ADR-0007](docs/adr/0007-archive-development-log.md)).
 4. **Закрытие сессии** — перед последним коммитом закрой/перенеси задачи в `PENDING_FOLLOWUPS.md`. Затем запусти `/close_session` (или скажи «закрой сессию» / «заверши сессию» — NL-триггеры ведут туда же): он обновит `docs/SESSION_HANDOFF.md`, закоммитит+запушит ВСЁ через PR и **не закроет сессию, пока вся работа не на GitHub** (sync-гейт `scripts/git_sync_check.sh --gate`, pool #010). GitHub — источник истины между машинами.
 5. **При архитектурных решениях** — заведи новый ADR в `docs/adr/` по шаблону `_template.md`, чтобы будущие сессии знали «почему».
-6. **Многоэтапные планы (plan mode)** — пиши файл плана в `docs/plans/<slug>.md`, **не** в `~/.Codex/plans/`. Файлы в `docs/plans/` идут в git и видны с любого компа; outside-repo плановые папки между компами не синхронизируются.
+6. **Многоэтапные планы (plan mode)** — пиши файл плана в `docs/plans/<slug>.md`, **не** во внешнюю vendor-specific папку. Файлы в `docs/plans/` идут в git и видны с любого компа; outside-repo плановые папки между компами не синхронизируются.
+
+### Перевод vendor-specific памяток (ADR-0011)
+
+- Поле `allowed-tools:` в `.claude/commands/*.md` для агента без такого механизма игнорируется.
+- `/команда` означает: прочитать соответствующий файл и выполнить его шаги.
+- `AskUserQuestion: «…»` означает: задать пользователю вопрос и дождаться явного ответа.
+- Форма может различаться между агентами, но сам шаг и особенно destructive-гейт обязательны.
 
 ---
 
@@ -161,7 +170,7 @@ git checkout main && git pull --ff-only
 
 Владелец убрал ритуал «окей на дифф/мерж/деплой»: человеческое подтверждение **заменено автоматическими гейтами**. Автономия безопасна **⟺ гейты сильны** — поэтому она работает **только** пока зелёные typecheck/lint/build/CI/smoke. См. [pool #027](../brain_matrica/cross-project-ideas/ideas/027-gate-replaced-autonomy.md).
 
-**Механизм:** коммитимый `.Codex/settings.json` → `permissions.defaultMode: auto` + узкий `allow` (git/gh/гейты) + `deny` (push в main, force-push в main, ручной деплой-dispatch). Правки файлов, коммиты, ветки, PR, авто-мерж — без промптов.
+**Механизм:** у Claude Code это настроено в коммитимом `.claude/settings.json` (`permissions.defaultMode: auto`, узкий `allow`, жёсткий `deny`). Агент без такого механизма вручную соблюдает те же ярусы риска и запреты. Правки файлов, коммиты, ветки, PR, авто-мерж — без промптов только при выполненных гейтах.
 
 **Ярусная автономия (по риску):**
 
@@ -169,7 +178,7 @@ git checkout main && git pull --ff-only
 |---|---|---|
 | Правки файлов, `mkdir`/`mv` в рабочей папке | **авто** | — |
 | Коммит, ветка, push в feature, PR, **авто-мерж** | **авто** | локальные `corepack pnpm -C web run typecheck` + `lint` зелёные **И** CI зелёный (`web-quality` required) |
-| **Деплой на прод** | **авто** | происходит сам от merge (`deploy-prod.yml` `workflow_run` после зелёного CI); smoke-check содержимого + **визуальная** проверка гидратации (Codex-in-Chrome) — это и есть гейт-подтверждение |
+| **Деплой на прод** | **авто** | происходит сам от merge (`deploy-prod.yml` `workflow_run` после зелёного CI); smoke-check содержимого + **визуальная** проверка гидратации в доступном браузерном инструменте — это и есть гейт-подтверждение |
 | **Необратимые прод-операции с данными** (`ALTER`/`DROP`/`DELETE`/`UPDATE` на живых данных, прод-миграции с данными, versioned-доки → только Local API) | **подтверждать в том же ходе** (#025) | **эту черту не пересекаем** — гейт остаётся человеческим (`AskUserQuestion`) |
 
 **Поток (внутри PR-flow, не прямой push):** ветка → правки (авто) → **локальные гейты** → push ветки → PR → CI зелёный → **авто-мерж** → авто-деплой от merge → smoke + визуальная проверка → доклад. Ни одного человеческого промпта на happy-path; гейты — это подтверждение.
@@ -188,7 +197,7 @@ git checkout main && git pull --ff-only
 
 - **`/close_session` — единственная команда закрытия.** Коммитит+пушит ВСЁ (код+доки) через PR-flow и не считает сессию закрытой, пока `bash scripts/git_sync_check.sh --gate` не вернёт `exit 0`.
 - **NL-триггеры** «закрой сессию» / «заверши сессию» / «закрываемся» → запускают `/close_session`.
-- **SessionStart-хук** (`.Codex/settings.json` → `scripts/git_sync_check.sh --warn`) при входе в каждую сессию подсвечивает несинхронизированную работу. Хук только предупреждает (`exit 0`), не блокирует вход — гейт живёт в `/close_session`.
+- **SessionStart-хук Claude Code** (`.claude/settings.json` → `scripts/git_sync_check.sh --warn`) при входе в каждую сессию подсвечивает несинхронизированную работу. Другой агент выполняет ту же проверку вручную на `/start`. Хук только предупреждает (`exit 0`), не блокирует вход — гейт живёт в `/close_session`.
 - **Ручной шаг владельца:** отключить тумблер Cowork «Classify session states», чтобы сессии не уходили в архив без ведома. Защита работает и без этого, но вместе надёжнее.
 
 См. [pool #010](../brain_matrica/cross-project-ideas/ideas/010-session-sync-safeguard.md), [ADR-0002](../brain_matrica/adr/0002-pr-only-flow-no-direct-push.md). Pioneer — setka.
@@ -253,4 +262,4 @@ gh pr list --state open --author @me
 
 ---
 
-**В сомнениях — спроси пользователя через `AskUserQuestion`, не делай предположений на проде.**
+**В сомнениях — задай пользователю вопрос и дождись явного ответа; не делай предположений на проде.**

@@ -46,9 +46,11 @@ deploy/systemd/               — unit-файлы systemd (`gonba`, `gonba-vk-sy
 scripts/                      — общие deploy/dev помощники
 └── safe-build.sh             — обёртка `next build` через systemd-run на проде
 
+AGENTS.md                     — vendor-neutral канон правил проекта
+CLAUDE.md / GEMINI.md / QWEN.md — тонкие адаптеры к AGENTS.md
 .claude/
-├── commands/                 — slash-команды (/start, /reliz, /check, /sql) — В GIT
-├── agents/                   — кастомные субагенты (если будут) — В GIT
+├── commands/                 — исполняемые памятки (/start, /reliz, /check, /sql) — В GIT, применимы любому агенту
+├── agents/                   — кастомные субагенты Claude Code (если будут) — В GIT
 ├── worktrees/                — локальные worktrees Claude — НЕ в git
 └── launch.json               — локальный preview-конфиг — НЕ в git
 ```
