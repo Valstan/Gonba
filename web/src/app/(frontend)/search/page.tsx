@@ -32,6 +32,10 @@ const FTS_EXPR = `(
   setweight(to_tsvector('russian', coalesce(meta_title, '')), 'B') ||
   setweight(to_tsvector('russian', coalesce(meta_description, '')), 'C')
 )`
+const TRGM_EXPR = `similarity(
+  lower(coalesce(title, '') || ' ' || coalesce(meta_title, '') || ' ' || coalesce(meta_description, '')),
+  lower($1)
+)`
 
 const selectFields = {
   title: true,
@@ -64,7 +68,7 @@ export default async function Page({ searchParams: searchParamsPromise }: Args) 
       }
     ).pool
 
-    const { rows } = await pool.query(
+    let { rows } = await pool.query(
       `SELECT id,
               ts_headline(
                 'russian',
@@ -80,6 +84,25 @@ export default async function Page({ searchParams: searchParamsPromise }: Args) 
        LIMIT 12`,
       [query],
     )
+
+    // Опечаткоустойчивый fallback включается только когда FTS не нашёл ничего.
+    // Если расширение ещё не применено на старом боксе, запрос безопасно
+    // деградирует в «ничего не найдено» и не ломает страницу поиска.
+    if (rows.length === 0 && query.trim().length >= 3) {
+      try {
+        const fuzzy = await pool.query(
+          `SELECT id, coalesce(meta_description, meta_title, title, '') AS snippet
+           FROM search
+           WHERE ${TRGM_EXPR} >= 0.28
+           ORDER BY ${TRGM_EXPR} DESC, priority DESC NULLS LAST, updated_at DESC
+           LIMIT 12`,
+          [query],
+        )
+        rows = fuzzy.rows
+      } catch {
+        // pg_trgm может отсутствовать до применения Phase 3-миграции.
+      }
+    }
 
     const ids = rows.map((r) => r.id)
     // Подсветку показываем только когда совпадение реально подсвечено (есть маркеры).

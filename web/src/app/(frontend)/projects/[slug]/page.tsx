@@ -72,9 +72,7 @@ export default async function ProjectPage({ params: paramsPromise }: Args) {
         depth: 1,
         limit: 3,
         where: {
-          project: {
-            equals: projectId,
-          },
+          or: [{ project: { equals: projectId } }, { relatedProjects: { equals: projectId } }],
         },
         sort: '-publishedAt',
         overrideAccess: false,

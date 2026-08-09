@@ -92,6 +92,12 @@ export async function Footer() {
           </a>
         </div>
 
+        <div
+          id="li-counter-slot"
+          className="analyticsLiSlot"
+          aria-label="Счётчик посетителей сайта"
+        />
+
         <FooterEditor description={description} columns={columns} legalAddress={legalAddress} />
       </div>
     </footer>

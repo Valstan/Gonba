@@ -111,6 +111,9 @@ Bootstrap-доступ к recovery vault хранится отдельно в `/
 - `NEXT_PUBLIC_SERVER_URL` — публичный base URL
 - `PAYLOAD_PUBLIC_SERVER_URL` — публичный base URL для Payload
 - `PORT` — порт Next.js (обычно 3000)
+- `OPENAI_API_KEY` — runtime-секрет для best-effort классификации VK-постов; на проде приходит из KARMAN Vault
+- `VK_CLASSIFIER_MODEL` — модель Responses API (по умолчанию `gpt-5-mini`)
+- `VK_CLASSIFIER_TIMEOUT_MS` — таймаут классификатора в миллисекундах (по умолчанию `10000`)
 
 Сырые VK-токены (`VK_TOKEN_*`) не поддерживаются: fallback удалён 2026-08-09,
 чтобы отзыв `SARAFAN_GATEWAY_KEY` действительно отзывал доступ GONBA к VK.

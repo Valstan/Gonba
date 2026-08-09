@@ -55,7 +55,7 @@ export default async function ProjectFeedPage({ params: paramsPromise, searchPar
           sort: '-publishedAt',
           overrideAccess: false,
           where: {
-            project: { equals: project.id },
+            or: [{ project: { equals: project.id } }, { relatedProjects: { equals: project.id } }],
             ...(postTypeFilter ? { postType: { equals: postTypeFilter } } : {}),
           },
           select: { title: true, slug: true, heroImage: true, publishedAt: true, postType: true, meta: true },

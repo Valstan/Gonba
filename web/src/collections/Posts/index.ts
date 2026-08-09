@@ -214,6 +214,24 @@ export const Posts: CollectionConfig<'posts'> = {
           relationTo: 'projects',
         },
         {
+          name: 'relatedProjects',
+          type: 'relationship',
+          label: 'Дополнительные проекты',
+          hasMany: true,
+          relationTo: 'projects',
+          admin: {
+            description: 'Для публикаций, относящихся сразу к нескольким проектам.',
+          },
+        },
+        {
+          name: 'vkClassification',
+          type: 'json',
+          label: 'Классификация VK',
+          admin: {
+            description: 'Технический результат маршрутизации импортированной публикации VK.',
+          },
+        },
+        {
           name: 'categories',
           type: 'relationship',
           label: 'Категории',
