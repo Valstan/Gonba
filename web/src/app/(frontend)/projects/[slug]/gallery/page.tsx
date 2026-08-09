@@ -92,9 +92,7 @@ export default async function ProjectGalleryPage({ params: paramsPromise }: Args
         limit: 50,
         overrideAccess: false,
         where: {
-          project: {
-            equals: project.id,
-          },
+          or: [{ project: { equals: project.id } }, { relatedProjects: { equals: project.id } }],
         },
         select: {
           heroImage: true,

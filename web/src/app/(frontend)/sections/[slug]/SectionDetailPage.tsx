@@ -110,7 +110,9 @@ export default async function SectionDetailPage({ params: paramsPromise }: Args)
           depth: 2,
           limit: 6,
           where: {
-            ...(project ? { project: { equals: project.id } } : {}),
+            ...(project
+              ? { or: [{ project: { equals: project.id } }, { relatedProjects: { equals: project.id } }] }
+              : {}),
           },
           sort: '-publishedAt',
           overrideAccess: false,

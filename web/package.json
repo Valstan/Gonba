@@ -24,6 +24,7 @@
     "test:int:raw": "NODE_OPTIONS='--no-deprecation --max-old-space-size=1024' vitest run --config ./vitest.config.mts",
     "cache:clean": "tsx scripts/clean-media-cache.ts",
     "search:reindex": "tsx scripts/reindex-search.ts",
+    "content:plan": "tsx scripts/apply-gonba-content-plan.ts",
     "media:migrate-yadisk": "tsx scripts/migrate-media-to-yandex.ts",
     "deadcode": "NODE_OPTIONS=--max-old-space-size=4096 knip"
   },

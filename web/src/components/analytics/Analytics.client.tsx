@@ -167,8 +167,6 @@ export const Analytics: React.FC = () => {
 
   return (
     <>
-      {/* Слот бейджа LI — заполняется после согласия; антибаннеры могут прятать (G80, не баг) */}
-      {config.liEnabled && <div id="li-counter-slot" className="analyticsLiSlot" />}
       {consent === null && (
         <div
           className="analyticsConsent"

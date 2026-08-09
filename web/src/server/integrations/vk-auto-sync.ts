@@ -4,6 +4,7 @@ import type { Payload } from 'payload'
 import type { Post } from '@/payload-types'
 
 import { parseVkCommunityIdentifier } from './vk-auto-sync-resolve'
+import { classifyVkPost } from './vk-classifier'
 import { gatewayCall, isGatewayConfigured } from './vk-gateway'
 
 /**
@@ -404,20 +405,54 @@ export async function syncVkSource(
       throw new Error(`Проект "${projectSlug}" не найден`)
     }
 
-    // Находим или создаём категорию для секции
-    let categoryId: number | undefined
-    if (sectionSlug) {
-      const catRes = await payload.find({
-        collection: 'categories',
+    const [activeProjects, categories] = await Promise.all([
+      payload.find({
+        collection: 'projects',
         overrideAccess: true,
-        limit: 1,
-        where: {
-          slug: { equals: sectionSlug },
-        },
-      })
+        limit: 100,
+        depth: 0,
+        where: { isActive: { equals: true }, _status: { equals: 'published' } },
+      }),
+      payload.find({ collection: 'categories', overrideAccess: true, limit: 100, depth: 0 }),
+    ])
 
-      if (catRes.docs[0]) {
-        categoryId = typeof catRes.docs[0].id === 'number' ? catRes.docs[0].id : Number(catRes.docs[0].id)
+    // Заголовок используется и для slug, и для классификации. Ограничиваем
+    // входной текст ниже в классификаторе, чтобы большой VK-пост не раздувал
+    // запрос к провайдеру.
+    const cleanTitleSrc = stripVkMarkup(newPost.text)
+    const title = cleanTitleSrc.length > 80 ? cleanTitleSrc.substring(0, 80).trim() + '...' : cleanTitleSrc
+    const classifier = await classifyVkPost({
+      title,
+      text: stripVkMarkup(newPost.text),
+      sourceProjectSlug: String(project.slug),
+      projects: activeProjects.docs.map((candidate) => ({
+        slug: String(candidate.slug),
+        title: String(candidate.title),
+        summary: candidate.summary,
+      })),
+      categories: categories.docs.map((category) => String(category.slug)),
+    })
+
+    const projectBySlug = new Map(activeProjects.docs.map((candidate) => [String(candidate.slug), candidate]))
+    const selectedProjects = classifier.projectSlugs
+      .map((slug) => projectBySlug.get(slug))
+      .filter((candidate): candidate is (typeof activeProjects.docs)[number] => Boolean(candidate))
+    const primaryProject = selectedProjects[0] || project
+    const relatedProjectIds = selectedProjects
+      .slice(1)
+      .map((candidate) => Number(candidate.id))
+      .filter((id) => Number.isFinite(id))
+
+    if (classifier.usedFallback) {
+      payload.logger.warn(`[vk-auto-sync] classifier fallback for ${groupId}/${newPost.id}: ${classifier.rationale}`)
+    }
+
+    // Находим или создаём категорию для секции
+    const categoryIds: number[] = []
+    if (sectionSlug) {
+      const sourceCategory = categories.docs.find((category) => category.slug === sectionSlug)
+      if (sourceCategory) {
+        categoryIds.push(Number(sourceCategory.id))
       } else {
         const catDoc = await payload.create({
           collection: 'categories',
@@ -427,9 +462,16 @@ export async function syncVkSource(
             slug: sectionSlug,
           },
         })
-        categoryId = typeof catDoc.id === 'number' ? catDoc.id : Number(catDoc.id)
+        categoryIds.push(typeof catDoc.id === 'number' ? catDoc.id : Number(catDoc.id))
       }
     }
+
+    const categoryBySlug = new Map(categories.docs.map((category) => [String(category.slug), category]))
+    for (const slug of classifier.categorySlugs) {
+      const categoryId = categoryBySlug.get(slug)?.id
+      if (categoryId != null) categoryIds.push(Number(categoryId))
+    }
+    const uniqueCategoryIds = [...new Set(categoryIds.filter((id) => Number.isFinite(id)))]
 
     // Скачиваем ВСЕ фото поста с дедупом по содержимому (не плодим дубли в облаке).
     const photoUrls = extractVkPhotoUrls(newPost)
@@ -440,10 +482,6 @@ export async function syncVkSource(
       if (id != null) photoMediaIds.push(id)
     }
     const heroImageId: number | undefined = photoMediaIds[0]
-
-    // Заголовок: очищаем VK-разметку [club..|Имя] → Имя, затем обрезаем до 80.
-    const cleanTitleSrc = stripVkMarkup(newPost.text)
-    const title = cleanTitleSrc.length > 80 ? cleanTitleSrc.substring(0, 80).trim() + '...' : cleanTitleSrc
 
     // Slug: стабильный префикс `vk-<groupId>-<postId>` гарантирует уникальность
     // между группами и между постами одной группы, даже если text-suffix пуст
@@ -498,14 +536,23 @@ export async function syncVkSource(
         title,
         slug,
         postType: postType || 'news',
-        project: typeof project.id === 'number' ? project.id : Number(project.id),
-        categories: categoryId ? [categoryId] : [],
+        project: Number(primaryProject.id),
+        relatedProjects: relatedProjectIds,
+        categories: uniqueCategoryIds,
         content: buildVkPostContent(newPost.text, photoMediaIds, vkPostUrl(ownerId, newPost.id)),
         ...(heroImageId ? { heroImage: heroImageId } : {}),
         meta: {
           title,
           description: stripVkMarkup(newPost.text).substring(0, 150),
           ...(heroImageId ? { image: heroImageId } : {}),
+        },
+        vkClassification: {
+          provider: classifier.provider,
+          model: classifier.model,
+          projectSlugs: classifier.projectSlugs,
+          categorySlugs: classifier.categorySlugs,
+          rationale: classifier.rationale,
+          sourceProjectSlug: String(project.slug),
         },
         _status: 'published',
       },
@@ -518,10 +565,14 @@ export async function syncVkSource(
 
     // Все фото поста → в галерею проекта (без дублей по media id).
     if (photoMediaIds.length > 0) {
-      try {
-        await addPhotosToProjectGallery(payload, project.id, photoMediaIds)
-      } catch (e) {
-        payload.logger.warn(`[vk-auto-sync] Не удалось добавить фото в галерею проекта ${project.id}: ${String(e)}`)
+      for (const galleryProject of selectedProjects.length > 0 ? selectedProjects : [project]) {
+        try {
+          await addPhotosToProjectGallery(payload, galleryProject.id, photoMediaIds)
+        } catch (e) {
+          payload.logger.warn(
+            `[vk-auto-sync] Не удалось добавить фото в галерею проекта ${galleryProject.id}: ${String(e)}`,
+          )
+        }
       }
     }
 
