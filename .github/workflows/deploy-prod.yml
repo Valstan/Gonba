@@ -253,11 +253,19 @@ jobs:
         run: |
           set -e
           BASE='https://xn--80abf4be9f.xn--p1ai'
-          for path in / /api/health /projects /admin; do
+          for path in / /api/health /admin; do
             STATUS=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${BASE}${path}")
             echo "CDN ${path}: ${STATUS}"
             [ "${STATUS}" = "200" ] || { echo "::error::CDN ${path} = ${STATUS}, ожидался 200"; exit 1; }
           done
+          PROJECTS_HEADERS=$(curl -sS -D - -o /dev/null --max-time 20 "${BASE}/projects" | tr -d '\r')
+          PROJECTS_STATUS=$(printf '%s\n' "${PROJECTS_HEADERS}" | awk 'NR == 1 { print $2 }')
+          PROJECTS_LOCATION=$(printf '%s\n' "${PROJECTS_HEADERS}" | awk 'tolower($1) == "location:" { print $2 }')
+          echo "CDN /projects: ${PROJECTS_STATUS} → ${PROJECTS_LOCATION}"
+          [ "${PROJECTS_STATUS}" = "308" ] && [ "${PROJECTS_LOCATION}" = "/#projects" ] || {
+            echo "::error::CDN /projects должен постоянно перенаправлять на /#projects"
+            exit 1
+          }
 
       - name: Smoke checks — контент-маркер на / (anti-stale-prerender)
         # Lesson 2026-05-30: HTTP 200 != правильная страница (#011). Проверяем маркер
@@ -266,7 +274,7 @@ jobs:
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_only) }}
         run: |
           set -e
-          MARKER='project-atlas'   # маркер визуального атласа проектов на / (ADR-0008)
+          MARKER='id="projects"'   # единая витрина проектов на главной
           BODY=$(ssh GONBA "curl -s --max-time 20 http://127.0.0.1:3000/")
           COUNT=$(printf '%s' "${BODY}" | grep -o "${MARKER}" | wc -l | tr -d ' ')
           echo "Маркер '${MARKER}' на / (local): ${COUNT} вхождений"
@@ -274,7 +282,7 @@ jobs:
             echo "::error::На / нет маркера '${MARKER}' — вероятно отдан УСТАРЕВШИЙ prerender, хотя код был 200. Деплой НЕуспешен."
             exit 1
           fi
-          echo "OK: главная отдаёт актуальный карусель-prerender (не stale)."
+          echo "OK: главная отдаёт актуальную витрину проектов (не stale)."
 
       - name: On failure — дамп журналов прода
         if: failure()
