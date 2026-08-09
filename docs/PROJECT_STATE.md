@@ -123,6 +123,7 @@ CLAUDE.md / GEMINI.md / QWEN.md — тонкие адаптеры к AGENTS.md
   - Внешний планировщик: **systemd timer** `gonba-vk-sync.timer` (каждые 3 часа) — на проде
 - При создании источника: достаточно ввести URL — метаданные подтянутся автоматически. Токен можно отложить.
 - **Многопроектная маршрутизация:** `Posts.project` остаётся канонической привязкой, `relatedProjects` позволяет одной публикации показываться в нескольких лентах. VK-классификатор (`web/src/server/integrations/vk-classifier.ts`) использует OpenAI Responses API best-effort; при отсутствии ключа или ошибке сохраняется привязка источника. Результат пишется в `vkClassification`, секрет `OPENAI_API_KEY` входит в KARMAN allowlist.
+- Миграции `20260809_120000` (VK classification/relatedProjects) и `20260809_120001` (pg_trgm/GIN FTS) применены на production 2026-08-09; кодовый deploy ожидает штатного post-merge workflow.
 
 ## БД
 
