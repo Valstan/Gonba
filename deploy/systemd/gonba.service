@@ -18,6 +18,8 @@ Environment=NODE_ENV=production
 # GONBA_BUILD_ENV) — здесь env нужен для runtime-секретов (DATABASE_URL,
 # PAYLOAD_SECRET, Yandex/VK-токены и пр.).
 EnvironmentFile=-/etc/gonba/gonba.env
+# Bootstrap-доступ к recovery vault хранится отдельно от восстанавливаемого env.
+EnvironmentFile=-/etc/gonba/secrets-token.env
 # standalone server.js читает HOSTNAME/PORT из env (флагов --hostname/--port нет)
 Environment=PORT=3000
 Environment=HOSTNAME=127.0.0.1

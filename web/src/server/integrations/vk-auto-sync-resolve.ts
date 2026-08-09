@@ -12,8 +12,6 @@
 
 import { gatewayCall, isGatewayConfigured } from './vk-gateway'
 
-const VK_API_VERSION = '5.199'
-
 export type VkIdentifier = {
   /**
    * 'group' — сообщество (club/public/group/просто число),
@@ -25,7 +23,6 @@ export type VkIdentifier = {
   userId?: number
   screenName?: string
 }
-
 /**
  * Принимает URL VK-источника в любой обычной форме:
  *   - https://vk.com/club229392127    → { kind:'group', groupId }
@@ -52,7 +49,10 @@ export function parseVkCommunityIdentifier(input: string | null | undefined): Vk
   } catch {
     // оставляем как есть
   }
-  raw = raw.replace(/[?#].*$/, '').replace(/^@/, '').trim()
+  raw = raw
+    .replace(/[?#].*$/, '')
+    .replace(/^@/, '')
+    .trim()
   if (!raw) return null
 
   // club12345 / public12345 / group12345 → сообщество
@@ -95,52 +95,30 @@ export type VkGroupMeta = {
  * Используется при создании источника, если пользователь не заполнил поля вручную.
  *
  * @param identifier результат parseVkCommunityIdentifier (groupId/screenName)
- * @param token VK access token (сервисный или пользовательский). Если null/пусто — функция вернёт null.
  */
-export async function fetchVkGroupMeta(
-  identifier: { groupId?: number; screenName?: string },
-  token: string | null | undefined,
-): Promise<VkGroupMeta | null> {
-  const groupKey = identifier.screenName || (identifier.groupId != null ? String(identifier.groupId) : null)
+export async function fetchVkGroupMeta(identifier: {
+  groupId?: number
+  screenName?: string
+}): Promise<VkGroupMeta | null> {
+  const groupKey =
+    identifier.screenName || (identifier.groupId != null ? String(identifier.groupId) : null)
   if (!groupKey) return null
 
-  // Метаданные тоже через шлюз SARAFAN (если задан ключ) — как и wall.get. Без ключа
-  // (или при сбое шлюза) откатываемся на локальный токен, если он передан.
+  // Метаданные тоже идут только через SARAFAN. Прямого token fallback нет:
+  // отзыв gateway key обязан отзывать весь доступ GONBA к VK.
   const fields = 'description,members_count,photo_200,photo_100,photo_50,activity,screen_name'
-  let data: unknown = null
-  if (isGatewayConfigured()) {
-    try {
-      const response = await gatewayCall('groups.getById', { group_ids: groupKey, fields })
-      data = { response }
-    } catch {
-      data = null
-    }
+  if (!isGatewayConfigured()) return null
+  let data: unknown
+  try {
+    const response = await gatewayCall('groups.getById', { group_ids: groupKey, fields })
+    data = { response }
+  } catch {
+    return null
   }
-  if (data == null) {
-    if (!token) return null
-    const params = new URLSearchParams({
-      group_ids: groupKey,
-      fields,
-      access_token: token,
-      v: VK_API_VERSION,
-    })
-    let res: Response
-    try {
-      res = await fetch(`https://api.vk.com/method/groups.getById?${params.toString()}`, {
-        // VK иногда отвечает медленно; чтобы хук Payload не висел вечно — таймаут.
-        signal: AbortSignal.timeout(8000),
-      })
-    } catch {
-      return null
-    }
-    if (!res.ok) return null
-    try {
-      data = await res.json()
-    } catch {
-      return null
-    }
+  const root = data as {
+    response?: { groups?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>
+    error?: unknown
   }
-  const root = data as { response?: { groups?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>; error?: unknown }
   if (root?.error) return null
 
   // VK API 5.199 returns { response: { groups: [...] } }; старые версии — просто [...].
@@ -154,7 +132,8 @@ export async function fetchVkGroupMeta(
 
   return {
     groupId: Number(first.id) || identifier.groupId || 0,
-    screenName: typeof first.screen_name === 'string' ? first.screen_name : identifier.screenName || null,
+    screenName:
+      typeof first.screen_name === 'string' ? first.screen_name : identifier.screenName || null,
     name: typeof first.name === 'string' ? first.name : null,
     description: typeof first.description === 'string' ? first.description : null,
     avatarUrl:
@@ -164,53 +143,26 @@ export async function fetchVkGroupMeta(
       null,
   }
 }
-
 /**
  * Подтянуть метаданные личной страницы (vk.com/idN) через VK API `users.get`.
  * Возвращает ту же форму `VkGroupMeta`, что и `fetchVkGroupMeta` (поле `groupId`
  * = userId), чтобы вызывающий код был единообразным.
  *
  * @param userId числовой id пользователя VK
- * @param token VK access token. Если null/пусто — функция вернёт null.
  */
 export async function fetchVkUserMeta(
   userId: number | null | undefined,
-  token: string | null | undefined,
 ): Promise<VkGroupMeta | null> {
   if (!userId) return null
 
   const fields = 'photo_200,photo_100,photo_50,screen_name,status'
-  let data: unknown = null
-  if (isGatewayConfigured()) {
-    try {
-      const response = await gatewayCall('users.get', { user_ids: String(userId), fields })
-      data = { response }
-    } catch {
-      data = null
-    }
-  }
-  if (data == null) {
-    if (!token) return null
-    const params = new URLSearchParams({
-      user_ids: String(userId),
-      fields,
-      access_token: token,
-      v: VK_API_VERSION,
-    })
-    let res: Response
-    try {
-      res = await fetch(`https://api.vk.com/method/users.get?${params.toString()}`, {
-        signal: AbortSignal.timeout(8000),
-      })
-    } catch {
-      return null
-    }
-    if (!res.ok) return null
-    try {
-      data = await res.json()
-    } catch {
-      return null
-    }
+  if (!isGatewayConfigured()) return null
+  let data: unknown
+  try {
+    const response = await gatewayCall('users.get', { user_ids: String(userId), fields })
+    data = { response }
+  } catch {
+    return null
   }
   const root = data as { response?: Array<Record<string, unknown>>; error?: unknown }
   if (root?.error) return null
@@ -233,21 +185,4 @@ export async function fetchVkUserMeta(
       (typeof first.photo_50 === 'string' && first.photo_50) ||
       null,
   }
-}
-
-/**
- * Получить fallback-токен из env, если у источника свой токен не задан.
- * Берём первый непустой из общих токенов.
- */
-export function getEnvFallbackVkToken(): string | null {
-  const candidates = [
-    process.env.VK_TOKEN_VALSTAN,
-    process.env.VK_TOKEN_VITA,
-    process.env.VK_SERVICE_TOKEN,
-    process.env.VK_TOKEN,
-  ]
-  for (const t of candidates) {
-    if (t && typeof t === 'string' && t.trim()) return t.trim()
-  }
-  return null
 }

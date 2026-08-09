@@ -83,6 +83,14 @@ CLAUDE.md / GEMINI.md / QWEN.md — тонкие адаптеры к AGENTS.md
 
 ## Интеграции
 
+### KARMAN vault — recovery-копия секретов (ADR-0012, scenario A)
+
+- Runtime source of truth остаётся `/etc/gonba/gonba.env`.
+- `web/src/instrumentation.ts` до старта Node runtime вызывает best-effort bootstrap: если `DATABASE_URL` и `PAYLOAD_SECRET` уже есть, сетевых вызовов нет.
+- При потере обязательных ключей клиент читает recovery-комнату по bootstrap-токену из отдельного `/etc/gonba/secrets-token.env`.
+- Allowlist содержит 10 ожидаемых runtime-секретов; локальные значения сильнее vault, чужие имена логируются без значений и игнорируются.
+- `SECRETS_TOKEN`/`SECRETS_VAULT_URL` принципиально не принимаются из самой комнаты.
+
 ### Yandex.Disk
 - Server: `web/src/server/integrations/yandex-disk.ts`
 - API: `/yadisk-api/*` (защищено `requireAdmin`)
@@ -106,8 +114,7 @@ CLAUDE.md / GEMINI.md / QWEN.md — тонкие адаптеры к AGENTS.md
 - Подробности и история — [`docs/plans/media-to-yadisk.md`](plans/media-to-yadisk.md), ADR-0001
 
 ### VK (импорт постов)
-- **Ручной скрипт**: `web/scripts/vk-import.ts`, команда `pnpm run vk:import`
-- **Авто-импорт**:
+- **Авто-импорт через SARAFAN gateway** (прямые `VK_TOKEN_*` и legacy `vk:import` удалены 2026-08-09):
   - Коллекция `vk-auto-sync` — источники (URL сообщества, токен, интервал, привязка к project/category через relationship)
   - Глобал `vkAutoSyncSettings` — общие настройки
   - Server: `web/src/server/integrations/vk-auto-sync.ts` (`syncAllVkSources`, `syncVkSource`)
@@ -127,6 +134,7 @@ CLAUDE.md / GEMINI.md / QWEN.md — тонкие адаптеры к AGENTS.md
 - Сервис: `gonba.service` — **standalone-артефакт** (`node server.js` от `valstan`, `WorkingDirectory=/home/valstan/GONBA/releases/current`). С 2026-06-11 бокс — runtime-only: он же «Бокс 1» кластера (заезжают KARMAN, затем Sabantuy — mandate brain).
 - Папка проекта: `/home/valstan/GONBA/` (git-репо остаётся для таймеров/скриптов/миграций), релизы в `/home/valstan/GONBA/releases/<sha>` (держим 3), активный — симлинк `releases/current`.
 - **Секреты/конфиг — `/etc/gonba/gonba.env`** (root:valstan, `0640`), **вне дерева репо** (ADR-0005 / pool #008). Читаются тремя юнитами через `EnvironmentFile=` и build'ом через `systemd-run -p EnvironmentFile=`. В репо — только `web/.env.example`. Изменение секрета на проде = правка этого файла (нужен root) + `systemctl restart gonba`.
+- **Vault bootstrap — `/etc/gonba/secrets-token.env`** (`0600`, отдельно от восстанавливаемого `gonba.env`). Файл опционален: без него recovery-клиент предупреждает и не мешает обычному старту.
 - Build: **в CI** (`deploy-prod.yml`): `STANDALONE_BUILD=1 npm run build:raw` в раннере, prerender читает живую прод-БД через SSH-туннель (`-L 15432:5432`), артефакт scp → `releases/<sha>` → симлинк → restart. План/design-решение — `docs/plans/build-to-ci.md`. On-box `scripts/safe-build.sh` — только hot-fix-fallback (см. шапку скрипта).
 - Nginx терминирует TLS, проксирует на `127.0.0.1:3000`. Публичный домен — `гоньба.рф` (`xn--80abf4be9f.xn--p1ai`).
 - systemd таймер `gonba-vk-sync.timer` каждые 3 часа дёргает `POST /api/vk-auto-sync/trigger`.

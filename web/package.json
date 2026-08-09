@@ -22,7 +22,6 @@
     "test:e2e": "corepack pnpm run build && node ./scripts/run-with-watchdog.mjs --idle-ms=120000 --stagnation-ms=180000 --max-ms=900000 -- sh -lc 'E2E_TEST_SECRET=local-e2e-secret NODE_OPTIONS=\"--no-deprecation --max-old-space-size=3072 --import=tsx/esm\" corepack pnpm exec playwright test --config=playwright.config.ts --reporter=line'",
     "test:int": "node ./scripts/run-with-watchdog.mjs --idle-ms=90000 --stagnation-ms=240000 --max-ms=900000 -- corepack pnpm run test:int:raw",
     "test:int:raw": "NODE_OPTIONS='--no-deprecation --max-old-space-size=1024' vitest run --config ./vitest.config.mts",
-    "vk:import": "tsx scripts/vk-import.ts",
     "cache:clean": "tsx scripts/clean-media-cache.ts",
     "search:reindex": "tsx scripts/reindex-search.ts",
     "media:migrate-yadisk": "tsx scripts/migrate-media-to-yandex.ts",
