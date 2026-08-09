@@ -6,8 +6,6 @@ import type { Post } from '@/payload-types'
 import { parseVkCommunityIdentifier } from './vk-auto-sync-resolve'
 import { gatewayCall, isGatewayConfigured } from './vk-gateway'
 
-const VK_API_VERSION = '5.199'
-
 /**
  * Задержка между запросами к VK API (мс)
  * VK limit: 3 запроса/сек для user tokens, 20 для service
@@ -31,17 +29,6 @@ type VkWallPost = {
   }>
 }
 
-type VkApiResponse = {
-  response: {
-    count: number
-    items: VkWallPost[]
-  }
-  error?: {
-    error_code: number
-    error_msg: string
-  }
-}
-
 type SyncStatus = 'success' | 'error' | 'no-new-posts' | 'skipped' | 'pending'
 
 type SyncResult = {
@@ -56,34 +43,6 @@ type SyncResult = {
   status: SyncStatus
   postId?: number
   newPostId?: number
-}
-
-/**
- * Получает доступные VK-токены из окружения
- * Возвращает пул токенов для ротации
- */
-function getVkTokenPool(): string[] {
-  const tokens: string[] = []
-
-  // Основные токены
-  const valstan = process.env.VK_TOKEN_VALSTAN
-  const vita = process.env.VK_TOKEN_VITA
-  const generic = process.env.VK_TOKEN
-
-  if (valstan) tokens.push(valstan)
-  if (vita) tokens.push(vita)
-  if (generic && !tokens.includes(generic)) tokens.push(generic)
-
-  // Токены для конкретных групп: VK_TOKEN_{groupId}
-  for (const [key, value] of Object.entries(process.env)) {
-    if (key.startsWith('VK_TOKEN_') && !['VK_TOKEN_VALSTAN', 'VK_TOKEN_VITA', 'VK_TOKEN'].includes(key)) {
-      if (value && !tokens.includes(value)) {
-        tokens.push(value)
-      }
-    }
-  }
-
-  return tokens.length > 0 ? tokens : ['']
 }
 
 /**
@@ -102,88 +61,19 @@ function sleep(ms: number): Promise<void> {
  */
 async function fetchVkPosts(
   ownerId: number,
-  preferredToken: string,
   count: number = 10,
-  retries: number = 2,
 ): Promise<VkWallPost[]> {
-  // Приоритет — шлюз SARAFAN (если задан ключ): он исполняет wall.get своим токеном
-  // со своего IP, обходя IP-binding/баны наших локальных токенов. Токен/версию API
-  // подставляет сам шлюз. Ошибка шлюза пробрасывается (прогон пометится error) —
-  // на локальные токены НЕ откатываемся (они и так протухли, это лишний шум/бан-риск).
-  if (isGatewayConfigured()) {
-    const response = await gatewayCall<{ count: number; items: VkWallPost[] }>('wall.get', {
-      owner_id: ownerId,
-      count: Math.min(count, 10),
-      filter: 'owner',
-      extended: 0,
-    })
-    return response.items ?? []
+  if (!isGatewayConfigured()) {
+    throw new Error('SARAFAN_GATEWAY_KEY не задан: прямой доступ через VK_TOKEN_* запрещён')
   }
 
-  const tokenPool = getVkTokenPool()
-
-  // Если preferredToken заблокирован, пробуем другие
-  const tokensToTry = preferredToken && tokenPool.includes(preferredToken)
-    ? [preferredToken, ...tokenPool.filter((t) => t !== preferredToken)]
-    : tokenPool
-
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    for (let i = 0; i < tokensToTry.length; i++) {
-      const token = tokensToTry[(attempt + i) % tokensToTry.length]
-      if (!token) continue
-
-      // Задержка между попытками
-      if (attempt > 0 || i > 0) {
-        await sleep(VK_API_DELAY_MS * (attempt + 1))
-      }
-
-      try {
-        const url = 'https://api.vk.com/method/wall.get'
-        const params = new URLSearchParams({
-          owner_id: String(ownerId),
-          count: String(Math.min(count, 10)), // макс 10 за раз
-          access_token: token,
-          v: VK_API_VERSION,
-          filter: 'owner',
-          extended: '0',
-        })
-
-        const response = await fetch(`${url}?${params.toString()}`, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-        })
-
-        if (!response.ok) {
-          if (attempt < retries) continue
-          throw new Error(`VK API HTTP error: ${response.status}`)
-        }
-
-        const data = (await response.json()) as VkApiResponse
-
-        if (data.error) {
-          // Error 5: User authorization failed — токен недействителен
-          // Error 8: Application is blocked — приложение заблокировано
-          // Error 14: Captcha needed — слишком много запросов
-          const { error_code, error_msg } = data.error
-          if (error_code === 5 || error_code === 8 || error_code === 14) {
-            continue // пробуем следующий токен
-          }
-          if (attempt < retries) continue
-          throw new Error(`VK API error: ${error_msg} (${error_code})`)
-        }
-
-        return data.response.items
-      } catch (err) {
-        // Если последний токен и все попытки исчерпаны — пробрасываем ошибку
-        if (i === tokensToTry.length - 1 && attempt >= retries) {
-          throw err
-        }
-        // Иначе пробуем следующий токен
-      }
-    }
-  }
-
-  throw new Error('Все VK-токены исчерпаны или заблокированы')
+  const response = await gatewayCall<{ count: number; items: VkWallPost[] }>('wall.get', {
+    owner_id: ownerId,
+    count: Math.min(count, 10),
+    filter: 'owner',
+    extended: 0,
+  })
+  return response.items ?? []
 }
 
 /**
@@ -462,9 +352,9 @@ export async function syncVkSource(
     const ident = parseVkCommunityIdentifier(sourceDoc.communityUrl)
     const ownerId = ident?.kind === 'user' ? Math.abs(groupId) : -Math.abs(groupId)
 
-    // Получаем посты из VK с ротацией токенов
-    // Используем accessToken из конфига как preferred, но fallback на пул
-    const posts = await fetchVkPosts(ownerId, sourceDoc.accessToken || '', 10)
+    // Получаем посты только через шлюз SARAFAN: отзыв gateway key обязан
+    // действительно отзывать доступ GONBA к VK.
+    const posts = await fetchVkPosts(ownerId, 10)
 
     if (!posts || posts.length === 0) {
       await payload.update({
@@ -771,8 +661,8 @@ export async function syncAllVkSources(payload: Payload): Promise<SyncResult[]> 
   if (decision.emit) {
     payload.logger.error(
       `[vk-auto-sync] VK_SYNC_ALERT (провал #${decision.consecutiveAllFail} подряд): ни один из ${attempted.length} ` +
-        `опрошенных VK-источников не отработал успешно (все в ошибке). Вероятная причина — протухшие VK-токены ` +
-        `(VK_TOKEN_VALSTAN / VK_TOKEN_VITA / VK_TOKEN_*). Проверь last_error источников. ` +
+        `опрошенных VK-источников не отработал успешно (все в ошибке). Проверь SARAFAN_GATEWAY_KEY, ` +
+        `доступность шлюза и last_error источников. ` +
         `Ошибки: ${errored.map((r) => r.message).join(' || ').slice(0, 300)}`,
     )
   }

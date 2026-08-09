@@ -57,20 +57,12 @@
   - `POST /yadisk-api/upload` — получить ссылку для загрузки
 - Все вызовы защищены `requireAdmin` (роль `admin` или `manager`).
 
-### VK импорт
-
-Скрипт импорта постов:
-
-- `web/scripts/vk-import.ts`
-- Команда: `pnpm run vk:import`
-- Поддерживается несколько групп; токены читаются из env.
-
 ### VK авто-импорт (авто-синхронизация)
 
 Автоматический сервис, который каждые 3 часа проверяет VK-сообщества и забирает свежие посты в блог.
 
 **Архитектура:**
-- Коллекция `vk-auto-sync` — список источников (URL сообщества, токен, интервал, привязка к секции/проекту)
+- Коллекция `vk-auto-sync` — список источников (URL сообщества, интервал, привязка к секции/проекту); legacy-поле токена скрыто и запрещено для записи
 - Глобал `vkAutoSyncSettings` — общие настройки (интервал по умолчанию, скачивание изображений, авто-публикация)
 - Server function: `web/src/server/integrations/vk-auto-sync.ts` (`syncAllVkSources`, `syncVkSource`)
 - API endpoint: `POST /api/vk-auto-sync/trigger` — синхронизация всех источников или конкретного (по `sourceId`)
@@ -103,6 +95,8 @@ curl -X POST http://127.0.0.1:3000/api/vk-auto-sync/trigger \
 
 **На проде секреты живут в `/etc/gonba/gonba.env`** (root:valstan, `0640`, вне дерева репо — ADR-0005 / pool #008). Локально для разработки — `web/.env` (шаблон `web/.env.example`). В git коммитится только `web/.env.example`.
 
+Bootstrap-доступ к recovery vault хранится отдельно в `/etc/gonba/secrets-token.env` (`0600`). Это опциональный scenario A: source of truth остаётся `gonba.env`, а vault используется только при потере обязательных локальных ключей.
+
 Обязательные:
 
 - `DATABASE_URL` — строка подключения Postgres
@@ -118,15 +112,12 @@ curl -X POST http://127.0.0.1:3000/api/vk-auto-sync/trigger \
 - `PAYLOAD_PUBLIC_SERVER_URL` — публичный base URL для Payload
 - `PORT` — порт Next.js (обычно 3000)
 
-VK токены (для `vk:import`):
-
-`VK_TOKEN_VALSTAN`, `VK_TOKEN_VITA`
-- Также поддерживаются варианты `VK_TOKEN_{groupId}` и `VK_TOKEN_GROUP_{groupId}`
-- **Устарели как основной путь** (2026-07-11): VK привязывает user-токен к IP выпуска → на сервере Гоньбы `error 5`/баны. Основной путь чтения VK — **шлюз SARAFAN** (ниже). Локальные токены остаются fallback'ом, когда ключ шлюза не задан.
+Сырые VK-токены (`VK_TOKEN_*`) не поддерживаются: fallback удалён 2026-08-09,
+чтобы отзыв `SARAFAN_GATEWAY_KEY` действительно отзывал доступ GONBA к VK.
 
 VK через шлюз SARAFAN (read-only, основной путь с 2026-07-11):
 
-- `SARAFAN_GATEWAY_KEY` — ключ проекта `GATEWAY_KEY_GONBA` (запрашивается у владельца SARAFAN, лежит в `/etc/setka/setka.env` на боксе SARAFAN). Без него — degraded (vk-auto-sync идёт прежним путём через локальные токены).
+- `SARAFAN_GATEWAY_KEY` — ключ проекта `GATEWAY_KEY_GONBA`. Без него VK auto-sync явно переходит в error; прямого token fallback нет.
 - `SARAFAN_GATEWAY_URL` (умолч. `https://3931b3fe50ab.vps.myjino.ru`; при переезде VPS SARAFAN обновить), `SARAFAN_GATEWAY_TIMEOUT_MS` (умолч. 12000).
 - Контракт — sibling `setka/docs/GATEWAY.md` (ADR-0007). Read-only: `wall.get`/`groups.getById`/`users.get`/`resolveScreenName`. Квоты 30/мин, 5000/день на ключ (429+Retry-After). Зависимость зафиксирована письмом в brain.
 
@@ -173,7 +164,6 @@ Payload:
 
 Скрипты:
 
-- `pnpm run vk:import` — импорт постов из VK
 - `pnpm run media:migrate-yadisk` — защитная сетка для записей без `yandexPath` (post-phase-3). Аргументы: `--dry`, `--limit N`, `--id <id>`, `--max N`. Идемпотентно. Подробности — `web/scripts/migrate-media-to-yandex.ts`.
 - `pnpm run cache:clean` — удалить из `MEDIA_CACHE_DIR` файлы, к которым не обращались более N дней (default 30). Аргументы: `--dir <path>`, `--ttl-days <N>`, `--dry`. Запускается systemd-таймером `gonba-media-cache.timer` (см. ниже).
 - `POST /yadisk-api/sync` — сверка/обновление Yandex-метаданных медиа батчами (admin/manager)

@@ -4,7 +4,6 @@ import { adminOrEditor } from '../../access/adminOrEditor'
 import {
   fetchVkGroupMeta,
   fetchVkUserMeta,
-  getEnvFallbackVkToken,
   parseVkCommunityIdentifier,
 } from '../../server/integrations/vk-auto-sync-resolve'
 
@@ -15,8 +14,8 @@ export const VkAutoSync: CollectionConfig<'vk-auto-sync'> = {
     plural: 'Источники авто-импорта VK',
   },
   access: {
-    // Конфиг источников содержит accessToken VK — НЕ публичный. read сужен до
-    // adminOrEditor (раньше anyone → токен утекал через GET /api/vk-auto-sync).
+    // Конфиг источников административный. Legacy accessToken больше не читается:
+    // VK-доступ разрешён только через SARAFAN gateway.
     // Серверный код (syncAllVkSources, trigger-route) ходит через Local API с
     // overrideAccess:true и этим сужением не затрагивается.
     create: adminOrEditor,
@@ -148,20 +147,17 @@ export const VkAutoSync: CollectionConfig<'vk-auto-sync'> = {
         },
         {
           label: '3. Параметры импорта',
-          description:
-            'Токен и расписание. Без токена импорт постов не запустится, но всё остальное сохранится — ' +
-            'можно добавить токен позже.',
+          description: 'Расписание импорта. Доступ к VK выполняется централизованно через шлюз SARAFAN.',
           fields: [
             {
               name: 'accessToken',
               label: 'Токен доступа VK',
               type: 'text',
               admin: {
-                description:
-                  'Сервисный токен VK для доступа к API сообщества. Можно оставить пустым на этапе создания ' +
-                  'и заполнить позже. Без токена авто-импорт постов не пойдёт. Если оставить пустым, ' +
-                  'для публичных метаданных используется общий токен из env (VK_TOKEN_VALSTAN/VITA/SERVICE/TOKEN).',
+                hidden: true,
+                description: 'Legacy-поле отключено. Сырые VK-токены запрещены; используется SARAFAN gateway.',
               },
+              access: { create: () => false, read: () => false, update: () => false },
             },
             {
               name: 'syncIntervalHours',
@@ -378,16 +374,9 @@ export const VkAutoSync: CollectionConfig<'vk-auto-sync'> = {
         const needsMeta = !data.communityName || !data.communityDescription || !data.communityAvatar
         if (!needsMeta) return data
 
-        const token =
-          (typeof data.accessToken === 'string' && data.accessToken.trim()) ||
-          getEnvFallbackVkToken() ||
-          null
-
-        if (!token) {
-          // без токена метаданные не получим — сохранение пройдёт, токен можно добавить позже
+        if (!process.env.SARAFAN_GATEWAY_KEY) {
           req.payload.logger.info(
-            `[vk-auto-sync] Источник ${url}: токен не задан, метаданные не загружены. ` +
-              `Добавьте токен позже и сохраните источник снова.`,
+            `[vk-auto-sync] Источник ${url}: SARAFAN_GATEWAY_KEY не задан, метаданные не загружены.`,
           )
           return data
         }
@@ -395,10 +384,9 @@ export const VkAutoSync: CollectionConfig<'vk-auto-sync'> = {
         // Личная страница → users.get, сообщество/короткое имя → groups.getById
         const meta =
           ident.kind === 'user'
-            ? await fetchVkUserMeta((ident.userId ?? (data.groupId as number | undefined)) ?? null, token)
+            ? await fetchVkUserMeta((ident.userId ?? (data.groupId as number | undefined)) ?? null)
             : await fetchVkGroupMeta(
                 { groupId: data.groupId as number | undefined, screenName: data.screenName as string | undefined },
-                token,
               )
         if (!meta) {
           req.payload.logger.warn(

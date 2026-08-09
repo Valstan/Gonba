@@ -26,11 +26,8 @@ async function main() {
     return
   }
 
-  // Берём токен из env для группы 229392127
-  const token = process.env.VK_TOKEN_229392127 || process.env.VK_TOKEN
-
-  if (!token) {
-    console.error('❌ VK токен не найден. Установите VK_TOKEN_229392127 или VK_TOKEN в .env')
+  if (!process.env.SARAFAN_GATEWAY_KEY) {
+    console.error('❌ SARAFAN_GATEWAY_KEY не найден в env')
     process.exit(1)
   }
 
@@ -62,7 +59,6 @@ async function main() {
     data: {
       communityUrl: 'https://vk.com/club229392127',
       groupId: 229392127,
-      accessToken: token,
       project: projectId,
       category: categoryId,
       sectionSlug: 'vyatskaya-lepota-malmyzh',

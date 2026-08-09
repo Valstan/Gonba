@@ -25,9 +25,8 @@ export async function POST(request: Request) {
   // Seed: создать начальный источник
   if (body.seed) {
     try {
-      const vkToken = process.env.VK_TOKEN_229392127 || process.env.VK_TOKEN_VALSTAN || process.env.VK_TOKEN
-      if (!vkToken) {
-        return Response.json({ error: 'VK token not found in env' }, { status: 500 })
+      if (!process.env.SARAFAN_GATEWAY_KEY) {
+        return Response.json({ error: 'SARAFAN_GATEWAY_KEY not found in env' }, { status: 500 })
       }
 
       const existing = await payload.find({
@@ -75,7 +74,6 @@ export async function POST(request: Request) {
         data: {
           communityUrl: 'https://vk.com/club229392127',
           groupId: 229392127,
-          accessToken: vkToken,
           project: projectId,
           category: categoryId,
           sectionSlug: 'vyatskaya-lepota-malmyzh',
