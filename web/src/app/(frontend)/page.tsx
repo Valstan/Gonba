@@ -1,7 +1,5 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
-
-import { ProjectAtlas } from '@/components/ProjectWorld/ProjectAtlas'
+import { EditableProjectsGrid } from './EditableProjectsGrid'
 import { queryProjects } from './projects/queries'
 
 export const metadata: Metadata = {
@@ -14,7 +12,7 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic'
 
 export default async function HomePage() {
-  const projects = (await queryProjects()).filter((project) => project.showInOrbit !== false)
+  const projects = await queryProjects()
 
   return (
     <main className="world-home">
@@ -28,23 +26,28 @@ export default async function HomePage() {
           </h1>
           <div className="world-home__lead">
             <p>
-              Там, где Вятка огибает луга, рядом живут гостевые дома, ремёсла, сады, маршруты и люди.
-              Выберите свой берег — и войдите в жизнь проекта.
+              Там, где Вятка огибает луга, рядом живут гостевые дома, ремёсла, сады, маршруты и
+              люди. Выберите свой берег — и войдите в жизнь проекта.
             </p>
             <div className="world-home__actions">
-              <a href="#project-atlas" className="world-home__discover">Открыть карту проектов ↓</a>
-              <Link href="/projects" className="world-home__all">Все проекты списком →</Link>
+              <a href="#projects" className="world-home__discover">
+                Все проекты ↓
+              </a>
             </div>
           </div>
         </div>
       </header>
 
-      <section id="project-atlas" className="container world-home__projects" aria-label="Проекты Гоньбы">
+      <section
+        id="projects"
+        className="container world-home__projects scroll-mt-6"
+        aria-label="Проекты Гоньбы"
+      >
         <div className="world-home__projects-heading">
-          <p>Живые места на одном берегу</p>
-          <h2>Куда отправимся?</h2>
+          <p>Все направления · Малмыжский район</p>
+          <h2>Выберите свою Гоньбу</h2>
         </div>
-        <ProjectAtlas projects={projects} />
+        <EditableProjectsGrid initialProjects={projects} centerSlug="gonba" />
       </section>
     </main>
   )

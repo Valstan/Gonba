@@ -1,11 +1,13 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 
 import type { ProjectRecord } from '@/app/(frontend)/projects/shared'
 import { resolveProjectWorld } from '@/components/ProjectWorld/theme'
+import { projectCoverImage } from '@/components/ProjectWorld/projectImage'
 
 type Props = {
   current: ProjectRecord
@@ -49,29 +51,44 @@ export function ProjectSwitcher({ current, projects }: Props) {
       >
         <span className="project-switcher__eyebrow">Сейчас внутри</span>
         <strong>{projectLabel(current)}</strong>
-        <span className="project-switcher__chevron" aria-hidden>⌄</span>
+        <span className="project-switcher__chevron" aria-hidden>
+          ⌄
+        </span>
       </button>
 
       {open ? (
         <div id="project-switcher-panel" className="project-switcher__panel">
           <div className="project-switcher__intro">
             <span>Перейти в другой проект</span>
-            <Link href="/projects">Смотреть все</Link>
+            <Link href="/#projects">Смотреть все</Link>
           </div>
           <div className="project-switcher__grid">
             {projects.map((project) => {
               const world = resolveProjectWorld(project)
+              const image = projectCoverImage(project)
               const active = project.slug === current.slug
               return (
                 <Link
                   key={project.id}
                   href={`/projects/${project.slug}`}
                   className={`project-switcher__item${active ? ' is-active' : ''}`}
-                  style={{ '--switcher-art': `url("${world.art}")` } as React.CSSProperties}
                   aria-current={active ? 'page' : undefined}
                 >
-                  <span>{projectLabel(project)}</span>
-                  <small>{world.eyebrow.split(' · ')[0]}</small>
+                  {image ? (
+                    <Image
+                      src={image}
+                      alt=""
+                      fill
+                      sizes="24rem"
+                      className="project-switcher__image"
+                      unoptimized={image.startsWith('/api/')}
+                    />
+                  ) : null}
+                  <i aria-hidden className="project-switcher__veil" />
+                  <span className="project-switcher__copy">
+                    <strong>{projectLabel(project)}</strong>
+                    <small>{world.eyebrow.split(' · ')[0]}</small>
+                  </span>
                 </Link>
               )
             })}

@@ -4,6 +4,7 @@ import Image from 'next/image'
 import React from 'react'
 
 import type { ProjectRecord } from './shared'
+import { projectCoverImage, projectMediaUrl } from '@/components/ProjectWorld/projectImage'
 
 /**
  * Карточка-плашка проекта.
@@ -32,15 +33,6 @@ const FALLBACK_PALETTE = [
 
 export type CardSize = 'hero' | 'normal'
 
-const PROJECT_FALLBACK_IMAGES: Record<string, string> = {
-  gonba: '/projects/gonba-cover.webp',
-  'deer-farm': '/projects/deer-farm-cover.webp',
-  'district-excursions': '/projects/rural-tourism-cover.webp',
-  'village-and-temple': '/projects/village-temple-cover.jpg',
-  'village-events': '/projects/village-events-cover.webp',
-  'craft-workshops-gonba': '/projects/craft-workshops-cover.webp',
-}
-
 function hashSlug(slug: string): number {
   let h = 0
   for (let i = 0; i < slug.length; i++) h = (h * 31 + slug.charCodeAt(i)) | 0
@@ -57,28 +49,13 @@ export function resolveAccent(p: Pick<ProjectRecord, 'accentColor' | 'slug' | 't
 }
 
 export function imageSrc(media: unknown): string | null {
-  if (!media || typeof media !== 'object') return null
-  const doc = media as { url?: string | null }
-  if (!doc.url) return null
-  const url = doc.url
-  if (url.startsWith('http') || url.startsWith('//') || url.startsWith('/')) return url
-  return `/media/${url}`
+  return projectMediaUrl(media)
 }
 
 export function pickImage(
   p: Pick<ProjectRecord, 'logo' | 'heroImage' | 'gallery' | 'slug'>,
 ): string | null {
-  const fromHero = imageSrc(p.heroImage)
-  if (fromHero) return fromHero
-  const curatedFallback = PROJECT_FALLBACK_IMAGES[p.slug]
-  if (curatedFallback) return curatedFallback
-  if (Array.isArray(p.gallery) && p.gallery.length > 0) {
-    for (const item of p.gallery) {
-      const src = imageSrc((item as { image?: unknown })?.image)
-      if (src) return src
-    }
-  }
-  return imageSrc(p.logo)
+  return projectCoverImage(p)
 }
 
 export function projectLabel(p: Pick<ProjectRecord, 'shortLabel' | 'title'>): string {

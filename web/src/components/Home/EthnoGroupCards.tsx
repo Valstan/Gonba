@@ -68,11 +68,7 @@ export const EthnoGroupCards: React.FC<EthnoGroupCardsProps> = ({ projects }) =>
         </div>
         <div className="ethno-groups__grid">
           {GROUPS.map((g) => (
-            <Link
-              key={g.key}
-              href={`/projects?group=${g.key}`}
-              className={`ethno-group-card ${g.modifier}`}
-            >
+            <Link key={g.key} href="/#projects" className={`ethno-group-card ${g.modifier}`}>
               <span className="ethno-rhomb" aria-hidden="true" />
               <h3>{g.title}</h3>
               <p>{groupSubtitle(g.key)}</p>
