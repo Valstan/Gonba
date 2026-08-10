@@ -1909,8 +1909,9 @@ html {
   .project-switcher__panel { animation: none; }
 }
 
-/* ── Веб-аналитика: consent-баннер (152-ФЗ) + слот бейджа LiveInternet ──
-   Счётчики env-gated и грузятся только после «Принять» — см. components/analytics/Analytics.client.tsx. */
+/* ── Веб-аналитика: consent-баннер (152-ФЗ) + информер посещаемости в подвале ──
+   Счётчик env-gated и грузится только после «Принять» — см. components/analytics/Analytics.client.tsx.
+   Информер от согласия не зависит: он проксируется через свой origin (см. api/analytics-informer). */
 .analyticsConsent {
   position: fixed;
   inset-inline: 0;
@@ -1970,10 +1971,23 @@ html {
   background: color-mix(in oklab, var(--border) 40%, transparent);
 }
 
-/* Бейдж LI живёт в самом низу потока, не поверх контента */
-.analyticsLiSlot {
+/* Информер Метрики живёт в самом низу потока, не поверх контента */
+.analyticsInformer {
   display: flex;
   justify-content: center;
   padding: 0.5rem 0 0.75rem;
   min-height: 0;
+}
+
+.analyticsInformer img {
+  display: block;
+  border: 0;
+  border-radius: 3px;
+  opacity: 0.75;
+  transition: opacity 0.2s ease;
+}
+
+.analyticsInformer a:hover img,
+.analyticsInformer a:focus-visible img {
+  opacity: 1;
 }

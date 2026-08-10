@@ -92,11 +92,26 @@ export async function Footer() {
           </a>
         </div>
 
-        <div
-          id="li-counter-slot"
-          className="analyticsLiSlot"
-          aria-label="Счётчик посетителей сайта"
-        />
+        {/* Видимая цифра посещаемости (D-017). Оба URL постоянные — номер счётчика
+            резолвится из env бокса на запросе, поэтому подвал спокойно попадает в
+            статические пререндеры. Не настроен счётчик → прозрачный 1×1, блок пуст. */}
+        <div className="analyticsInformer">
+          <a
+            href="/api/analytics-stats"
+            target="_blank"
+            rel="nofollow noopener noreferrer"
+            aria-label="Статистика посещаемости сайта"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- внешний бейдж фиксированного размера, оптимизация next/image ему не нужна */}
+            <img
+              src="/api/analytics-informer"
+              width={88}
+              height={31}
+              alt="Яндекс.Метрика"
+              title="Яндекс.Метрика: данные за сегодня (просмотры, визиты и уникальные посетители)"
+            />
+          </a>
+        </div>
 
         <FooterEditor description={description} columns={columns} legalAddress={legalAddress} />
       </div>

@@ -23,9 +23,18 @@ EnvironmentFile=-/etc/gonba/secrets-token.env
 # standalone server.js читает HOSTNAME/PORT из env (флагов --hostname/--port нет)
 Environment=PORT=3000
 Environment=HOSTNAME=127.0.0.1
+# Профилактика G234: дефолтные 5 с keep-alive у Node короче пула прокси (у nginx
+# upstream keepalive — 60 с), из-за чего прокси шлёт запрос в уже закрытый сокет и
+# отдаёт 502 при пустых логах приложения. Эту настройку умеет сам standalone server.js;
+# парный headersTimeout (66 000) ставится в src/server/runtime/http-lifecycle.ts —
+# Next его не трогает, а он обязан быть длиннее keep-alive.
+Environment=KEEP_ALIVE_TIMEOUT=65000
 ExecStart=/usr/bin/node server.js
 Restart=on-failure
 RestartSec=3
+# Graceful drain на SIGTERM (см. http-lifecycle.ts): дефолтные 90 с systemd
+# с запасом покрывают SHUTDOWN_DRAIN_MS=15 с, но фиксируем явно.
+TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target

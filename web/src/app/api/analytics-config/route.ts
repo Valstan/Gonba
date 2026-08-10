@@ -10,15 +10,16 @@ import { NextResponse } from 'next/server'
  *
  * force-dynamic: без кэша, иначе ISR заморозит значение. Ответ крошечный, дёргается
  * клиентом один раз за сессию страницы (см. Analytics.client.tsx).
+ *
+ * LiveInternet отсюда убран 2026-08-10 (D-025): единственный счётчик экосистемы —
+ * Яндекс.Метрика, а видимая цифра посещаемости берётся из её штатного информера
+ * (`/api/analytics-informer`), а не из бейджа LI.
  */
 export const dynamic = 'force-dynamic'
 
 export async function GET(): Promise<NextResponse> {
   return NextResponse.json(
-    {
-      ymCounterId: Number(process.env.YM_COUNTER_ID) || 0,
-      liEnabled: process.env.LI_ENABLED === '1',
-    },
+    { ymCounterId: Number(process.env.YM_COUNTER_ID) || 0 },
     { headers: { 'Cache-Control': 'no-store' } },
   )
 }
