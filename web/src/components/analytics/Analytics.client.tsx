@@ -4,31 +4,32 @@ import { usePathname } from 'next/navigation'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 /**
- * Веб-аналитика: Яндекс.Метрика + LiveInternet (директива brain 2026-07-26, закрывает
- * отложенную часть #051).
+ * Веб-аналитика: Яндекс.Метрика (директива brain 2026-07-26, закрывает отложенную
+ * часть #051). LiveInternet убран 2026-08-10 по решению владельца — D-025, единственный
+ * счётчик экосистемы — Метрика.
  *
  * Принципы (условия директивы, не стиль):
  *  - env-gated БЕЗ пересборки: конфиг берётся с `/api/analytics-config` (force-dynamic,
  *    читает env бокса на каждый запрос) — NEXT_PUBLIC не годится, он запекается в
- *    CI-бандл. Пустой env → эндпоинт отдаёт нули → компонент ничего не рендерит.
+ *    CI-бандл. Пустой env → эндпоинт отдаёт ноль → компонент ничего не рендерит.
  *    ISR/SSR не трогаем: компонент клиентский, на сервере — ноль разметки счётчиков.
- *  - consent-first (152-ФЗ): счётчики НЕ грузятся, пока посетитель не нажал «Принять».
+ *  - consent-first (152-ФЗ): счётчик НЕ грузится, пока посетитель не нажал «Принять».
  *    Выбор в localStorage (`gonba:analytics-consent`: granted|denied) — баннер один раз.
- *    «Отказаться» — счётчики не грузятся совсем, сайт работает как обычно.
- *  - отложенная загрузка: конфиг запрашивается только после гидратации; скрипты — через
+ *    «Отказаться» — счётчик не грузится совсем, сайт работает как обычно.
+ *  - отложенная загрузка: конфиг запрашивается только после гидратации; скрипт — через
  *    requestIdleCallback (fallback setTimeout), чтобы не конкурировать с гидратацией.
- *  - G80: рунет-антибаннеры режут counter.yadro.ru — бейдж LI у части посетителей не
- *    отрисуется при работающей Метрике. Это не баг. `escape()` в URL LI — load-bearing
- *    для IDN-домена `.рф`, не «чинить» на encodeURIComponent.
  *  - SPA-навигация: Метрика сама видит только первую загрузку — на смену pathname
- *    шлём `ym('hit')`. LI обновляем пересборкой URL картинки (обычная практика для SPA).
+ *    шлём `ym('hit')`.
+ *
+ * Видимый информер посещаемости (D-017) живёт отдельно, в подвале, и НЕ зависит от
+ * согласия: он проксируется через свой origin и не делает запросов к третьей стороне
+ * из браузера посетителя — см. `app/api/analytics-informer/route.ts`.
  */
 
 const CONSENT_KEY = 'gonba:analytics-consent'
 type Consent = 'granted' | 'denied' | null
 
 type AnalyticsConfig = {
-  liEnabled: boolean
   ymCounterId: number
 }
 
@@ -37,23 +38,6 @@ declare global {
     ym?: (id: number, method: string, ...args: unknown[]) => void
   }
 }
-
-/** Вендорный конструктор URL LiveInternet — один в один, escape() обязателен (G80). */
-const liHitUrl = (): string =>
-  '//counter.yadro.ru/hit?t44.6;r' +
-  escape(document.referrer) +
-  (typeof screen === 'undefined'
-    ? ''
-    : ';s' +
-      screen.width +
-      '*' +
-      screen.height +
-      '*' +
-      (screen.colorDepth ? screen.colorDepth : screen.pixelDepth)) +
-  ';u' +
-  escape(document.URL) +
-  ';' +
-  Math.random()
 
 const loadMetrika = (id: number) => {
   if (window.ym) return
@@ -72,7 +56,7 @@ const loadMetrika = (id: number) => {
     clickmap: true,
     trackLinks: true,
     accurateTrackBounce: true,
-    webvisor: false, // приватность: записи сессий не ведём
+    webvisor: false, // приватность: записи сессий не ведём (в кабинете счётчика тоже выключено)
   })
 }
 
@@ -88,7 +72,6 @@ export const Analytics: React.FC = () => {
   const [config, setConfig] = useState<AnalyticsConfig | null>(null)
   const [consent, setConsent] = useState<Consent>(null)
   const loadedRef = useRef(false)
-  const liImgRef = useRef<HTMLImageElement | null>(null)
   const pathname = usePathname()
   const lastHitRef = useRef<string | null>(null)
 
@@ -104,7 +87,7 @@ export const Analytics: React.FC = () => {
     fetch('/api/analytics-config')
       .then((r) => (r.ok ? r.json() : null))
       .then((data: AnalyticsConfig | null) => {
-        if (!cancelled && data && (data.ymCounterId > 0 || data.liEnabled)) setConfig(data)
+        if (!cancelled && data && data.ymCounterId > 0) setConfig(data)
       })
       .catch(() => {
         /* аналитика — необязательный слой; сбой конфига молча = выключено */
@@ -118,23 +101,7 @@ export const Analytics: React.FC = () => {
     if (loadedRef.current) return
     loadedRef.current = true
     runDeferred(() => {
-      if (cfg.ymCounterId > 0) loadMetrika(cfg.ymCounterId)
-      if (cfg.liEnabled) {
-        // Бейдж 31×31 в слоте под футером; сам hit уходит запросом картинки.
-        const a = document.createElement('a')
-        a.href = 'https://www.liveinternet.ru/click'
-        a.target = '_blank'
-        a.rel = 'noopener noreferrer'
-        const img = document.createElement('img')
-        img.src = liHitUrl()
-        img.alt = ''
-        img.title = 'LiveInternet'
-        img.width = 31
-        img.height = 31
-        a.appendChild(img)
-        document.getElementById('li-counter-slot')?.appendChild(a)
-        liImgRef.current = img
-      }
+      loadMetrika(cfg.ymCounterId)
       lastHitRef.current = window.location.pathname
     })
   }, [])
@@ -144,13 +111,12 @@ export const Analytics: React.FC = () => {
     if (consent === 'granted' && config) activate(config)
   }, [consent, config, activate])
 
-  // SPA-навигация: hit в Метрику + рефреш LI-картинки.
+  // SPA-навигация: hit в Метрику.
   useEffect(() => {
     if (!loadedRef.current || !pathname || lastHitRef.current === pathname) return
     lastHitRef.current = pathname
     const ymId = config?.ymCounterId ?? 0
     if (ymId > 0 && window.ym) window.ym(ymId, 'hit', window.location.href)
-    if (liImgRef.current) liImgRef.current.src = liHitUrl()
   }, [pathname, config])
 
   const decide = (value: Exclude<Consent, null>) => {
@@ -162,7 +128,7 @@ export const Analytics: React.FC = () => {
     }
   }
 
-  // Ничего не включено (или конфиг ещё не пришёл) → ни баннера, ни счётчиков.
+  // Ничего не включено (или конфиг ещё не пришёл) → ни баннера, ни счётчика.
   if (!config) return null
 
   return (
@@ -175,9 +141,8 @@ export const Analytics: React.FC = () => {
           aria-label="Согласие на аналитику"
         >
           <p className="analyticsConsent__text">
-            Мы используем счётчики посещаемости (Яндекс.Метрика, LiveInternet), чтобы понимать,
-            какие разделы сайта полезны. Данные обезличены. Можно отказаться — сайт будет работать
-            как обычно.
+            Мы используем счётчик посещаемости (Яндекс.Метрика), чтобы понимать, какие разделы
+            сайта полезны. Данные обезличены. Можно отказаться — сайт будет работать как обычно.
           </p>
           <div className="analyticsConsent__actions">
             <button
