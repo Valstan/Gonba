@@ -378,17 +378,24 @@ ssh GONBA "grep -qxF '$PUBKEY' ~/.ssh/authorized_keys || echo '$PUBKEY' >> ~/.ss
 # 3. Проверить новый ключ
 ssh -o BatchMode=yes GONBA "echo OK"
 
-# 4. Убрать старый публичный ключ из authorized_keys (СПРОСИТЬ пользователя)
-# ssh GONBA "sed -i '/<fingerprint old>/d' ~/.ssh/authorized_keys"
-
-# 5. Обновить GH secret
+# 4. Обновить GH secret (старый ключ пока НЕ трогаем — он страховка)
 gh secret set SSH_PRIVATE_KEY --repo Valstan/Gonba < ~/.ssh/id_ed25519_gonba_deploy
 
-# 6. Триггернуть workflow_dispatch для проверки
-gh workflow run "Deploy to production" --repo Valstan/Gonba
+# 5. Дождаться ПЕРВОГО ШТАТНОГО деплоя (от merge любого PR) и убедиться, что он зелёный.
+#    Это и есть доказательство, что CI ходит новым ключом.
+#    ⚠️ НЕ дёргать `gh workflow run deploy*` — ручной deploy-dispatch в deny-списке
+#    (.claude/settings.json, G24: гонка деплоев → ChunkLoadError-outage).
+gh run list --workflow=deploy-prod.yml --limit 1
 
-# 7. Обновить даты в этой таблице (Создан, Следующая ротация)
+# 6. Только после зелёного деплоя — убрать старый ключ (СПРОСИТЬ пользователя)
+ssh GONBA "cp -a ~/.ssh/authorized_keys ~/.ssh/authorized_keys.bak-rotation-\$(date +%Y%m%d-%H%M%S) \
+  && sed -i '/<comment старого ключа>/d' ~/.ssh/authorized_keys"
+ssh -o BatchMode=yes GONBA "echo OK"   # перепроверить доступ ПОСЛЕ сноса
+
+# 7. Обновить даты и отпечаток в этой таблице (Создан, Следующая ротация)
 ```
+
+**Порядок важен** (проверено на ротации 2026-08-10): сначала новый ключ авторизуется и проверяется `BatchMode`-логином с явным `-i` (тот же путь, каким ходит CI), затем обновляется secret, и **только после зелёного штатного деплоя** сносится старый. Обратный порядок оставляет окно, в котором secret уже новый, а доказательства, что CI им ходит, ещё нет. Приватный ключ старой пары до этого момента держать в локальном бэкапе вне репо, после — удалить.
 
 См. также cross-project pool: [`../brain_matrica/cross-project-ideas/ideas/002-ssh-deploy-key-rotation.md`](../../brain_matrica/cross-project-ideas/ideas/002-ssh-deploy-key-rotation.md) (meta-репо [`brain_matrica`](https://github.com/Valstan/brain_matrica)).
 
