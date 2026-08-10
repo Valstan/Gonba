@@ -346,9 +346,10 @@ gh secret set GONBA_BUILD_ENV --repo Valstan/Gonba < <(составить-фай
 | Файл (локально) | `~/.ssh/id_ed25519_gonba_deploy` |
 | GH Action secret | `SSH_PRIVATE_KEY` в репо `Valstan/Gonba` |
 | Авторизован на | `valstan@831d0ce99bdf.vps.myjino.ru:~/.ssh/authorized_keys` (только GONBA-сервер) |
-| **Создан** | **2026-05-22** |
+| **Создан** | **2026-08-10** (ротация; предыдущий — 2026-05-22) |
+| **Отпечаток** | `SHA256:OEoHgIjGQkMf6UAi9Y19R5ObxkTVlwchibNnuvhkSHc` (`gonba-deploy@PC40-20260810`) |
 | **Период ротации** | **90 дней** |
-| **Следующая ротация не позднее** | **2026-08-20** |
+| **Следующая ротация не позднее** | **2026-11-08** |
 
 Команда `/start` проверяет возраст ключа: если осталось < 10 дней до дедлайна — выводит **🟡 напоминание о ротации** в отчёте сессии.
 
@@ -358,7 +359,9 @@ gh secret set GONBA_BUILD_ENV --repo Valstan/Gonba < <(составить-фай
 
 | Машина | comment в `.pub` | Авторизован | Примечание |
 |---|---|---|---|
-| Windows-dev (`HOME-PC`) | текущий публичный ключ `~/.ssh/id_ed25519.pub` | подтверждено 2026-08-09 | alias `GONBA` использует `IdentityFile ~/.ssh/id_ed25519` + `IdentitiesOnly yes`; read-only probe успешен. **НЕ** в GH secret (только локальный SSH). Старое описание отдельного `id_ed25519_gonba_deploy` для этой машины оказалось протухшим. |
+| Windows-dev (`HOME-PC`) | `gonba-deploy@HOME-PC-20260529` | подтверждено 2026-08-10 по `authorized_keys` прода | **НЕ** в GH secret (только локальный SSH). _Правка 2026-08-10:_ прошлая запись утверждала, что эта машина ходит через `~/.ssh/id_ed25519` — по факту в `authorized_keys` лежит отдельный `gonba-deploy@HOME-PC-*`. Заметка 2026-08-09 описывала **другую** машину (`PC40`), где alias `GONBA` использует `IdentityFile ~/.ssh/id_ed25519_gonba_deploy` + `IdentitiesOnly yes` — это и есть основной ключ из таблицы выше. |
+
+**Полный список ключей в `authorized_keys` прода** (сверено 2026-08-10, чтобы будущий security-аудит не принял чужие за компрометацию): `gonba-deploy@PC40-*` (основной, GH secret), `gonba-deploy@HOME-PC-*` (dev-машина B), `valstan@windows-qwen`, `karman-ci-deploy`, `karman-box1-valstan`, `malmyzh-ci-deploy`, `trener-deploy-ci` — последние четыре принадлежат соседям по «Боксу 1».
 
 Если при security-аудите в `authorized_keys` встретится `gonba-deploy@HOME-PC-*` — это легитимный dev-ключ, не компрометация (ср. cleanup dispatch #0007).
 
