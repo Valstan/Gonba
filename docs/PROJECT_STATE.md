@@ -88,7 +88,7 @@ CLAUDE.md / GEMINI.md / QWEN.md — тонкие адаптеры к AGENTS.md
 - Runtime source of truth остаётся `/etc/gonba/gonba.env`.
 - `web/src/instrumentation.ts` до старта Node runtime вызывает best-effort bootstrap: если `DATABASE_URL` и `PAYLOAD_SECRET` уже есть, сетевых вызовов нет.
 - При потере обязательных ключей клиент читает recovery-комнату по bootstrap-токену из отдельного `/etc/gonba/secrets-token.env`.
-- Allowlist содержит 10 ожидаемых runtime-секретов; локальные значения сильнее vault, чужие имена логируются без значений и игнорируются.
+- Allowlist содержит 12 ожидаемых runtime-секретов (включая `IP_HASH_SALT` — с 2026-08-25); локальные значения сильнее vault, чужие имена логируются без значений и игнорируются.
 - `SECRETS_TOKEN`/`SECRETS_VAULT_URL` принципиально не принимаются из самой комнаты.
 
 ### Yandex.Disk
