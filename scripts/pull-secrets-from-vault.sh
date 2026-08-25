@@ -96,70 +96,19 @@ log "в комнате ключей: ${COUNT}"
 [ "$COUNT" -gt 0 ] || soft_skip "Комната пуста — вливать нечего."
 
 # --- 3. Слияние в env ---------------------------------------------------------
-# Слияние, а не перезапись: ключи, которых в комнате нет, остаются нетронутыми.
-# Иначе первый же прогон стёр бы всё, что заводилось руками до переезда в комнату
-# (соль хеша IP, номер счётчика Метрики и прочее), и мы бы узнали об этом по
-# упавшему проду, а не по логу.
-#
-# Запись атомарная: временный файл рядом → chown/chmod → mv. Если процесс умрёт
-# посередине, сервис прочитает старый целый файл, а не половину нового.
-printf '%s' "$SECRETS_BODY" | python3 - "$ENV_FILE" <<'PY'
-import json, os, stat, sys, tempfile
+# Слияние выполняет отдельный файл, а не heredoc: первая версия была встроенной
+# (`python3 - "$ENV_FILE" <<'PY'`) и слегла на первом же боевом прогоне —
+# `python3 -` читает ПРОГРАММУ из stdin, туда же лился JSON. Два потребителя
+# одного stdin. Отдельный файл заодно покрывается юнит-тестом в CI.
+MERGE="$(dirname "$(readlink -f "$0")")/merge-env-from-vault.mjs"
+[ -f "$MERGE" ] || { warn "не найден $MERGE"; exit 1; }
 
-env_path = sys.argv[1]
-secrets = json.load(sys.stdin).get('secrets') or {}
-
-with open(env_path, 'r', encoding='utf-8') as fh:
-    lines = fh.read().splitlines()
-
-seen, out, updated = set(), [], []
-for line in lines:
-    stripped = line.lstrip()
-    if not stripped or stripped.startswith('#') or '=' not in stripped:
-        out.append(line)
-        continue
-    key = stripped.split('=', 1)[0].strip()
-    if key in secrets:
-        seen.add(key)
-        new_line = f'{key}={secrets[key]}'
-        if new_line != line:
-            updated.append(key)
-        out.append(new_line)
-    else:
-        out.append(line)
-
-added = [k for k in secrets if k not in seen]
-for key in added:
-    out.append(f'{key}={secrets[key]}')
-
-if not updated and not added:
-    print('[vault] env уже совпадает с комнатой — файл не тронут')
-    print('CHANGED=0')
-    sys.exit(0)
-
-st = os.stat(env_path)
-directory = os.path.dirname(env_path) or '.'
-fd, tmp = tempfile.mkstemp(dir=directory, prefix='.gonba.env.')
-try:
-    with os.fdopen(fd, 'w', encoding='utf-8') as fh:
-        fh.write('\n'.join(out) + '\n')
-    # chown есть не везде (на Windows его нет вовсе) — на боксе он обязателен,
-    # но guard позволяет прогнать эту же логику на фикстуре с любой машины.
-    if hasattr(os, 'chown'):
-        os.chown(tmp, st.st_uid, st.st_gid)
-    os.chmod(tmp, stat.S_IMODE(st.st_mode))
-    os.replace(tmp, env_path)
-except BaseException:
-    os.path.exists(tmp) and os.unlink(tmp)
-    raise
-
-# Только ИМЕНА ключей. Значения не печатаем ни при каких обстоятельствах:
-# вывод деплоя читаем не только мы.
-if added:
-    print('[vault] добавлено: ' + ', '.join(sorted(added)))
-if updated:
-    print('[vault] обновлено: ' + ', '.join(sorted(updated)))
-print('CHANGED=1')
-PY
+if ! printf '%s' "$SECRETS_BODY" | node "$MERGE" "$ENV_FILE"; then
+  # Слияние атомарное: при сбое env остался прежним целым файлом, поэтому
+  # деплой можно продолжать. Но это НАША ошибка, а не недоступность комнаты —
+  # кричим ::error::, чтобы аннотация всплыла в сводке прогона.
+  echo "::error::[vault] слияние секретов не удалось — env остался прежним, ключи из комнаты НЕ доставлены"
+  exit 0
+fi
 
 log "готово"
