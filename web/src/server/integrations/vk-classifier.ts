@@ -35,10 +35,46 @@ type ClassifyArgs = {
  */
 const DEFAULT_BASE_URL = 'https://api.deepseek.com'
 const DEFAULT_MODEL = 'deepseek-v4-flash'
-const DEFAULT_TIMEOUT_MS = 10_000
-/** JSON-режим DeepSeek документированно рвёт ответ на полуслове при тесном лимите. */
-const MAX_OUTPUT_TOKENS = 700
+/**
+ * 30 с, а не 10. Прежние 10 были придуманы «на глаз» под экономию, которой нет:
+ * реальная нагрузка — около одного поста в сутки, а systemd даёт на весь прогон
+ * 600 с, из которых классификатор берёт максимум 60. Шесть источников × 30 с =
+ * 180 с, запас на VK API и заливку фото остаётся. Выше 60 с не поднимать.
+ */
+const DEFAULT_TIMEOUT_MS = 30_000
+/**
+ * JSON-режим DeepSeek документированно рвёт ответ на полуслове при тесном лимите,
+ * а входят ли токены раздумий в этот же лимит — в документации не сказано.
+ * Пока не измерено живым запросом, держим запас: обрыв замаскировался бы под
+ * обычную «ошибку классификатора».
+ */
+const MAX_OUTPUT_TOKENS = 2000
 const MAX_PROJECTS = 3
+
+/** off = раздумья выключены; остальное — уровень усилия DeepSeek. */
+type ThinkingMode = 'off' | 'low' | 'high' | 'max'
+const THINKING_MODES: ThinkingMode[] = ['off', 'low', 'high', 'max']
+
+/**
+ * Режим раздумий. Умолчание — `low`, то есть ВКЛЮЧЕНО с самым лёгким усилием.
+ *
+ * Почему не `off`: задача «выбрать 1-3 проекта из 11» на очевидных постах
+ * решается и без раздумий, но на спорных (пост про ярмарку ремёсел в усадьбе —
+ * это один проект или три?) отключение даёт «уплощение»: модель возвращает один
+ * самый лексически очевидный проект, чаще всего исходный. Экономить при этом
+ * не на чем — см. DEFAULT_TIMEOUT_MS.
+ *
+ * Почему не `high`: вендорское умолчание при `type: 'enabled'` — самое тяжёлое
+ * усилие, то есть «просто включить» = включить максимум. Уровень задаём явно.
+ *
+ * Почему через env, а не константой: классификатор ещё ни разу не отработал на
+ * живых данных (ключа на проде нет), значит настройку мы выбираем вслепую.
+ * Цена ошибки должна быть «правка env + рестарт», а не «PR + деплой».
+ */
+function resolveThinking(): ThinkingMode {
+  const raw = process.env.VK_CLASSIFIER_THINKING?.trim().toLowerCase()
+  return THINKING_MODES.includes(raw as ThinkingMode) ? (raw as ThinkingMode) : 'low'
+}
 
 function fallback(args: ClassifyArgs, rationale: string): VkClassification {
   return {
@@ -92,6 +128,7 @@ export async function classifyVkPost(args: ClassifyArgs): Promise<VkClassificati
   const baseUrl = (process.env.DEEPSEEK_BASE_URL?.trim() || DEFAULT_BASE_URL).replace(/\/+$/, '')
   const model = process.env.VK_CLASSIFIER_MODEL?.trim() || DEFAULT_MODEL
   const timeoutMs = Number(process.env.VK_CLASSIFIER_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS
+  const thinking = resolveThinking()
   const projectSlugs = args.projects.map((project) => project.slug).filter(Boolean)
   const projectSet = new Set(projectSlugs)
   const categorySet = new Set(args.categories.filter(Boolean))
@@ -109,11 +146,12 @@ export async function classifyVkPost(args: ClassifyArgs): Promise<VkClassificati
     'Не придумывай новые slug — бери значения только из allowedProjectSlugs и allowedCategorySlugs.',
     'Сельское хозяйство, туризм и ремёсла — приоритетные темы.',
     `Верни ровно один json-объект без markdown и пояснений, максимум ${MAX_PROJECTS} проекта.`,
-    'Формат ответа (пример):',
+    'Сначала одним предложением объясни выбор в поле rationale, и только потом перечисли slug.',
+    'Формат ответа (пример), порядок ключей соблюдай:',
     JSON.stringify({
+      rationale: 'Одно предложение о том, почему выбраны эти проекты.',
       projectSlugs: ['project-slug-1', 'project-slug-2'],
       categorySlugs: ['category-slug-1'],
-      rationale: 'Одно предложение о том, почему выбраны эти проекты.',
     }),
   ].join(' ')
 
@@ -142,11 +180,13 @@ export async function classifyVkPost(args: ClassifyArgs): Promise<VkClassificati
           { role: 'user', content: JSON.stringify(userPayload) },
         ],
         response_format: { type: 'json_object' },
-        // `thinking` у DeepSeek включён ПО УМОЛЧАНИЮ. Для рутинной раскладки
-        // постов рассуждение не нужно, а стоит оно и токенов из max_tokens,
-        // и секунд из нашего 10-секундного таймаута — отключаем явно.
-        thinking: { type: 'disabled' },
-        temperature: 0,
+        ...(thinking === 'off'
+          ? // Без раздумий ответ детерминирован — просим нулевую температуру.
+            { thinking: { type: 'disabled' }, temperature: 0 }
+          : // В режиме раздумий temperature документированно ИГНОРИРУЕТСЯ.
+            // Не шлём его вовсе: мёртвый параметр в теле запроса врёт читателю
+            // кода, будто прогоны воспроизводимы. Они не воспроизводимы.
+            { thinking: { type: 'enabled', reasoning_effort: thinking } }),
         max_tokens: MAX_OUTPUT_TOKENS,
       }),
       signal: controller.signal,
@@ -173,6 +213,12 @@ export async function classifyVkPost(args: ClassifyArgs): Promise<VkClassificati
       usedFallback: false,
     }
   } catch (error) {
+    // Таймаут отделяем от прочих сбоев намеренно: на живых данных именно это
+    // различие решает, что чинить — поднимать лимит времени или разбираться с
+    // провайдером. В общем catch они выглядели одинаково.
+    if (error instanceof Error && error.name === 'AbortError') {
+      return fallback(args, `Классификатор не уложился в ${timeoutMs} мс (режим раздумий: ${thinking}); оставлена привязка источника.`)
+    }
     const message = error instanceof Error ? error.message : String(error)
     return fallback(args, `Ошибка классификатора (${message.slice(0, 120)}); оставлена привязка источника.`)
   } finally {
