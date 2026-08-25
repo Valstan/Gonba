@@ -13,7 +13,7 @@
 // код регуляркой и запускала отдельно — то есть проверяла логику, но НЕ проводку,
 // и ровно поэтому ошибку не поймала.
 
-import { readFileSync, writeFileSync, statSync, chmodSync, renameSync, unlinkSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, statSync, chmodSync, chownSync, renameSync, unlinkSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -54,13 +54,28 @@ export function mergeEnvLines(lines, secrets) {
   return { lines: out, added, updated, changed: added.length > 0 || updated.length > 0 }
 }
 
-/** Атомарная запись с сохранением прав: временный файл рядом → chmod → rename. */
+/**
+ * Атомарная запись с сохранением прав И ВЛАДЕЛЬЦА: временный файл рядом →
+ * chmod + chown → rename.
+ *
+ * chown здесь не украшение. Первая боевая доставка 2026-08-25 сменила владельца
+ * `/etc/gonba/gonba.env` с `root:valstan` на `root:root`: при переписывании
+ * слияния с Python на Node сохранение ПРАВ переехало, а сохранение ВЛАДЕЛЬЦА —
+ * нет. Сервис при этом не упал (systemd читает EnvironmentFile от root ещё до
+ * сброса привилегий), поэтому поломка была БЕЗМОЛВНОЙ — а инвариант
+ * `root:valstan, 0640` прямо записан в `deploy/systemd/gonba.service`, и всё,
+ * что читает файл не от root, слегло бы позже и в другом месте.
+ *
+ * chown требует прав root — скрипт и так запускается через sudo. На платформах
+ * без него (Windows в юнит-тестах) шаг пропускается.
+ */
 export function writeEnvAtomically(envPath, lines) {
-  const mode = statSync(envPath).mode & 0o777
+  const st = statSync(envPath)
   const tmp = join(dirname(envPath), `.${Date.now()}.env.tmp`)
   try {
     writeFileSync(tmp, lines.join('\n') + '\n', { encoding: 'utf8' })
-    chmodSync(tmp, mode)
+    chmodSync(tmp, st.mode & 0o777)
+    if (process.platform !== 'win32') chownSync(tmp, st.uid, st.gid)
     // rename в пределах одной ФС атомарен: сервис прочитает либо старый целый
     // файл, либо новый целый, но никогда половину.
     renameSync(tmp, envPath)

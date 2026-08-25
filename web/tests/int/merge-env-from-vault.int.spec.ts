@@ -91,6 +91,23 @@ describe('writeEnvAtomically', () => {
     expect(statSync(envPath).mode & 0o777).toBe(before)
     expect(readFileSync(envPath, 'utf8')).toBe('A=1\n')
   })
+
+  /**
+   * Регресс на боевую поломку 2026-08-25. Первая доставка сменила владельца
+   * `/etc/gonba/gonba.env` с `root:valstan` на `root:root`: при переписывании
+   * слияния с Python на Node сохранение ПРАВ переехало, а сохранение ВЛАДЕЛЬЦА
+   * нет. Сервис не упал — systemd читает EnvironmentFile от root, — поэтому
+   * поломка была безмолвной, а инвариант записан в deploy/systemd/gonba.service.
+   */
+  it.skipIf(process.platform === 'win32')('сохраняет владельца и группу файла', () => {
+    const before = statSync(envPath)
+
+    writeEnvAtomically(envPath, ['A=1'])
+
+    const after = statSync(envPath)
+    expect(after.uid).toBe(before.uid)
+    expect(after.gid).toBe(before.gid)
+  })
 })
 
 /**
