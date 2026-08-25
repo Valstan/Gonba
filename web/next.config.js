@@ -28,7 +28,7 @@ const NEXT_PUBLIC_SERVER_URL =
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Сборка для прода едет в CI (mandate brain 2026-06-11, Бокс 1): на сервер кладётся
+  // Сборка для прода едет в CI (mandate brain 2026-06-11, общий бокс): на сервер кладётся
   // готовый standalone-артефакт, бокс — runtime-only. tracingRoot = web/, чтобы
   // server.js лёг в корень .next/standalone (репо-рут не утягивается в trace).
   //

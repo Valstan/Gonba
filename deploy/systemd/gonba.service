@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 User=valstan
 # Runtime сервится из готового standalone-артефакта, собранного в CI
-# (deploy-prod.yml, mandate brain 2026-06-11 «Бокс 1»): build-спайков на боксе
+# (deploy-prod.yml, mandate brain 2026-06-11 про общий бокс): build-спайков на боксе
 # больше нет. Симлинк releases/current переключается деплоем атомарно; сам юнит
 # идемпотентно ставится remote-скриптом деплоя из этого файла (sudo cp +
 # daemon-reload) ПЕРЕД restart — юнит и артефакт приезжают одним деплоем.

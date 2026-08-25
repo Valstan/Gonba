@@ -121,7 +121,7 @@ Bootstrap-доступ к recovery vault хранится отдельно в `/
 VK через шлюз SARAFAN (read-only, основной путь с 2026-07-11):
 
 - `SARAFAN_GATEWAY_KEY` — ключ проекта `GATEWAY_KEY_GONBA`. Без него VK auto-sync явно переходит в error; прямого token fallback нет.
-- `SARAFAN_GATEWAY_URL` (умолч. `https://3931b3fe50ab.vps.myjino.ru`; при переезде VPS SARAFAN обновить), `SARAFAN_GATEWAY_TIMEOUT_MS` (умолч. 12000).
+- `SARAFAN_GATEWAY_URL` (адрес шлюза — **чужая инфраструктура**, в отслеживаемых файлах не публикуем; сейчас работает от хардкод-дефолта в `web/src/server/integrations/vk-gateway.ts`, см. открытый пункт в `docs/PENDING_FOLLOWUPS.md`), `SARAFAN_GATEWAY_TIMEOUT_MS` (умолч. 12000).
 - Контракт — sibling `setka/docs/GATEWAY.md` (ADR-0007). Read-only: `wall.get`/`groups.getById`/`users.get`/`resolveScreenName`. Квоты 30/мин, 5000/день на ключ (429+Retry-After). Зависимость зафиксирована письмом в brain.
 
 «Народная лента» (UGC, `/lenta`; degraded без кредов — загрузка отдаёт 503, сайт живёт):
@@ -209,9 +209,7 @@ Payload:
 
 Параметры подключения:
 
-- Хост: `831d0ce99bdf.vps.myjino.ru`
-- Порт: `22`
-- Пользователь: `valstan`
+- Хост, порт, имя пользователя — **не в репозитории** (recon-предохранитель, см. `AGENTS.md → Публичный репозиторий — recon-поверхность`). Живут в `~/.ssh/config` каждой dev-машины под алиасом `GONBA`; на новой машине берутся у владельца.
 - Ключ: ed25519 (`~/.ssh/id_ed25519_gonba_deploy`) — **изолированный per-project ключ**, не используется на других серверах. См. раздел «SSH deploy-key — ротация» ниже.
 - ОС сервера: Ubuntu Linux 24.04 (ядро 6.8.x)
 
@@ -219,15 +217,15 @@ Payload:
 
 ```
 Host GONBA
-  HostName 831d0ce99bdf.vps.myjino.ru
-  Port 22
-  User valstan
+  HostName <хост прода — у владельца, в репо не кладём>
+  Port <порт>
+  User <пользователь>
   IdentityFile ~/.ssh/id_ed25519_gonba_deploy
   IdentitiesOnly yes
   StrictHostKeyChecking accept-new
 ```
 
-После этого все примеры ниже работают как `ssh GONBA "..."`. Если алиас не настроен — используй полный адрес `valstan@831d0ce99bdf.vps.myjino.ru -p 22`.
+После этого все примеры ниже работают как `ssh GONBA "..."`. **Все инструкции в этом файле написаны через алиас намеренно** — так конкретный адрес не нужен ни одному примеру и не попадает в отслеживаемые файлы.
 
 **Для нейросетей-разработчиков**: ты можешь подключаться к серверу по SSH и **выполнять `sudo` без пароля** (NOPASSWD настроен). Это полный root-доступ — пользуйся аккуратно, как на любом продакшене. Возможности:
 
@@ -308,7 +306,7 @@ ssh GONBA "sudo systemctl start gonba-vk-sync.service && journalctl -u gonba-vk-
 
 ### CI / автоматический деплой (build в CI, standalone-артефакт — с 2026-06-11)
 
-С 2026-06-11 (mandate brain «Бокс 1», план — `docs/plans/build-to-ci.md`) **сборка идёт в GitHub Actions**, бокс — runtime-only. После merge в `main`:
+С 2026-06-11 (mandate brain про общий бокс, план — `docs/plans/build-to-ci.md`) **сборка идёт в GitHub Actions**, бокс — runtime-only. После merge в `main`:
 
 1. Workflow `CI` (`.github/workflows/ci.yml`) — **секрет-сканер**, typecheck, lint, test:int, build, E2E smoke.
 2. Если зелёный — триггерится `Deploy to production`:
@@ -383,9 +381,9 @@ gitleaks dir . --config .gitleaks.toml --no-banner --redact
 |---|---|
 | Файл (локально) | `~/.ssh/id_ed25519_gonba_deploy` |
 | GH Action secret | `SSH_PRIVATE_KEY` в репо `Valstan/Gonba` |
-| Авторизован на | `valstan@831d0ce99bdf.vps.myjino.ru:~/.ssh/authorized_keys` (только GONBA-сервер) |
+| Авторизован на | `~/.ssh/authorized_keys` прод-сервера GONBA (алиас `GONBA`), больше нигде |
 | **Создан** | **2026-08-10** (ротация; предыдущий — 2026-05-22) |
-| **Отпечаток** | `SHA256:OEoHgIjGQkMf6UAi9Y19R5ObxkTVlwchibNnuvhkSHc` (`gonba-deploy@PC40-20260810`) |
+| **Отпечаток** | `SHA256:OEoHgIjGQkMf6UAi9Y19R5ObxkTVlwchibNnuvhkSHc` — публичная часть, идентифицирует ключ однозначно; comment вида `gonba-deploy@<машина>-<дата>` в репо не выписываем |
 | **Период ротации** | **90 дней** |
 | **Следующая ротация не позднее** | **2026-11-08** |
 
@@ -393,15 +391,15 @@ gitleaks dir . --config .gitleaks.toml --no-banner --redact
 
 > Таблица выше — **основной** ключ (домашняя машина + GH Action secret `SSH_PRIVATE_KEY`), которым ходит CI-деплой. Создан 2026-05-22.
 
-**Доп. авторизованные ключи dev-машин** (отдельные keypair'ы с тем же именем файла, каждый — свой, в `authorized_keys` прода):
+**Вторая dev-машина владельца** авторизована собственным keypair'ом (тот же путь к файлу, но своя пара) — он **НЕ** в GH secret, только локальный SSH. Деплой из CI ходит исключительно основным ключом из таблицы выше.
 
-| Машина | comment в `.pub` | Авторизован | Примечание |
-|---|---|---|---|
-| Windows-dev (`HOME-PC`) | `gonba-deploy@HOME-PC-20260529` | подтверждено 2026-08-10 по `authorized_keys` прода | **НЕ** в GH secret (только локальный SSH). _Правка 2026-08-10:_ прошлая запись утверждала, что эта машина ходит через `~/.ssh/id_ed25519` — по факту в `authorized_keys` лежит отдельный `gonba-deploy@HOME-PC-*`. Заметка 2026-08-09 описывала **другую** машину (`PC40`), где alias `GONBA` использует `IdentityFile ~/.ssh/id_ed25519_gonba_deploy` + `IdentitiesOnly yes` — это и есть основной ключ из таблицы выше. |
+**Состав `authorized_keys` прода в репозиторий не выписываем** (recon-предохранитель, 2026-08-25): прежняя редакция перечисляла ключи поимённо, включая **чужие** CI-ключи соседей по общему боксу — то есть публиковала инфраструктуру других проектов в нашем публичном репо. Живой источник — сам файл на сервере:
 
-**Полный список ключей в `authorized_keys` прода** (сверено 2026-08-10, чтобы будущий security-аудит не принял чужие за компрометацию): `gonba-deploy@PC40-*` (основной, GH secret), `gonba-deploy@HOME-PC-*` (dev-машина B), `valstan@windows-qwen`, `karman-ci-deploy`, `karman-box1-valstan`, `malmyzh-ci-deploy`, `trener-deploy-ci` — последние четыре принадлежат соседям по «Боксу 1».
+```bash
+ssh GONBA "cut -d' ' -f3 ~/.ssh/authorized_keys"   # только comment'ы, без ключевого материала
+```
 
-Если при security-аудите в `authorized_keys` встретится `gonba-deploy@HOME-PC-*` — это легитимный dev-ключ, не компрометация (ср. cleanup dispatch #0007).
+**Что важно знать security-аудиту, не заглядывая в список:** сервер — общий бокс, и в `authorized_keys` штатно лежат ключи **соседних проектов** и **вторых dev-машин владельца**. Незнакомый comment — это не автоматически компрометация: сверяй с владельцем, а не поднимай тревогу по факту незнакомого имени. Обратная сторона того же правила: раз списка в репо больше нет, **сверку делаем по живому файлу**, а не по копии в доке, которая всё равно протухала бы.
 
 **Процедура ротации** (примерно 10 минут):
 

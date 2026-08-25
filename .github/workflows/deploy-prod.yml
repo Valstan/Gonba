@@ -3,7 +3,7 @@ name: Deploy to production
 permissions:
   contents: read
 
-# Сборка едет в CI (mandate brain 2026-06-11 «Бокс 1»): прод-бокс становится общим
+# Сборка едет в CI (mandate brain 2026-06-11 про общий бокс): прод-бокс становится общим
 # для нескольких проектов, on-box `next build` (6 ГБ heap + 8 ГБ swap) недопустим —
 # build-спайк бьёт соседей (G20/G24). На сервер по SSH кладём готовый
 # standalone-артефакт и рестартим systemd-сервис; бокс — runtime-only.

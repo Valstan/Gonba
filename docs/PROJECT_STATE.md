@@ -132,8 +132,8 @@ CLAUDE.md / GEMINI.md / QWEN.md — тонкие адаптеры к AGENTS.md
 
 ## Прод
 
-- VPS `831d0ce99bdf.vps.myjino.ru`, Ubuntu 24.04, доступ по SSH alias `GONBA` (ключ `id_ed25519`), `sudo` без пароля.
-- Сервис: `gonba.service` — **standalone-артефакт** (`node server.js` от `valstan`, `WorkingDirectory=/home/valstan/GONBA/releases/current`). С 2026-06-11 бокс — runtime-only: он же «Бокс 1» кластера (заезжают KARMAN, затем Sabantuy — mandate brain).
+- VPS, Ubuntu 24.04, доступ по SSH alias `GONBA`, `sudo` без пароля. Хост, порт и пользователь — в `~/.ssh/config` dev-машины, **не в репозитории** (`AGENTS.md → Публичный репозиторий — recon-поверхность`).
+- Сервис: `gonba.service` — **standalone-артефакт** (`node server.js`, `WorkingDirectory=<релиз>/current`). С 2026-06-11 бокс — runtime-only: он **общий с другими проектами портфеля**, поэтому build-спайки на нём недопустимы (отсюда переезд сборки в CI). Состав соседей — у brain, в наш репозиторий не выписываем.
 - Папка проекта: `/home/valstan/GONBA/` (git-репо остаётся для таймеров/скриптов/миграций), релизы в `/home/valstan/GONBA/releases/<sha>` (держим 3), активный — симлинк `releases/current`.
 - **Секреты/конфиг — `/etc/gonba/gonba.env`** (root:valstan, `0640`), **вне дерева репо** (ADR-0005 / pool #008). Читаются тремя юнитами через `EnvironmentFile=` и build'ом через `systemd-run -p EnvironmentFile=`. В репо — только `web/.env.example`. Изменение секрета на проде = правка этого файла (нужен root) + `systemctl restart gonba`.
 - **Vault bootstrap — `/etc/gonba/secrets-token.env`** (`0600`, отдельно от восстанавливаемого `gonba.env`). Файл опционален: без него recovery-клиент предупреждает и не мешает обычному старту.
