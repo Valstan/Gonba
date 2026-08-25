@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # safe-build.sh — аварийная on-box сборка GONBA web (hot-fix-fallback, ADR-0002 §8).
 #
-# ⚠️ С 2026-06-11 (mandate brain «Бокс 1», docs/plans/build-to-ci.md) штатная сборка
+# ⚠️ С 2026-06-11 (mandate brain про общий бокс, docs/plans/build-to-ci.md) штатная сборка
 # идёт в CI (deploy-prod.yml, standalone-артефакт → releases/current). Этот скрипт
 # собирает в web/.next, которую runtime БОЛЬШЕ НЕ СЕРВИТ. Используй только при
 # аварии (CI недоступен, прод лежит) и тогда верни старый юнит из бэкапа:

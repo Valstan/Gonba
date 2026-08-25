@@ -27,7 +27,7 @@ SELECT-запросы (read-only) можно выполнять без подт�
 
 3. Выполнение:
    ```bash
-   ssh -o ConnectTimeout=20 -i ~/.ssh/id_ed25519 valstan@831d0ce99bdf.vps.myjino.ru \
+   ssh -o ConnectTimeout=20 GONBA \
      'sudo -u postgres psql gonba -c "<SQL>"'
    ```
    Для многострочных — heredoc или `-f /tmp/script.sql` с предварительной заливкой через `scp`.
