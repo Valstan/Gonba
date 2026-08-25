@@ -21,7 +21,18 @@ type VkWallPost = {
   text: string
   owner_id: number
   from_id: number
+  /** 'post' | 'copy' | 'reply' | 'postpone' | 'suggest' | 'post_ads' по схеме VK. */
   post_type?: string
+  /**
+   * Пометка «рекламная запись», которую ставит САМО сообщество. По схеме VK это
+   * base_bool_int (0/1), но проверяем на истинность, а не `=== 1`: если шлюз
+   * когда-нибудь пойдёт на другой версии API и поле приедет boolean — фильтр
+   * обязан продолжить работать, а не молча пропустить рекламу.
+   */
+  marked_as_ads?: 0 | 1
+  /** Непустой массив = это репост чужой записи, а не собственный текст сообщества. */
+  copy_history?: unknown[]
+  is_deleted?: boolean
   attachments?: Array<{
     type: string
     photo?: {
@@ -128,15 +139,63 @@ export function matchesStableVkSlug(slug: string | null | undefined, slugStable:
   return slug === slugStable || slug.startsWith(`${slugStable}-`)
 }
 
+export type VkPostRejection = { id: number; reason: string }
+
+export type VkPostSelection = {
+  /** Первый годный пост, либо undefined. */
+  post?: VkWallPost
+  /**
+   * Посты, отклонённые ПО СОДЕРЖАНИЮ. Сюда НЕ попадают рутинные пропуски
+   * («уже импортирован», «пустой текст») — только то, о чём стоит сказать в
+   * журнале, иначе отфильтрованная реклама неотличима от тишины в сообществе.
+   */
+  rejected: VkPostRejection[]
+}
+
+/**
+ * Почему пост не годится для публикации на сайте. `null` = годится.
+ *
+ * Проверки идут от самых надёжных к менее надёжным:
+ * `marked_as_ads` и `copy_history` прямо описаны в схеме VK, а `post_type`
+ * сверяется только когда он реально пришёл — если шлюз ходит на версии API,
+ * где поля нет, строгое `post_type !== 'post'` отбросило бы вообще всё и
+ * остановило импорт молча, под видом «в сообществе тишина».
+ */
+export function vkPostRejectionReason(post: VkWallPost): string | null {
+  if (post.marked_as_ads) return 'реклама, помеченная сообществом'
+  if (Array.isArray(post.copy_history) && post.copy_history.length > 0) {
+    // Репост опаснее рекламы: в тело, заголовок и SEO-описание попадёт ТОЛЬКО
+    // текст комментария, а сама пересказанная запись и её фото потеряются.
+    // На публичном сайте это и бессмысленная новость, и присвоение чужого.
+    return 'репост чужой записи'
+  }
+  if (post.is_deleted === true) return 'запись удалена в VK'
+  if (post.post_type && post.post_type !== 'post') return `служебный тип записи (${post.post_type})`
+  return null
+}
+
 /**
  * Выбирает самый старый ещё не импортированный текстовый пост из окна wall.get.
  * VK возвращает стену от новых записей к старым; выбор первого элемента раньше
  * перескакивал через накопившийся хвост и мог навсегда оставить посты позади.
+ *
+ * Отклонённый пост НЕ двигает курсор — и это правильно: он останется в окне и
+ * будет отклоняться снова, пока не появится годный, после чего курсор
+ * перешагнёт обоих. Запереть источник это не может, потому что отсев идёт на
+ * выборе, а не после создания записи.
  */
-export function selectNextVkPost(posts: VkWallPost[], lastSyncedPostId: number): VkWallPost | undefined {
-  return posts
+export function selectNextVkPost(posts: VkWallPost[], lastSyncedPostId: number): VkPostSelection {
+  const candidates = posts
     .filter((post) => post.id > lastSyncedPostId && post.text?.trim().length > 0)
-    .sort((a, b) => a.id - b.id)[0]
+    .sort((a, b) => a.id - b.id)
+
+  const rejected: VkPostRejection[] = []
+  for (const post of candidates) {
+    const reason = vkPostRejectionReason(post)
+    if (!reason) return { post, rejected }
+    rejected.push({ id: post.id, reason })
+  }
+  return { rejected }
 }
 
 /** Все фото-вложения поста → массив URL самого крупного размера каждого фото. */
@@ -374,9 +433,21 @@ export async function syncVkSource(
 
     // Разбираем доступный хвост от старых записей к новым, не перескакивая очередь.
     const lastId = lastSyncedPostId || 0
-    const newPost = selectNextVkPost(posts, lastId)
+    const { post: newPost, rejected } = selectNextVkPost(posts, lastId)
+
+    // Не молчать про отсев: без этой строки первая же отфильтрованная реклама
+    // выглядит ровно как «в сообществе ничего нового», и мы никогда не узнаем,
+    // работает фильтр или просто тишина.
+    for (const skip of rejected) {
+      payload.logger.info(`[vk-auto-sync] источник ${sourceId}: пост ${skip.id} отклонён — ${skip.reason}`)
+    }
 
     if (!newPost) {
+      // Различаем «нечего брать» и «взять было что, но всё отсеяли»: иначе
+      // владелец не отличит тишину в сообществе от работы фильтра.
+      const detail = rejected.length
+        ? `Годных постов нет: отклонено ${rejected.length} (${rejected.map((r) => r.reason).join(', ')})`
+        : 'Все посты уже импортированы'
       await payload.update({
         collection: 'vk-auto-sync',
         id: sourceId,
@@ -384,10 +455,10 @@ export async function syncVkSource(
         data: {
           lastSyncStatus: 'no-new-posts',
           lastSyncAt: new Date().toISOString(),
-          syncLog: [logEntry('no-new-posts', 'Все посты уже импортированы'), ...(sourceDoc.syncLog || [])].slice(0, 50),
+          syncLog: [logEntry('no-new-posts', detail), ...(sourceDoc.syncLog || [])].slice(0, 50),
         },
       })
-      return { success: true, status: 'no-new-posts', message: 'Все посты уже импортированы' }
+      return { success: true, status: 'no-new-posts', message: detail }
     }
 
     // Находим проект
