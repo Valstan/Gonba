@@ -7,10 +7,11 @@
  * СВОИМ токеном со СВОЕГО IP, возвращая сырой VK-payload. Токен наружу не выдаётся.
  * Контракт: setka `docs/GATEWAY.md` (ADR-0007 — читаем sibling напрямую).
  *
- * Degraded-safe: без `SARAFAN_GATEWAY_KEY` — `isGatewayConfigured()` = false, и
- * vk-auto-sync идёт прежним путём (локальные токены). Ключ появился → чтение VK
- * автоматически переключается на шлюз. Ключ — секрет, только в env
- * (`/etc/gonba/gonba.env`), запрашивается у владельца SARAFAN.
+ * ⚠️ Запасного пути БОЛЬШЕ НЕТ. Раньше без ключа vk-auto-sync уходил на
+ * локальные `VK_TOKEN_*`; их удалили 2026-08-09, чтобы отзыв ключа шлюза
+ * действительно отзывал доступ GONBA к VK. Сегодня без `SARAFAN_GATEWAY_KEY`
+ * синхронизация громко переходит в error, а не «переключается обратно».
+ * Ключ — секрет, только в env (`/etc/gonba/gonba.env`), у владельца SARAFAN.
  *
  * ⚠️ v1 шлюза — READ-ONLY. Запись (wall.post/likes.add/…) шлюз отклоняет (400).
  * Гоньбе запись не нужна — только чтение стен/метаданных.
@@ -20,7 +21,7 @@ const GATEWAY_URL = (process.env.SARAFAN_GATEWAY_URL || 'https://3931b3fe50ab.vp
 const GATEWAY_KEY = process.env.SARAFAN_GATEWAY_KEY || ''
 const GATEWAY_TIMEOUT_MS = Number(process.env.SARAFAN_GATEWAY_TIMEOUT_MS) || 12000
 
-/** Задан ли ключ шлюза. Без него VK-чтение идёт прежним путём (локальные токены). */
+/** Задан ли ключ шлюза. Без него VK-чтение невозможно вовсе — см. шапку файла. */
 export function isGatewayConfigured(): boolean {
   return Boolean(GATEWAY_KEY)
 }
