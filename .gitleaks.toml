@@ -65,8 +65,6 @@ keywords = ["postgres://", "postgresql://"]
 description = "Пути, которые не сканируем"
 paths = [
   '''(^|\/)\.git\/''',
-  # локальные worktree-копии Claude Code (в git не попадают, дают дубли находок)
-  '''(^|\/)\.claude\/worktrees\/''',
   '''(^|\/)node_modules\/''',
   '''(^|\/)\.next\/''',
   '''(^|\/)package-lock\.json$''',

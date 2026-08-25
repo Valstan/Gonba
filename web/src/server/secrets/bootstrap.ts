@@ -1,5 +1,3 @@
-const DEFAULT_VAULT_URL = 'https://831d0ce99bdf.vps.myjino.ru/api/secrets'
-
 const REQUIRED = ['DATABASE_URL', 'PAYLOAD_SECRET'] as const
 
 // Allowlist: новый runtime-секрет в .env.example добавлять сюда осознанно.
@@ -11,7 +9,7 @@ export const ACCEPTED_SECRET_KEYS = [
   'PREVIEW_SECRET',
   'YANDEX_DISK_TOKEN',
   'SARAFAN_GATEWAY_KEY',
-  'OPENAI_API_KEY',
+  'DEEPSEEK_API_KEY',
   'S3_ACCESS_KEY_ID',
   'S3_SECRET_ACCESS_KEY',
   'IP_HASH_SALT',
@@ -21,7 +19,7 @@ export const ACCEPTED_SECRET_KEYS = [
 
 const ACCEPTED = new Set<string>(ACCEPTED_SECRET_KEYS)
 
-export type BootstrapReason = 'local-env-intact' | 'no-token' | 'recovered' | 'fetch-failed'
+export type BootstrapReason = 'local-env-intact' | 'no-token' | 'no-vault-url' | 'recovered' | 'fetch-failed'
 
 export async function bootstrapSecretsFromVault(
   env: Record<string, string | undefined> = process.env,
@@ -36,8 +34,18 @@ export async function bootstrapSecretsFromVault(
     return { recovered: 0, ignored: 0, reason: 'no-token' }
   }
 
+  // Адрес комнаты — только из env. Дефолта здесь НЕТ намеренно: захардкоженный
+  // адрес означал бы, что при незаданной переменной bootstrap-токен уедет на
+  // тот адрес, который был верен когда-то, — молча и, возможно, не туда.
+  // Лучше громкий отказ восстановления, чем тихая отправка секрета по памяти.
+  const vaultUrl = env.SECRETS_VAULT_URL?.trim()
+  if (!vaultUrl) {
+    console.warn('[secrets] локальная env-копия неполна, но SECRETS_VAULT_URL не задан — восстановление пропущено')
+    return { recovered: 0, ignored: 0, reason: 'no-vault-url' }
+  }
+
   try {
-    const response = await fetchImpl(env.SECRETS_VAULT_URL ?? DEFAULT_VAULT_URL, {
+    const response = await fetchImpl(vaultUrl, {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(5000),
     })

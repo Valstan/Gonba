@@ -87,6 +87,7 @@ CLAUDE.md / GEMINI.md / QWEN.md — тонкие адаптеры к AGENTS.md
 
 - Runtime source of truth остаётся `/etc/gonba/gonba.env`.
 - `web/src/instrumentation.ts` до старта Node runtime вызывает best-effort bootstrap: если `DATABASE_URL` и `PAYLOAD_SECRET` уже есть, сетевых вызовов нет.
+- Адрес комнаты берётся **только** из `SECRETS_VAULT_URL`; дефолта в коде нет намеренно (иначе bootstrap-токен ушёл бы на захардкоженный, возможно устаревший адрес молча).
 - При потере обязательных ключей клиент читает recovery-комнату по bootstrap-токену из отдельного `/etc/gonba/secrets-token.env`.
 - Allowlist содержит 12 ожидаемых runtime-секретов (включая `IP_HASH_SALT` — с 2026-08-25); локальные значения сильнее vault, чужие имена логируются без значений и игнорируются.
 - `SECRETS_TOKEN`/`SECRETS_VAULT_URL` принципиально не принимаются из самой комнаты.
@@ -122,7 +123,7 @@ CLAUDE.md / GEMINI.md / QWEN.md — тонкие адаптеры к AGENTS.md
   - API endpoint: `POST /api/vk-auto-sync/trigger`
   - Внешний планировщик: **systemd timer** `gonba-vk-sync.timer` (каждые 3 часа) — на проде
 - При создании источника: достаточно ввести URL — метаданные подтянутся автоматически. Токен можно отложить.
-- **Многопроектная маршрутизация:** `Posts.project` остаётся канонической привязкой, `relatedProjects` позволяет одной публикации показываться в нескольких лентах. VK-классификатор (`web/src/server/integrations/vk-classifier.ts`) использует OpenAI Responses API best-effort; при отсутствии ключа или ошибке сохраняется привязка источника. Результат пишется в `vkClassification`, секрет `OPENAI_API_KEY` входит в KARMAN allowlist.
+- **Многопроектная маршрутизация:** `Posts.project` остаётся канонической привязкой, `relatedProjects` позволяет одной публикации показываться в нескольких лентах. VK-классификатор (`web/src/server/integrations/vk-classifier.ts`) с 2026-08-25 ходит в **DeepSeek** (`/chat/completions`, JSON-режим, D-024) best-effort; при отсутствии ключа или ошибке сохраняется привязка источника. Результат пишется в `vkClassification`, секрет `DEEPSEEK_API_KEY` входит в KARMAN allowlist. **Ключа на проде нет** — за всю историю классификатор ни разу не отработал по-настоящему, все записи `vkClassification` это fallback.
 - Миграции `20260809_120000` (VK classification/relatedProjects) и `20260809_120001` (pg_trgm/GIN FTS) применены на production 2026-08-09; кодовый deploy ожидает штатного post-merge workflow.
 
 ## БД

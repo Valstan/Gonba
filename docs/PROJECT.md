@@ -111,8 +111,9 @@ Bootstrap-доступ к recovery vault хранится отдельно в `/
 - `NEXT_PUBLIC_SERVER_URL` — публичный base URL
 - `PAYLOAD_PUBLIC_SERVER_URL` — публичный base URL для Payload
 - `PORT` — порт Next.js (обычно 3000)
-- `OPENAI_API_KEY` — runtime-секрет для best-effort классификации VK-постов; на проде приходит из KARMAN Vault
-- `VK_CLASSIFIER_MODEL` — модель Responses API (по умолчанию `gpt-5-mini`)
+- `DEEPSEEK_API_KEY` — runtime-секрет для best-effort классификации VK-постов (D-024); на проде приходит из KARMAN Vault. **На 2026-08-25 не задан** — классификатор мягко деградирует в «привязка источника»
+- `DEEPSEEK_BASE_URL` — переопределение адреса API (умолч. `https://api.deepseek.com`); нужно только для прокси или мока
+- `VK_CLASSIFIER_MODEL` — модель chat/completions (по умолчанию `deepseek-v4-flash`; `deepseek-v4-pro` для более сложной маршрутизации)
 - `VK_CLASSIFIER_TIMEOUT_MS` — таймаут классификатора в миллисекундах (по умолчанию `10000`)
 
 Сырые VK-токены (`VK_TOKEN_*`) не поддерживаются: fallback удалён 2026-08-09,

@@ -17,9 +17,10 @@ describe('vault secrets bootstrap', () => {
   it('recovers allowlisted keys, preserves local values and rejects injected keys', async () => {
     const env: Record<string, string | undefined> = {
       SECRETS_TOKEN: 'bootstrap-token',
+      SECRETS_VAULT_URL: 'https://vault.test/api/secrets',
       CRON_SECRET: 'systemd-wins',
     }
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = vi.fn(async (_url: unknown, _init?: unknown) =>
       new Response(JSON.stringify({ secrets: {
         DATABASE_URL: 'vault-db',
         PAYLOAD_SECRET: 'vault-payload',
@@ -36,12 +37,35 @@ describe('vault secrets bootstrap', () => {
     expect(env.PAYLOAD_SECRET).toBe('vault-payload')
     expect(env.CRON_SECRET).toBe('systemd-wins')
     expect(env.NODE_OPTIONS).toBeUndefined()
-    expect(env.SECRETS_VAULT_URL).toBeUndefined()
+    // Комната не может переписать адрес, по которому её саму спрашивают:
+    // локальное значение уцелело, подсунутое — отброшено.
+    expect(env.SECRETS_VAULT_URL).toBe('https://vault.test/api/secrets')
+    expect(fetchImpl.mock.calls[0][0]).toBe('https://vault.test/api/secrets')
+  })
+
+  it('skips recovery loudly when the vault address is not configured', async () => {
+    // Регресс: раньше здесь стоял захардкоженный адрес комнаты, и при незаданной
+    // переменной bootstrap-токен молча уехал бы туда — возможно, уже не туда.
+    const fetchImpl = vi.fn()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const result = await bootstrapSecretsFromVault(
+      { SECRETS_TOKEN: 'bootstrap-token' },
+      fetchImpl as unknown as typeof fetch,
+    )
+
+    expect(result).toEqual({ recovered: 0, ignored: 0, reason: 'no-vault-url' })
+    expect(fetchImpl).not.toHaveBeenCalled()
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
   })
 
   it('keeps bootstrap configuration outside the allowlist', () => {
     expect(ACCEPTED_SECRET_KEYS).toHaveLength(12)
-    expect(ACCEPTED_SECRET_KEYS).toContain('OPENAI_API_KEY')
+    expect(ACCEPTED_SECRET_KEYS).toContain('DEEPSEEK_API_KEY')
+    // OPENAI_API_KEY выведен из обихода вместе с переездом классификатора (D-024):
+    // allowlist обязан описывать секреты, которые мы РЕАЛЬНО используем.
+    expect(ACCEPTED_SECRET_KEYS).not.toContain('OPENAI_API_KEY')
     // Соль хеша IP — runtime-секрет: без неё после recovery хеширование ПДн
     // упало бы на PAYLOAD_SECRET (см. getRequestIpHash), а не на публичный литерал.
     expect(ACCEPTED_SECRET_KEYS).toContain('IP_HASH_SALT')

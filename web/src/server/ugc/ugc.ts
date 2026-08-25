@@ -40,14 +40,44 @@ export function clientIp(headers: Headers): string {
   return headers.get('x-real-ip')?.trim() || 'unknown'
 }
 
-// Соль для хеша IP: отдельный UGC_IP_SALT, иначе PAYLOAD_SECRET (всегда задан).
-// Хеш нужен для дедупа лайков/жалоб и трассировки абьюза — храним необратимо (sha256,
-// усечён до 128 бит), сам IP в БД не пишем (минимизация ПДн, 152-ФЗ).
-const IP_SALT = process.env.UGC_IP_SALT || process.env.PAYLOAD_SECRET || 'gonba-ugc'
+/**
+ * Соль для необратимых хешей UGC.
+ *
+ * Порядок: свой `<name>` → `PAYLOAD_SECRET` (обязателен для запуска приложения,
+ * с одноразовым предупреждением) → ошибка. Публичного литерала-заглушки здесь
+ * НЕТ намеренно: раньше стояли `'gonba-ugc'` / `'gonba-ugc-owner'`, и хотя они
+ * не срабатывали (PAYLOAD_SECRET задан всегда), это тот же класс, что подорвал
+ * `getRequestIpHash` 2026-08-25 — известная соль делает хеш обратимым перебором,
+ * не подавая никакого сигнала (#179). Пространство входов здесь перечислимо
+ * (IPv4), значит известная соль отменяла бы меру целиком, а не ослабляла.
+ *
+ * Читается на каждый вызов, а не в `const` на импорте: vault-recovery наполняет
+ * `process.env` в `instrumentation.ts` уже после того, как модули были загружены.
+ */
+const warnedSalts = new Set<string>()
+
+function resolveSalt(name: 'UGC_IP_SALT' | 'UGC_OWNER_SALT'): string {
+  const explicit = process.env[name]?.trim()
+  if (explicit) return explicit
+
+  const payloadSecret = process.env.PAYLOAD_SECRET
+  if (payloadSecret) {
+    if (!warnedSalts.has(name)) {
+      warnedSalts.add(name)
+      console.warn(`[ugc] ${name} не задан — хеширую на PAYLOAD_SECRET. Работает, но соль общая с другими механизмами; задай отдельную.`)
+    }
+    return payloadSecret
+  }
+
+  throw new Error(`[ugc] нет ни ${name}, ни PAYLOAD_SECRET — хешировать нечем; публичной соли по умолчанию здесь нет намеренно.`)
+}
+
+// Хеш IP нужен для дедупа лайков/жалоб и трассировки абьюза — храним необратимо
+// (sha256, усечён до 128 бит), сам IP в БД не пишем (минимизация ПДн, 152-ФЗ).
 
 /** Необратимый хеш IP (для дедупа реакций/жалоб, не PII). */
 export function hashIp(ip: string): string {
-  return createHash('sha256').update(`${IP_SALT}:${ip}`).digest('hex').slice(0, 32)
+  return createHash('sha256').update(`${resolveSalt('UGC_IP_SALT')}:${ip}`).digest('hex').slice(0, 32)
 }
 
 // --- Владение контентом анонимом («удалить/править своё») ---
@@ -55,14 +85,13 @@ export function hashIp(ip: string): string {
 // при создании. Сервер хранит лишь необратимый ownerHash (как ipHash) → по нему хук
 // стампит запись, а эндпоинты /api/ugc/* подтверждают «это моё» (хеш токена совпал).
 // Не PII: сам токен в БД не пишем, только хеш.
-const OWNER_SALT = process.env.UGC_OWNER_SALT || process.env.PAYLOAD_SECRET || 'gonba-ugc-owner'
 
 /** Заголовок с браузерным токеном владельца (строчными — Headers.get регистр-независим). */
 export const OWNER_TOKEN_HEADER = 'x-ugc-owner'
 
 /** Необратимый хеш токена владельца (привязка контента к браузеру/аккаунту, не PII). */
 export function hashOwner(token: string): string {
-  return createHash('sha256').update(`owner:${OWNER_SALT}:${token}`).digest('hex').slice(0, 32)
+  return createHash('sha256').update(`owner:${resolveSalt('UGC_OWNER_SALT')}:${token}`).digest('hex').slice(0, 32)
 }
 
 /** Токен владельца из заголовка (минимальная валидация: UUID-подобная длина). */
