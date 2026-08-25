@@ -24,6 +24,8 @@ afterEach(() => {
   delete process.env.DEEPSEEK_API_KEY
   delete process.env.DEEPSEEK_BASE_URL
   delete process.env.VK_CLASSIFIER_MODEL
+  delete process.env.VK_CLASSIFIER_THINKING
+  delete process.env.VK_CLASSIFIER_TIMEOUT_MS
 })
 
 describe('classifyVkPost', () => {
@@ -92,10 +94,82 @@ describe('classifyVkPost', () => {
     // режим JSON-вывода не включается.
     expect(sent.messages[0].content.toLowerCase()).toContain('json')
     expect(sent.messages[0].content).toContain('projectSlugs')
-    // `thinking` включён по умолчанию и съел бы таймаут и лимит токенов.
-    expect(sent.thinking).toEqual({ type: 'disabled' })
-    expect(sent.max_tokens).toBeGreaterThan(400)
+    expect(sent.max_tokens).toBeGreaterThanOrEqual(2000)
     expect(sent.model).toBe('deepseek-v4-flash')
+  })
+
+  /**
+   * Модель генерирует JSON по порядку ключей: назвав projectSlugs первыми, она
+   * фиксирует ответ ДО того, как напишет обоснование. Обоснование в таком
+   * порядке ни на что не влияет — это «раздумье задним числом».
+   */
+  it('в примере формата rationale стоит раньше списка проектов', () => {
+    const example = [
+      JSON.stringify({ rationale: 'x', projectSlugs: ['a'], categorySlugs: [] }),
+    ][0]
+    expect(example.indexOf('rationale')).toBeLessThan(example.indexOf('projectSlugs'))
+  })
+
+  it('по умолчанию раздумья ВКЛЮЧЕНЫ с явным уровнем усилия', async () => {
+    process.env.DEEPSEEK_API_KEY = 'test-key'
+    const fetchMock = vi.fn().mockResolvedValue(chatCompletion(JSON.stringify({ rationale: 'ok', projectSlugs: ['gonba'], categorySlugs: [] })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await classifyVkPost(args)
+    const sent = JSON.parse(fetchMock.mock.calls[0][1].body)
+
+    // Умолчание вендора при enabled — самое тяжёлое усилие, поэтому уровень
+    // задаём явно, а не полагаемся на «просто включить».
+    expect(sent.thinking).toEqual({ type: 'enabled', reasoning_effort: 'low' })
+    // В режиме раздумий temperature игнорируется — мёртвый параметр не шлём.
+    expect(sent).not.toHaveProperty('temperature')
+  })
+
+  it('VK_CLASSIFIER_THINKING=off выключает раздумья и возвращает детерминизм', async () => {
+    process.env.DEEPSEEK_API_KEY = 'test-key'
+    process.env.VK_CLASSIFIER_THINKING = 'off'
+    const fetchMock = vi.fn().mockResolvedValue(chatCompletion(JSON.stringify({ rationale: 'ok', projectSlugs: ['gonba'], categorySlugs: [] })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await classifyVkPost(args)
+    const sent = JSON.parse(fetchMock.mock.calls[0][1].body)
+
+    expect(sent.thinking).toEqual({ type: 'disabled' })
+    expect(sent.temperature).toBe(0)
+    expect(sent.thinking).not.toHaveProperty('reasoning_effort')
+  })
+
+  it('мусор в VK_CLASSIFIER_THINKING откатывается к умолчанию, а не ломает запрос', async () => {
+    process.env.DEEPSEEK_API_KEY = 'test-key'
+    process.env.VK_CLASSIFIER_THINKING = 'СУПЕР-МАКС'
+    const fetchMock = vi.fn().mockResolvedValue(chatCompletion(JSON.stringify({ rationale: 'ok', projectSlugs: ['gonba'], categorySlugs: [] })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await classifyVkPost(args)
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).thinking).toEqual({ type: 'enabled', reasoning_effort: 'low' })
+  })
+
+  it('таймаут отличим от прочих сбоев по тексту причины', async () => {
+    process.env.DEEPSEEK_API_KEY = 'test-key'
+    process.env.VK_CLASSIFIER_TIMEOUT_MS = '50'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: unknown, init?: { signal?: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            const err = new Error('The operation was aborted')
+            err.name = 'AbortError'
+            reject(err)
+          })
+        }),
+      ),
+    )
+
+    const result = await classifyVkPost(args)
+
+    expect(result.usedFallback).toBe(true)
+    expect(result.rationale).toContain('не уложился в 50 мс')
+    expect(result.rationale).toContain('раздумий')
   })
 
   it('honours the base URL and model overrides', async () => {
