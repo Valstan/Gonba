@@ -2,6 +2,10 @@ name: Deploy to production
 
 permissions:
   contents: read
+  # Паспортный вход в комнату секретов КАРМАНа (ADR-0012, волна 2): job запрашивает
+  # у GitHub подписанное удостоверение этого репозитория. Общей строки-пароля при
+  # этом не существует нигде — ни в секретах, ни на боксе.
+  id-token: write
 
 # Сборка едет в CI (mandate brain 2026-06-11 про общий бокс): прод-бокс становится общим
 # для нескольких проектов, on-box `next build` (6 ГБ heap + 8 ГБ swap) недопустим —
@@ -210,6 +214,21 @@ jobs:
           else
             echo "lockfile не менялся — install на боксе пропущен."
           fi
+
+      - name: Доставить секреты из комнаты КАРМАНа в /etc/gonba/gonba.env
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_only) }}
+        run: |
+          set -euo pipefail
+          # Удостоверение живёт минуты и одноразово (КАРМАН отбивает повтор jti).
+          ASSERTION="$(curl -sS --max-time 15             -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN"             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=karman-vault" | jq -r '.value // empty')"
+          if [ -z "$ASSERTION" ]; then
+            echo "::warning::не удалось получить OIDC-удостоверение — доставка секретов пропущена"
+            exit 0
+          fi
+          # Через stdin, а не аргументом: аргументы видны в `ps` на общем боксе.
+          # Обмен и чтение комнаты идут НА БОКСЕ — КАРМАН слушает loopback, и
+          # значения секретов в раннер не попадают вовсе.
+          printf '%s' "$ASSERTION"             | ssh GONBA 'sudo /home/valstan/GONBA/scripts/pull-secrets-from-vault.sh'
 
       - name: Ship artifact + install unit + restart
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_only) }}
