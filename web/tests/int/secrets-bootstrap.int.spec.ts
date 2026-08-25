@@ -40,8 +40,11 @@ describe('vault secrets bootstrap', () => {
   })
 
   it('keeps bootstrap configuration outside the allowlist', () => {
-    expect(ACCEPTED_SECRET_KEYS).toHaveLength(11)
+    expect(ACCEPTED_SECRET_KEYS).toHaveLength(12)
     expect(ACCEPTED_SECRET_KEYS).toContain('OPENAI_API_KEY')
+    // Соль хеша IP — runtime-секрет: без неё после recovery хеширование ПДн
+    // упало бы на PAYLOAD_SECRET (см. getRequestIpHash), а не на публичный литерал.
+    expect(ACCEPTED_SECRET_KEYS).toContain('IP_HASH_SALT')
     expect(ACCEPTED_SECRET_KEYS).not.toContain('SECRETS_TOKEN')
     expect(ACCEPTED_SECRET_KEYS).not.toContain('SECRETS_VAULT_URL')
   })

@@ -14,6 +14,7 @@ export const ACCEPTED_SECRET_KEYS = [
   'OPENAI_API_KEY',
   'S3_ACCESS_KEY_ID',
   'S3_SECRET_ACCESS_KEY',
+  'IP_HASH_SALT',
   'UGC_IP_SALT',
   'UGC_OWNER_SALT',
 ] as const
