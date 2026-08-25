@@ -41,6 +41,36 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      # Сканер секретов — шаг ВНУТРИ required-джобы `web-quality`, поэтому
+      # branch protection применяет его без отдельной настройки required checks.
+      # Стоит до `npm ci`: чистый checkout = ровно отслеживаемые файлы (ни
+      # node_modules, ни .next, ни .env), и красный гейт не ждёт полной сборки.
+      # Правила и обоснование формы — .gitleaks.toml.
+      - name: Secret scan (gitleaks)
+        working-directory: ${{ github.workspace }}
+        env:
+          GITLEAKS_VERSION: 8.28.0
+        run: |
+          set -euo pipefail
+          curl -sSfL -o /tmp/gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          /tmp/gitleaks version
+          /tmp/gitleaks dir . \
+            --config .gitleaks.toml \
+            --no-banner \
+            --redact \
+            --report-format sarif \
+            --report-path /tmp/gitleaks.sarif
+
+      - name: Upload gitleaks report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-sarif
+          path: /tmp/gitleaks.sarif
+          if-no-files-found: ignore
+
       - name: Setup Node
         uses: actions/setup-node@v5
         with:

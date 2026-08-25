@@ -310,7 +310,7 @@ ssh GONBA "sudo systemctl start gonba-vk-sync.service && journalctl -u gonba-vk-
 
 С 2026-06-11 (mandate brain «Бокс 1», план — `docs/plans/build-to-ci.md`) **сборка идёт в GitHub Actions**, бокс — runtime-only. После merge в `main`:
 
-1. Workflow `CI` (`.github/workflows/ci.yml`) — typecheck, lint, test:int, build, E2E smoke.
+1. Workflow `CI` (`.github/workflows/ci.yml`) — **секрет-сканер**, typecheck, lint, test:int, build, E2E smoke.
 2. Если зелёный — триггерится `Deploy to production`:
    - safety net: если в коммите новые `web/src/migrations/*.ts` — фейлит ДО билда (миграции применяются вручную через `/sql` ДО merge);
    - `npm ci` в раннере (Node 20 = мажор бокса; канонический lockfile — package-lock.json, как в ci.yml) → **SSH-туннель к прод-Postgres** (`-L 15432:127.0.0.1:5432`) → `STANDALONE_BUILD=1 npm run build:raw` — prerender читает живую прод-БД, как раньше on-box (ноль stale-окна, #011);
@@ -338,6 +338,44 @@ gh secret set GONBA_BUILD_ENV --repo Valstan/Gonba < <(составить-фай
 - Используй после ручного фикса failure: пофиксил → push в main → CI прошёл → второй раз CI не нужен, дёрни deploy руками.
 
 **Slash-команда `/reliz`** остаётся актуальной для ручного контроля (миграции, сложные релизы), но build-шаг теперь = «дождаться CI-деплоя», не safe-build. **`scripts/safe-build.sh` — только hot-fix-fallback** (ADR-0002 §8): он собирает в `web/.next`, которую runtime больше НЕ сервит — после аварийного on-box build надо ещё вернуть старый юнит (`WorkingDirectory=web`, `ExecStart=npm run start`) из бэкапа `~/gonba.service.bak-*`.
+
+### Секрет-сканер в PR-гейте (gitleaks, с 2026-08-25)
+
+Мандат brain 17.08 / 23.08 / 25.08. Репозиторий публичный с 2026-08-17, а живой VK-токен пролежал в отслеживаемом `seed-vk-source.sql` с 2026-04-14 — нашли его чужие глаза, а не наш гейт (G260).
+
+| Что | Где |
+|---|---|
+| Правила | `.gitleaks.toml` в корне (195 дефолтных + свои: `vk-access-token`, `yandex-oauth-token`, `postgres-uri-inline-password`) |
+| Запуск | шаг `Secret scan (gitleaks)` **внутри** required-джобы `web-quality` — branch protection применяет его без отдельной настройки required checks |
+| Режим | `gitleaks dir .` (рабочее дерево), **не** `git`-режим: историю не переписываем, а скан истории делал бы гейт вечно красным |
+| Место в пайплайне | сразу после checkout, до `npm ci` — чистый checkout = ровно отслеживаемые файлы, красный гейт не ждёт полной сборки |
+| Отчёт | SARIF-артефакт `gitleaks-sarif` (заливается и при падении) |
+
+**Два правила, без которых сканер не закрывает наш класс:**
+
+- **По форме, а не по значению** (#191). Репозиторий публичный — deny-list с настоящим токеном опубликовал бы ровно то, что охраняет. В `.gitleaks.toml` не должно быть реальных секретов ни целиком, ни фрагментом, ни в allowlist.
+- **Без ведущего `\b`** (G262). Токен внутри URL (`...?access_token=vk1.a....`) или приклеенный к соседнему символу обязан ловиться так же, как отдельно стоящий.
+
+**Приёмка — подсадным того класса, который реально течёт** (#170); дефолтные 195 правил VK-токен не видят вовсе, поэтому «поставил gitleaks» без своего правила ничего бы не закрыл. Прогон 2026-08-25 (значения синтетические, генерились на месте):
+
+| Случай | Ожидание | Факт |
+|---|---|---|
+| `vk1.a.` bare, как в seed-файле | 🔴 | пойман |
+| `vk1.a.` внутри URL (`?access_token=`) | 🔴 | пойман |
+| `vk1.a.` приклеен к слову (границы нет) | 🔴 | пойман |
+| `y0__…` (Yandex OAuth) | 🔴 | пойман |
+| Postgres URI с боевым паролем | 🔴 | пойман |
+| `postgres:postgres@`, `your_password`, `generate_a_random_secret_here` | 🟢 | 0 находок |
+| Отслеживаемое дерево на `HEAD` до правки | 🔴 | 1 находка — тот самый токен |
+| Отслеживаемое дерево после правки | 🟢 | 0 находок |
+
+Локальный прогон (та же версия, что в CI):
+
+```bash
+gitleaks dir . --config .gitleaks.toml --no-banner --redact
+```
+
+На dev-машине он дополнительно подсветит `web/.env` — это ожидаемо (файл gitignored и в репо попасть не может); в CI на чистом checkout его нет.
 
 ### SSH deploy-key — ротация
 

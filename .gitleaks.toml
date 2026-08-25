@@ -1,0 +1,75 @@
+# Gitleaks config — секрет-сканер обязательного PR-гейта GONBA.
+#
+# Мандат brain 2026-08-17 / 2026-08-23 / 2026-08-25. Контекст: репозиторий
+# публичный с 2026-08-17, а живой VK-токен пролежал в отслеживаемом
+# `seed-vk-source.sql` с 2026-04-14 и нашли его чужие глаза, а не наш гейт
+# (G260). Гейт вызывается шагом внутри required-джобы `web-quality`
+# (`.github/workflows/ci.yml`) — чтобы branch protection применяла его без
+# отдельной настройки на стороне brain.
+#
+# Правила пишутся ПО ФОРМЕ, а не по значению (#191): наш репозиторий публичный,
+# поэтому deny-list с настоящим токеном опубликовал бы ровно то, что охраняет.
+# Ни одного реального секрета в этом файле быть не должно — ни целиком, ни
+# фрагментом, ни в allowlist.
+#
+# Ведущий `\b` в правилах намеренно НЕ используется: токен внутри URL
+# (`...?access_token=vk1.a....`) или приклеенный к соседнему символу гейт
+# обязан ловить так же, как отдельно стоящий (G262).
+
+title = "GONBA secret scanner"
+
+[extend]
+# 195 дефолтных правил gitleaks (AWS, GitHub, Slack, OpenAI, private keys, ...)
+# остаются включёнными. Наши классы они не покрывают — правила ниже добавляют их.
+useDefault = true
+
+# --- VK API access token -----------------------------------------------------
+# Форма: префикс `vk1.a.` + base64url-хвост (у нас реально встречался хвост в
+# 214 символов). Дефолтные правила gitleaks этот класс не видят вовсе (#170) —
+# именно поэтому «поставил gitleaks» без своего правила ничего бы не закрыл.
+[[rules]]
+id = "vk-access-token"
+description = "VK API access token (форма vk1.a.<base64url>)"
+regex = '''vk1\.a\.[A-Za-z0-9_\-]{40,}'''
+keywords = ["vk1.a."]
+
+# --- Yandex OAuth token ------------------------------------------------------
+# Форма: префикс `y0_` (в т.ч. `y0__`) + base64url-хвост. Это YANDEX_DISK_TOKEN —
+# ключ к единственному долгосрочному хранилищу медиа проекта (ADR-0001).
+[[rules]]
+id = "yandex-oauth-token"
+description = "Yandex OAuth token (форма y0_<base64url>)"
+regex = '''y0_[A-Za-z0-9_\-]{30,}'''
+keywords = ["y0_"]
+
+# --- Postgres connection URI с инлайн-паролем --------------------------------
+# Прод-DATABASE_URL живёт только в /etc/gonba/gonba.env (ADR-0005) и в репо
+# попасть не должен. Плейсхолдеры и локальный dev-дефолт `postgres:postgres`
+# отсекаются allowlist'ом ниже — по форме пароля, без реальных значений.
+[[rules]]
+id = "postgres-uri-inline-password"
+description = "PostgreSQL URI с паролем в строке подключения"
+regex = '''postgres(?:ql)?:\/\/[A-Za-z0-9._%\-]+:[^\s:@\/'"]{3,}@'''
+keywords = ["postgres://", "postgresql://"]
+
+  [rules.allowlist]
+  regexTarget = "match"
+  regexes = [
+    # общеизвестный dev-дефолт (docker-compose, локальный Postgres, CI-сервис)
+    '''postgres(?:ql)?:\/\/postgres:postgres@''',
+    # явные плейсхолдеры в примерах и документации
+    '''postgres(?:ql)?:\/\/[A-Za-z0-9._%\-]+:(?i:(?:your|my|the)?[_-]?(?:password|passwd|pass|secret|changeme|placeholder|xxx+|\.\.\.|<[^>]+>))@''',
+  ]
+
+[allowlist]
+description = "Пути, которые не сканируем"
+paths = [
+  '''(^|\/)\.git\/''',
+  # локальные worktree-копии Claude Code (в git не попадают, дают дубли находок)
+  '''(^|\/)\.claude\/worktrees\/''',
+  '''(^|\/)node_modules\/''',
+  '''(^|\/)\.next\/''',
+  '''(^|\/)package-lock\.json$''',
+  '''(^|\/)test-results\/''',
+  '''(^|\/)playwright-report\/''',
+]
