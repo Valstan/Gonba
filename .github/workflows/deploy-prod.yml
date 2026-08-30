@@ -306,11 +306,30 @@ jobs:
       - name: On failure — дамп журналов прода
         if: failure()
         run: |
-          echo "=== journalctl -u gonba (последние 100 строк) ==="
-          ssh GONBA "sudo journalctl -u gonba -n 100 --no-pager" 2>&1 || true
+          # ⚠️ Лог прогона ПУБЛИЧЕН (репо public с 17.08). Дамп журнала — вторая
+          # recon-поверхность: `journalctl` префиксует КАЖДУЮ строку хостнеймом,
+          # `systemctl status` печатает путь юнита в `Loaded:`. Замер 30.08 по
+          # настоящему логу упавшего прогона 32898071103: 112 вхождений хостнейма.
+          # Поэтому весь вывод проходит через маскировку, а её значения
+          # ВЫЧИСЛЯЮТСЯ НА БОКСЕ (`hostname`, `$HOME`) и в этот файл не попадают —
+          # иначе фильтр сам опубликовал бы то, что скрывает. См. письмо brain
+          # 2026-08-29-vars-print-in-public-logs и docs/PENDING_FOLLOWUPS.md.
+          # Строки ниже в ОДИНАРНЫХ кавычках: локальный шелл их не трогает,
+          # `$(hostname -f)` и `$HOME` раскрывает удалённый шелл на боксе.
+          # `-f` идёт ПЕРЕД `-s`: короткое имя — префикс FQDN, и обратный порядок
+          # оставил бы в логе хвост `.vps.<хостер>.ru` (поймано приёмкой 30.08).
+          #
+          # ⚠️ ЧЕСТНАЯ ГРАНИЦА: маскировка чистит только stdout УДАЛЁННОЙ команды.
+          # Сообщения самого ssh-клиента («connect to host … timed out») печатает
+          # раннер, они идут мимо sed — а появляются они ровно тогда, когда этот
+          # шаг и срабатывает. Полностью закрывает только перевод хоста в GitHub
+          # secret: раннер маскирует значение секрета в ЛЮБОЙ строке лога.
+          # См. docs/PENDING_FOLLOWUPS.md → «Хостнеймы остались рабочими дефолтами».
+          echo "=== journalctl -u gonba (последние 100 строк, без префикса хоста) ==="
+          ssh GONBA 'sudo journalctl -u gonba -n 100 --no-pager -o cat | sed -e "s/$(hostname -f)/<host>/g" -e "s/$(hostname -s)/<host>/g" -e "s#$HOME#<home>#g"' 2>&1 || true
           echo ""
-          echo "=== systemctl status ==="
-          ssh GONBA "sudo systemctl status gonba --no-pager -l" 2>&1 || true
+          echo "=== состояние юнита (без Loaded: — он печатает путь юнита) ==="
+          ssh GONBA 'systemctl is-active gonba; systemctl show gonba -p ActiveState -p SubState -p Result -p ExecMainStatus -p NRestarts' 2>&1 || true
           echo ""
           echo "=== releases на боксе ==="
-          ssh GONBA "ls -la /home/valstan/GONBA/releases/ 2>/dev/null" 2>&1 || true
+          ssh GONBA 'ls -la "$HOME"/GONBA/releases/ 2>/dev/null | sed -e "s#$HOME#<home>#g"' 2>&1 || true
