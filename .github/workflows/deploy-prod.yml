@@ -88,22 +88,35 @@ jobs:
       - name: Setup SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Адрес и пользователь бокса — секретами, а не литералами. Два мотива:
+          # (1) репо публичный с 17.08, литерал в файле = recon-поверхность;
+          # (2) раннер МАСКИРУЕТ значение секрета в любой строке лога прогона —
+          #     включая сообщения самого ssh-клиента, которые фильтр дампа
+          #     перехватить не может (замер 30.08: 112 вхождений хостнейма).
+          SSH_HOST: ${{ secrets.GONBA_SSH_HOST }}
+          SSH_USER: ${{ secrets.GONBA_SSH_USER }}
         run: |
           set -e
           if [ -z "${SSH_PRIVATE_KEY}" ]; then
             echo "::error::Secret SSH_PRIVATE_KEY не задан. См. docs/PROJECT.md → «Деплой / CI»."
             exit 1
           fi
+          if [ -z "${SSH_HOST}" ] || [ -z "${SSH_USER}" ]; then
+            echo "::error::Secrets GONBA_SSH_HOST / GONBA_SSH_USER не заданы. См. docs/PROJECT.md → «Деплой / CI»."
+            exit 1
+          fi
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H 831d0ce99bdf.vps.myjino.ru >> ~/.ssh/known_hosts 2>/dev/null
-          cat > ~/.ssh/config <<'EOF'
+          ssh-keyscan -H "${SSH_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
+          # Heredoc БЕЗ кавычек вокруг EOF — иначе ${SSH_HOST}/${SSH_USER}
+          # попадут в конфиг буквально. Других `$` в блоке нет.
+          cat > ~/.ssh/config <<EOF
           Host GONBA
-            HostName 831d0ce99bdf.vps.myjino.ru
+            HostName ${SSH_HOST}
             Port 22
-            User valstan
+            User ${SSH_USER}
             IdentityFile ~/.ssh/id_ed25519
             IdentitiesOnly yes
             StrictHostKeyChecking yes
