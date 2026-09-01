@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 
 import type { Payload } from 'payload'
-import type { Post } from '@/payload-types'
+import type { Post, VkAutoSync } from '@/payload-types'
 
 import { parseVkCommunityIdentifier } from './vk-auto-sync-resolve'
 import { classifyVkPost } from './vk-classifier'
@@ -141,6 +141,67 @@ export function matchesStableVkSlug(slug: string | null | undefined, slugStable:
 
 export type VkPostRejection = { id: number; reason: string }
 
+/**
+ * Сколько раз подряд пробуем импортировать один и тот же пост, прежде чем
+ * перешагнуть его.
+ *
+ * Почему не 1 (двигать курсор на первой же ошибке): разовый сетевой сбой или
+ * блип БД молча съел бы годный пост — на публичном сайте его бы просто не было,
+ * и никто бы не узнал. Почему не «вечно»: см. `poisonedVkPostIds` — вечная
+ * попытка запирает не пост, а весь источник.
+ *
+ * Три — это примерно сутки при типичном интервале синхронизации в 3 ч с учётом
+ * гарда интервала, съедающего каждый второй прогон. Достаточно, чтобы пережить
+ * транзиентный сбой, и достаточно мало, чтобы очередь не стояла неделю.
+ */
+export const VK_MAX_IMPORT_ATTEMPTS = 3
+
+/** Причина пропуска, которую видно в журнале источника и в админке. */
+export const VK_POISONED_POST_REASON = 'исчерпан лимит попыток импорта'
+
+/** Запись журнала синхронизации в том минимуме, который нужен подсчёту попыток. */
+type VkSyncLogEntry = {
+  status?: string | null
+  postId?: number | null
+}
+
+/**
+ * Посты, которые пора перестать пробовать.
+ *
+ * **Мина, которую это закрывает.** `lastSyncedPostId` двигается только на путях
+ * «пост создан» и «пост уже был». Любой бросок между выбором поста и созданием
+ * записи (ValidationError на `payload.create`, отсутствующий проект источника,
+ * сбой БД) уходит в catch, который пишет `lastError` и НЕ трогает курсор. А
+ * выбор всегда берёт самый старый неимпортированный пост — то есть следующий
+ * прогон возьмёт ТОТ ЖЕ пост, снова сходит в платный классификатор и снова
+ * упадёт. Заперт при этом не один пост, а **весь источник**: всё, что новее,
+ * стоит за ним в очереди навсегда.
+ *
+ * Счёт ведётся по журналу источника, а не по отдельному полю: `syncLog` уже
+ * хранит `status` и `postId`, и это избавляет от миграции схемы на проде, где
+ * `push`-миграций нет. Побочный эффект осознанный — журнал обрезается 50-ю
+ * записями, поэтому память о падениях не вечная: вытеснится — попытки начнутся
+ * заново. Для «ядовит навсегда» этого мало, для «не заперт навсегда» достаточно.
+ */
+export function poisonedVkPostIds(
+  syncLog: VkSyncLogEntry[] | null | undefined,
+  maxAttempts: number = VK_MAX_IMPORT_ATTEMPTS,
+): Set<number> {
+  const failures = new Map<number, number>()
+  for (const entry of syncLog ?? []) {
+    if (entry?.status !== 'error') continue
+    const postId = entry.postId
+    if (typeof postId !== 'number') continue
+    failures.set(postId, (failures.get(postId) ?? 0) + 1)
+  }
+
+  const poisoned = new Set<number>()
+  for (const [postId, count] of failures) {
+    if (count >= maxAttempts) poisoned.add(postId)
+  }
+  return poisoned
+}
+
 export type VkPostSelection = {
   /** Первый годный пост, либо undefined. */
   post?: VkWallPost
@@ -183,14 +244,28 @@ export function vkPostRejectionReason(post: VkWallPost): string | null {
  * будет отклоняться снова, пока не появится годный, после чего курсор
  * перешагнёт обоих. Запереть источник это не может, потому что отсев идёт на
  * выборе, а не после создания записи.
+ *
+ * `poisonedIds` — посты, исчерпавшие лимит попыток импорта (см.
+ * `poisonedVkPostIds`). Отсев идёт здесь же, ДО обращения к классификатору,
+ * иначе каждый прогон платно дёргал бы модель ради заведомого падения.
  */
-export function selectNextVkPost(posts: VkWallPost[], lastSyncedPostId: number): VkPostSelection {
+export function selectNextVkPost(
+  posts: VkWallPost[],
+  lastSyncedPostId: number,
+  poisonedIds: ReadonlySet<number> = new Set(),
+): VkPostSelection {
   const candidates = posts
     .filter((post) => post.id > lastSyncedPostId && post.text?.trim().length > 0)
     .sort((a, b) => a.id - b.id)
 
   const rejected: VkPostRejection[] = []
   for (const post of candidates) {
+    // Лимит попыток проверяем раньше содержания: ядовитый пост уже разбирали,
+    // причина его падения не в содержании, и повторять разбор незачем.
+    if (poisonedIds.has(post.id)) {
+      rejected.push({ id: post.id, reason: VK_POISONED_POST_REASON })
+      continue
+    }
     const reason = vkPostRejectionReason(post)
     if (!reason) return { post, rejected }
     rejected.push({ id: post.id, reason })
@@ -357,6 +432,13 @@ export async function syncVkSource(
     postId: postId ?? null,
   })
 
+  // Живут ВНЕ try, потому что нужны в catch: без пары «какой пост» + «его
+  // прежний журнал» запись об ошибке уходит без `postId`, счётчик попыток не
+  // растёт, и лимит из VK_MAX_IMPORT_ATTEMPTS никогда не срабатывает — то есть
+  // мина остаётся взведённой при формально сделанном фиксе.
+  let attemptedPostId: number | null = null
+  let syncLogAtStart: NonNullable<VkAutoSync['syncLog']> = []
+
   try {
     // Получаем конфигурацию источника
     const sourceDoc = await payload.findByID({
@@ -433,7 +515,13 @@ export async function syncVkSource(
 
     // Разбираем доступный хвост от старых записей к новым, не перескакивая очередь.
     const lastId = lastSyncedPostId || 0
-    const { post: newPost, rejected } = selectNextVkPost(posts, lastId)
+    // Посты, на которых мы уже сломались VK_MAX_IMPORT_ATTEMPTS раз, дальше не
+    // трогаем: иначе один непроходимый пост запирает весь источник, а курсор
+    // двигается только на успешном создании записи.
+    syncLogAtStart = sourceDoc.syncLog ?? []
+    const poisoned = poisonedVkPostIds(syncLogAtStart)
+    const { post: newPost, rejected } = selectNextVkPost(posts, lastId, poisoned)
+    attemptedPostId = newPost?.id ?? null
 
     // Не молчать про отсев: без этой строки первая же отфильтрованная реклама
     // выглядит ровно как «в сообществе ничего нового», и мы никогда не узнаем,
@@ -694,6 +782,16 @@ export async function syncVkSource(
           lastSyncStatus: 'error',
           lastSyncAt: new Date().toISOString(),
           lastError: errorMessage,
+          // Запись об ошибке ОБЯЗАНА нести postId: по ней и только по ней
+          // считаются попытки (`poisonedVkPostIds`). Без неё непроходимый пост
+          // запирал бы источник вечно, как было до 2026-09-01.
+          // Если упали ДО выбора поста (недоступен шлюз, нет источника),
+          // attemptedPostId === null — такая запись в счёт не идёт, и это
+          // правильно: винить конкретный пост в общем сбое нельзя.
+          syncLog: [
+            logEntry('error', errorMessage, attemptedPostId ?? undefined),
+            ...syncLogAtStart,
+          ].slice(0, 50),
         },
       })
     } catch {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { selectNextVkPost, vkPostRejectionReason } from '@/server/integrations/vk-auto-sync'
+import { VK_MAX_IMPORT_ATTEMPTS, poisonedVkPostIds, selectNextVkPost, vkPostRejectionReason } from '@/server/integrations/vk-auto-sync'
 
 const post = (id: number, text = `Пост ${id}`, extra: Record<string, unknown> = {}) => ({
   id,
@@ -99,5 +99,116 @@ describe('vkPostRejectionReason', () => {
     expect(vkPostRejectionReason(post(1))).toBeNull()
     expect(vkPostRejectionReason(post(1, 'т', { post_type: undefined }))).toBeNull()
     expect(vkPostRejectionReason(post(1, 'т', { post_type: 'post' }))).toBeNull()
+  })
+})
+
+/**
+ * Мина, ради которой писались эти тесты.
+ *
+ * `lastSyncedPostId` двигается ТОЛЬКО на путях «пост создан» и «пост уже был».
+ * Любой бросок между выбором поста и созданием записи (ValidationError на
+ * `payload.create`, отсутствующий проект источника, сбой БД) уходит в catch,
+ * который пишет `lastError` — и НЕ трогает курсор. А `selectNextVkPost` берёт
+ * самый старый неимпортированный пост, то есть на следующем прогоне выберет
+ * ТОТ ЖЕ пост, снова платно сходит в классификатор и снова упадёт.
+ *
+ * Заперт при этом не один пост, а весь источник: всё, что новее, стоит за ним
+ * в очереди навсегда. Лечение — не «двигать курсор на любой ошибке» (так
+ * разовый сетевой сбой молча съел бы годный пост), а ограниченное число
+ * попыток: после исчерпания пост перешагивается, и это видно в журнале.
+ */
+describe('ядовитый пост не запирает источник', () => {
+  const errEntry = (postId: number | null) => ({ status: 'error' as const, postId, message: 'сбой' })
+
+  it('пост, упавший меньше лимита раз, ещё не ядовит — разовый сбой не теряет пост', () => {
+    const log = [errEntry(14), errEntry(14)]
+    expect(poisonedVkPostIds(log, 3).has(14)).toBe(false)
+  })
+
+  it('пост, исчерпавший лимит попыток, признаётся ядовитым', () => {
+    const log = [errEntry(14), errEntry(14), errEntry(14)]
+    expect(poisonedVkPostIds(log, 3).has(14)).toBe(true)
+  })
+
+  it('падения РАЗНЫХ постов не складываются в общий счёт', () => {
+    // Иначе три несвязанных сбоя подряд объявили бы ядовитым непричастный пост.
+    const log = [errEntry(14), errEntry(15), errEntry(16)]
+    expect(poisonedVkPostIds(log, 3).size).toBe(0)
+  })
+
+  it('записи журнала без postId и не-ошибки в счёт не идут', () => {
+    const log = [
+      errEntry(null),
+      errEntry(null),
+      errEntry(null),
+      { status: 'no-new-posts' as const, postId: 14, message: '' },
+      { status: 'success' as const, postId: 14, message: '' },
+    ]
+    expect(poisonedVkPostIds(log, 3).size).toBe(0)
+  })
+
+  it('ГЛАВНОЕ: исчерпавший попытки пост перешагивается, и берётся следующий', () => {
+    // До фикса selectNextVkPost вернул бы 14 — и так на каждом прогоне вечно.
+    const posts = [post(14, 'Ядовитый'), post(15, 'Годный')]
+    const result = selectNextVkPost(posts, 13, new Set([14]))
+
+    expect(result.post?.id).toBe(15)
+  })
+
+  it('пропуск ядовитого поста назван причиной, а не проглочен молча', () => {
+    const posts = [post(14, 'Ядовитый'), post(15, 'Годный')]
+    const result = selectNextVkPost(posts, 13, new Set([14]))
+
+    expect(result.rejected).toEqual([{ id: 14, reason: 'исчерпан лимит попыток импорта' }])
+  })
+
+  it('без списка ядовитых поведение прежнее — контроль, что фикс ничего не сузил', () => {
+    const posts = [post(14, 'Обычный'), post(15, 'Тоже обычный')]
+    expect(selectNextVkPost(posts, 13).post?.id).toBe(14)
+  })
+})
+
+/**
+ * Тест на СЦЕПКУ двух функций, а не на каждую по отдельности.
+ *
+ * Фикс живёт не в `poisonedVkPostIds` и не в `selectNextVkPost`, а в контракте
+ * между ними: журнал ошибок обязан нести `postId`, иначе счётчик не растёт и
+ * лимит не срабатывает НИКОГДА — при формально правильных обеих функциях и
+ * зелёных тестах на каждую. Здесь прогоняется полный цикл «упал → записал →
+ * посчитал → перешагнул».
+ */
+describe('цикл прогонов: источник разблокируется сам', () => {
+  const runOnce = (log: Array<{ status: string; postId: number | null }>, lastSyncedPostId: number) => {
+    const posts = [post(14, 'Ядовитый'), post(15, 'Годный')]
+    const selected = selectNextVkPost(posts, lastSyncedPostId, poisonedVkPostIds(log))
+    // Имитируем прогон, который всегда падает на создании записи: курсор не
+    // двигается, в журнал уходит запись об ошибке с id разобранного поста.
+    if (selected.post?.id === 14) log.unshift({ status: 'error', postId: 14 })
+    return selected.post?.id
+  }
+
+  it('после VK_MAX_IMPORT_ATTEMPTS падений очередь идёт дальше, а не стоит вечно', () => {
+    const log: Array<{ status: string; postId: number | null }> = []
+
+    const picks = [1, 2, 3, 4].map(() => runOnce(log, 13))
+
+    // Первые VK_MAX_IMPORT_ATTEMPTS прогонов честно пробуют один и тот же пост…
+    expect(picks.slice(0, VK_MAX_IMPORT_ATTEMPTS)).toEqual(Array(VK_MAX_IMPORT_ATTEMPTS).fill(14))
+    // …а следующий уже перешагивает его и берёт то, что стояло за ним в очереди.
+    expect(picks[VK_MAX_IMPORT_ATTEMPTS]).toBe(15)
+  })
+
+  it('если запись об ошибке потеряет postId — источник заперт навсегда', () => {
+    // Контроль-негатив: он и объясняет, зачем `postId` в catch-ветке. Убери
+    // его — и этот тест останется единственным, что заметит регрессию.
+    const log: Array<{ status: string; postId: number | null }> = []
+    const runWithoutPostId = () => {
+      const posts = [post(14, 'Ядовитый'), post(15, 'Годный')]
+      const selected = selectNextVkPost(posts, 13, poisonedVkPostIds(log))
+      if (selected.post?.id === 14) log.unshift({ status: 'error', postId: null })
+      return selected.post?.id
+    }
+
+    expect([1, 2, 3, 4, 5].map(runWithoutPostId)).toEqual([14, 14, 14, 14, 14])
   })
 })
