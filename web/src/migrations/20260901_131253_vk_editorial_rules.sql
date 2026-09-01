@@ -10,11 +10,21 @@
 -- DROP этих же объектов, а старый код продолжает работать и после накатывания —
 -- порядок «сначала БД, потом деплой» здесь безопасен.
 --
--- Применение:
---   ssh GONBA 'cat /home/valstan/GONBA/web/src/migrations/20260901_131253_vk_editorial_rules.sql \
---     | sudo -u postgres psql -d gonba -v ON_ERROR_STOP=1'
---   ssh GONBA 'sudo -u postgres psql -d gonba -c "INSERT INTO payload_migrations (name, batch, updated_at, created_at) \
---     VALUES ('"'"'20260901_131253_vk_editorial_rules'"'"', 2, now(), now());"'
+-- ПРИМЕНЕНО НА ПРОДЕ 2026-09-01 (batch 14, следующий за 13). Файл оставлен как
+-- запись о том, что именно накатывали, и как образец для следующего раза.
+--
+-- Номер batch берётся из БД, а не из головы: `SELECT max(batch) FROM
+-- payload_migrations` + 1. Локальная копия схемы, поднятая для проверки, имела
+-- свой batch, и подставить его на прод было бы ошибкой.
+--
+-- Приёмка была не «команда выполнилась», а сверка с эталоном: колонки, типы,
+-- умолчания и индексы прода сравнены с локальной базой, где ту же правку
+-- сделал `payload migrate` — 18 колонок и 4 индекса совпали.
+--
+-- Применение (на будущее):
+--   ssh GONBA 'sudo -u postgres psql -d gonba -v ON_ERROR_STOP=1' < <этот файл>
+--   ssh GONBA "sudo -u postgres psql -d gonba -c \"INSERT INTO payload_migrations
+--     (name, batch, updated_at, created_at) VALUES ('<имя>', <max+1>, now(), now());\""
 
 CREATE TYPE "public"."enum_vk_editorial_rules_no_text_policy" AS ENUM('manual', 'source', 'skip');
 CREATE TYPE "public"."enum__vk_editorial_rules_v_version_no_text_policy" AS ENUM('manual', 'source', 'skip');
