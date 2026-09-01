@@ -12,6 +12,7 @@ import * as migration_20260613_120000 from './20260613_120000';
 import * as migration_20260710_120000 from './20260710_120000';
 import * as migration_20260809_120000 from './20260809_120000';
 import * as migration_20260809_120001 from './20260809_120001';
+import * as migration_20260901_131253_vk_editorial_rules from './20260901_131253_vk_editorial_rules';
 
 export const migrations = [
   {
@@ -27,7 +28,7 @@ export const migrations = [
   {
     up: migration_20260303_114458.up,
     down: migration_20260303_114458.down,
-    name: '20260303_114458'
+    name: '20260303_114458',
   },
   {
     up: migration_20260521_120000.up,
@@ -83,5 +84,10 @@ export const migrations = [
     up: migration_20260809_120001.up,
     down: migration_20260809_120001.down,
     name: '20260809_120001',
+  },
+  {
+    up: migration_20260901_131253_vk_editorial_rules.up,
+    down: migration_20260901_131253_vk_editorial_rules.down,
+    name: '20260901_131253_vk_editorial_rules'
   },
 ];

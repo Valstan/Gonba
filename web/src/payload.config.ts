@@ -28,6 +28,7 @@ import { Footer } from './Footer/config'
 import { Header } from './Header/config'
 import { HomeCarousel } from './HomeCarousel/config'
 import { VkAutoSyncSettings } from './globals/VkAutoSyncSettings/config'
+import { VkEditorialRules } from './globals/VkEditorialRules/config'
 import { plugins } from './plugins'
 import { defaultLexical } from '@/fields/defaultLexical'
 import { translations } from '@payloadcms/translations/all'
@@ -152,7 +153,7 @@ export default buildConfig({
     ContentReports,
   ],
   cors: [getServerSideURL()].filter(Boolean),
-  globals: [Header, Footer, HomeCarousel, VkAutoSyncSettings],
+  globals: [Header, Footer, HomeCarousel, VkAutoSyncSettings, VkEditorialRules],
   plugins,
   secret: process.env.PAYLOAD_SECRET,
   sharp,

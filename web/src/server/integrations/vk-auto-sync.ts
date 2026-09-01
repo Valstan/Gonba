@@ -141,6 +141,58 @@ export function matchesStableVkSlug(slug: string | null | undefined, slugStable:
 
 export type VkPostRejection = { id: number; reason: string }
 
+/** Что делать с записью, в которой нет пригодного текста. */
+export type VkNoTextPolicy = 'manual' | 'source' | 'skip'
+
+/** Правила редакции в том виде, в каком их потребляет синхронизация. */
+export type VkEditorialSettings = {
+  enabled: boolean
+  rules: string
+  noTextPolicy: VkNoTextPolicy
+  minTextLength: number
+}
+
+export const VK_EDITORIAL_DEFAULTS: VkEditorialSettings = {
+  enabled: true,
+  rules: '',
+  noTextPolicy: 'manual',
+  minTextLength: 40,
+}
+
+/**
+ * Есть ли в записи текст, по которому вообще можно что-то решить.
+ *
+ * Меряем ТЕЛО записи и без пробелов. Заголовок сюда не входит намеренно: у
+ * VK-импорта он — обрезанное начало того же текста, и «заголовок + текст»
+ * вдвое завышает длину короткой записи, из-за чего проверка «текста нет»
+ * переставала срабатывать ровно на тех записях, ради которых заведена.
+ */
+export function hasUsableVkText(body: string, minTextLength: number): boolean {
+  return (body || '').replace(/\s/g, '').length >= Math.max(0, minTextLength)
+}
+
+/**
+ * Нормализует глобал правил к рабочему виду.
+ *
+ * Отсутствие глобала, пустой глобал и сбой чтения обязаны выглядеть одинаково —
+ * как «правил нет», а не как ошибка: правила это улучшение разбора, и падать
+ * из-за них синхронизация шести источников не должна.
+ */
+export function normalizeVkEditorial(doc: unknown): VkEditorialSettings {
+  const d = (doc || {}) as Record<string, unknown>
+  const policy = d.noTextPolicy
+  const min = Number(d.minTextLength)
+  return {
+    enabled: d.enabled !== false,
+    rules: typeof d.rules === 'string' ? d.rules.trim() : '',
+    noTextPolicy:
+      policy === 'source' || policy === 'skip' || policy === 'manual'
+        ? policy
+        : VK_EDITORIAL_DEFAULTS.noTextPolicy,
+    minTextLength: Number.isFinite(min) && min >= 0 ? min : VK_EDITORIAL_DEFAULTS.minTextLength,
+  }
+}
+
 /**
  * Сколько раз подряд пробуем импортировать один и тот же пост, прежде чем
  * перешагнуть его.
@@ -564,6 +616,42 @@ export async function syncVkSource(
       throw new Error(`Проект "${projectSlug}" не найден`)
     }
 
+    // Правила редакции — best-effort: их отсутствие или сбой чтения не должны
+    // ронять синхронизацию, они лишь уточняют разбор.
+    let editorial = VK_EDITORIAL_DEFAULTS
+    try {
+      editorial = normalizeVkEditorial(
+        await payload.findGlobal({ slug: 'vkEditorialRules', overrideAccess: true, depth: 0 }),
+      )
+    } catch (e) {
+      payload.logger.warn(`[vk-auto-sync] правила редакции недоступны, работаем без них: ${String(e)}`)
+    }
+
+    const bodyText = stripVkMarkup(newPost.text)
+    const textUsable = hasUsableVkText(bodyText, editorial.minTextLength)
+
+    // Запись без пригодного текста разбирать нечем: ни модели, ни источнику её
+    // не развести. Замер 2026-09-01: две такие записи ОДНОЙ группы владелец
+    // отправил в разные проекты — то есть угадывание тут не «неточно», а
+    // невозможно. Что делать — решает глобал, а не код.
+    if (!textUsable && editorial.noTextPolicy === 'skip') {
+      // Курсор двигаем обязательно: это осознанный пропуск, а не сбой, и без
+      // сдвига запись выбиралась бы каждым прогоном заново — та самая мина.
+      const detail = `Запись ${newPost.id} без пригодного текста — по правилам редакции не публикуем`
+      await payload.update({
+        collection: 'vk-auto-sync',
+        id: sourceId,
+        overrideAccess: true,
+        data: {
+          lastSyncedPostId: newPost.id,
+          lastSyncStatus: 'no-new-posts',
+          lastSyncAt: new Date().toISOString(),
+          syncLog: [logEntry('skipped', detail, newPost.id), ...syncLogAtStart].slice(0, 50),
+        },
+      })
+      return { success: true, status: 'skipped', message: detail, postId: newPost.id }
+    }
+
     const [activeProjects, categories] = await Promise.all([
       payload.find({
         collection: 'projects',
@@ -580,17 +668,31 @@ export async function syncVkSource(
     // запрос к провайдеру.
     const cleanTitleSrc = stripVkMarkup(newPost.text)
     const title = cleanTitleSrc.length > 80 ? cleanTitleSrc.substring(0, 80).trim() + '...' : cleanTitleSrc
-    const classifier = await classifyVkPost({
-      title,
-      text: stripVkMarkup(newPost.text),
-      sourceProjectSlug: String(project.slug),
-      projects: activeProjects.docs.map((candidate) => ({
-        slug: String(candidate.slug),
-        title: String(candidate.title),
-        summary: candidate.summary,
-      })),
-      categories: categories.docs.map((category) => String(category.slug)),
-    })
+    // Бестекстовую запись в модель не отправляем вовсе: решить она не может, а
+    // деньги за прогон возьмёт. Оставляем привязку источника и говорим прямо,
+    // что запись ждёт человека, — иначе «fallback» неотличим от сбоя провайдера.
+    const classifier = !textUsable
+      ? {
+          projectSlugs: [String(project.slug)],
+          categorySlugs: [] as string[],
+          rationale:
+            'В записи нет пригодного текста — маршрут не определён, оставлена привязка источника, требуется ручная проверка.',
+          provider: 'fallback' as const,
+          model: null,
+          usedFallback: true,
+        }
+      : await classifyVkPost({
+          title,
+          text: bodyText,
+          rules: editorial.enabled ? editorial.rules : '',
+          sourceProjectSlug: String(project.slug),
+          projects: activeProjects.docs.map((candidate) => ({
+            slug: String(candidate.slug),
+            title: String(candidate.title),
+            summary: candidate.summary,
+          })),
+          categories: categories.docs.map((category) => String(category.slug)),
+        })
 
     const projectBySlug = new Map(activeProjects.docs.map((candidate) => [String(candidate.slug), candidate]))
     const selectedProjects = classifier.projectSlugs
@@ -735,8 +837,12 @@ export async function syncVkSource(
       }
     }
 
-    // Обновляем источник (без syncLog — упрощаем)
+    // Обновляем источник. Успешный прогон в журнал не пишем (иначе он забьётся
+    // рутиной) — КРОМЕ записи, ушедшей без разбора: политика `manual` тем и
+    // отличается от `source`, что оставляет след, по которому запись потом
+    // найдут руками. Без этой строки выбор владельца был бы косметическим.
     const newTotal = (sourceDoc.totalImported || 0) + 1
+    const manualCheckNeeded = !textUsable && editorial.noTextPolicy === 'manual'
     await payload.update({
       collection: 'vk-auto-sync',
       id: sourceId,
@@ -747,6 +853,18 @@ export async function syncVkSource(
         lastSyncAt: new Date().toISOString(),
         totalImported: newTotal,
         lastError: null, // здоровый прогон — чистим возможный stale-текст ошибки
+        ...(manualCheckNeeded
+          ? {
+              syncLog: [
+                logEntry(
+                  'skipped',
+                  `Запись ${newPost.id} без пригодного текста: опубликована в проект источника, маршрут не определён — нужна ручная проверка`,
+                  newPost.id,
+                ),
+                ...syncLogAtStart,
+              ].slice(0, 50),
+            }
+          : {}),
       },
     })
 
