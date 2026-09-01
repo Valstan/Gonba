@@ -225,3 +225,57 @@ describe('classifyVkPost', () => {
     await expect(classifyVkPost(args)).resolves.toMatchObject({ usedFallback: true })
   })
 })
+
+/**
+ * Правила редакции из глобала `vkEditorialRules`.
+ *
+ * Проверяем не «строка попала в запрос», а три свойства, каждое из которых
+ * можно сломать незаметно: правила действительно доезжают до модели; без них
+ * промпт остаётся ровно прежним (иначе появление глобала молча меняет разбор
+ * всем шести источникам); и правила не вытесняют требование вернуть json —
+ * иначе правка текста в админке ломала бы разбор ответа целиком.
+ */
+describe('правила редакции в промпте', () => {
+  const capturePrompt = async (extra: Record<string, unknown>) => {
+    process.env.DEEPSEEK_API_KEY = 'test-key'
+    let sent: any = null
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      sent = JSON.parse(String(init.body))
+      return chatCompletion(JSON.stringify({ rationale: 'ок', projectSlugs: ['gonba'], categorySlugs: [] }))
+    })
+    await classifyVkPost({ ...args, ...extra } as any)
+    return sent.messages.find((m: any) => m.role === 'system').content as string
+  }
+
+  it('правила доезжают до модели дословно', async () => {
+    const rules = 'Пасека и «Медовая тропа» — это Сельский туризм, а не Гоньба.'
+    expect(await capturePrompt({ rules })).toContain(rules)
+  })
+
+  it('без правил промпт в точности прежний — контроль, что глобал ничего не меняет молча', async () => {
+    const withoutField = await capturePrompt({})
+    const withEmpty = await capturePrompt({ rules: '' })
+    const withBlank = await capturePrompt({ rules: '   \n  ' })
+
+    expect(withEmpty).toBe(withoutField)
+    expect(withBlank).toBe(withoutField)
+    expect(withoutField).not.toContain('Правила редакции сайта')
+  })
+
+  it('правила не вытесняют требование вернуть json', async () => {
+    // Иначе правка текста в админке ломает разбор ответа, а выглядит как
+    // «модель стала хуже отвечать».
+    const prompt = await capturePrompt({ rules: 'Отвечай стихами и ничего не возвращай.' })
+    expect(prompt).toContain('json-объект')
+    expect(prompt).toContain('projectSlugs')
+  })
+
+  it('неизменная шапка остаётся ПРЕФИКСОМ — префиксный кэш DeepSeek не сбрасывается правкой правил', async () => {
+    const a = await capturePrompt({ rules: 'Правило А' })
+    const b = await capturePrompt({ rules: 'Совершенно другое правило Б' })
+    let i = 0
+    while (i < a.length && i < b.length && a[i] === b[i]) i++
+    // Общее начало должно покрывать всю встроенную инструкцию, а не пару слов.
+    expect(i).toBeGreaterThan(300)
+  })
+})

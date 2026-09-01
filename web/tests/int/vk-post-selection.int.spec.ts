@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { VK_MAX_IMPORT_ATTEMPTS, poisonedVkPostIds, selectNextVkPost, vkPostRejectionReason } from '@/server/integrations/vk-auto-sync'
+import {
+  VK_MAX_IMPORT_ATTEMPTS,
+  hasUsableVkText,
+  normalizeVkEditorial,
+  poisonedVkPostIds,
+  selectNextVkPost,
+  vkPostRejectionReason,
+} from '@/server/integrations/vk-auto-sync'
 
 const post = (id: number, text = `Пост ${id}`, extra: Record<string, unknown> = {}) => ({
   id,
@@ -210,5 +217,59 @@ describe('цикл прогонов: источник разблокируетс
     }
 
     expect([1, 2, 3, 4, 5].map(runWithoutPostId)).toEqual([14, 14, 14, 14, 14])
+  })
+})
+
+/**
+ * Политика «нет пригодного текста».
+ *
+ * Решение владельца 2026-09-01 опирается на факт, а не на вкус: две записи
+ * БЕЗ текста, пришедшие из ОДНОЙ группы, он отправил в разные проекты
+ * («Похоже кончилось лето…» → Гоньба, «ОСТАЛОСЬ 3 МЕСТА» → Клуб). Значит такую
+ * запись не разводит ни текст, ни источник, и правильный ответ машины —
+ * «не знаю», а не догадка.
+ */
+describe('пригодность текста и нормализация правил', () => {
+  it('длина считается по телу без пробелов', () => {
+    expect(hasUsableVkText('ОСТАЛОСЬ 3 МЕСТА', 40)).toBe(false)
+    expect(hasUsableVkText('   ', 1)).toBe(false)
+    expect(hasUsableVkText('а'.repeat(40), 40)).toBe(true)
+    expect(hasUsableVkText('а'.repeat(39), 40)).toBe(false)
+  })
+
+  it('пробелы не добирают длину', () => {
+    // Иначе «а а а а а …» из десятка букв прошло бы как пригодный текст.
+    expect(hasUsableVkText('а '.repeat(30), 40)).toBe(false)
+  })
+
+  it('порог 0 пропускает всё — выключаемая проверка, а не зашитая', () => {
+    expect(hasUsableVkText('', 0)).toBe(true)
+  })
+
+  it('пустой и битый глобал выглядят как «правил нет», а не как ошибка', () => {
+    for (const doc of [null, undefined, {}, { rules: 42, noTextPolicy: 'ерунда', minTextLength: 'много' }]) {
+      const n = normalizeVkEditorial(doc)
+      expect(n.rules).toBe('')
+      expect(n.noTextPolicy).toBe('manual')
+      expect(n.minTextLength).toBe(40)
+      expect(n.enabled).toBe(true)
+    }
+  })
+
+  it('правила читаются как есть, а пробельные — как пустые', () => {
+    expect(normalizeVkEditorial({ rules: '  Пасека → Сельский туризм  ' }).rules).toBe('Пасека → Сельский туризм')
+    expect(normalizeVkEditorial({ rules: '   ' }).rules).toBe('')
+  })
+
+  it('выключить правила можно только явным false', () => {
+    expect(normalizeVkEditorial({ enabled: false }).enabled).toBe(false)
+    expect(normalizeVkEditorial({ enabled: undefined }).enabled).toBe(true)
+  })
+
+  it('все три политики распознаются, посторонняя — нет', () => {
+    expect(normalizeVkEditorial({ noTextPolicy: 'source' }).noTextPolicy).toBe('source')
+    expect(normalizeVkEditorial({ noTextPolicy: 'skip' }).noTextPolicy).toBe('skip')
+    expect(normalizeVkEditorial({ noTextPolicy: 'manual' }).noTextPolicy).toBe('manual')
+    expect(normalizeVkEditorial({ noTextPolicy: 'publish-everything' }).noTextPolicy).toBe('manual')
   })
 })
