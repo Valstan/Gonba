@@ -59,32 +59,6 @@ jobs:
           # При workflow_run собираем именно тот коммит, что прошёл CI
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      - name: Safety net — упасть если в коммите новые Payload-миграции
-        # Миграции — самая опасная часть, и `payload migrate` в CI зависает
-        # из-за drizzle push:true y/N prompt. Поэтому миграции применяет
-        # разработчик руками ДО merge (через /sql или psql -f), а CI
-        # просто проверяет что новых файлов нет — иначе фейл.
-        run: |
-          set -e
-          # Ручной workflow_dispatch = "я применил миграции вручную, деплой код".
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "workflow_dispatch — миграции считаем применёнными вручную, guard пропущен."
-            exit 0
-          fi
-          NEW_MIGRATIONS=$(git diff --name-only --diff-filter=A HEAD~1 HEAD -- 'web/src/migrations/*.ts' 2>/dev/null || true)
-          NEW_MIGRATIONS=$(echo "${NEW_MIGRATIONS}" | grep -v '^web/src/migrations/index\.ts$' || true)
-          if [ -n "${NEW_MIGRATIONS}" ]; then
-            echo "::error::В коммите есть новые Payload-миграции, которые должны быть применены вручную ДО merge:"
-            echo "${NEW_MIGRATIONS}"
-            echo ""
-            echo "Шаги:"
-            echo "  1. ssh GONBA 'cat /home/valstan/GONBA/<файл>.sql | sudo -u postgres psql -d gonba -v ON_ERROR_STOP=1'"
-            echo "  2. ssh GONBA 'sudo -u postgres psql -d gonba -c \"INSERT INTO payload_migrations (name, batch) VALUES ('\''...'\'', N)\"'"
-            echo "  3. После этого перезапусти этот workflow через Actions → Deploy to production → Run workflow."
-            exit 1
-          fi
-          echo "Новых миграций нет — продолжаем."
-
       - name: Setup SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -123,6 +97,77 @@ jobs:
             ServerAliveInterval 30
           EOF
           chmod 600 ~/.ssh/config
+
+      - name: Гейт миграций — спрашиваем прод-БД, а не смотрим на файлы
+        # Что охраняем: «схема прода не отстала от кода, который сейчас поедет».
+        #
+        # Прежний гейт проверял другое — есть ли в коммите НОВЫЙ файл миграции —
+        # и падал на нём даже тогда, когда миграция уже применена. Признак «файл
+        # новый» и охраняемое свойство совпадают не всегда, и расходятся они
+        # ровно в рабочем случае: миграцию накатили руками, а гейт всё равно
+        # валит деплой и требует ручной workflow_dispatch. Это класс #228 —
+        # гейт, который не исполняет то, что охраняет.
+        #
+        # Теперь спрашиваем истину у самой БД: сверяем файлы миграций из
+        # ДЕПЛОИМОГО коммита со строками `payload_migrations` на проде.
+        #
+        # Гейт фейлит ЗАКРЫТО: недоступна БД или пустой ответ — считаем, что
+        # схема неизвестна, и не деплоим. Пропуска по workflow_dispatch больше
+        # нет: он существовал как обещание «я применил руками», а теперь это
+        # обещание проверяется, а не принимается на слово.
+        run: |
+          set -euo pipefail
+
+          FILES=$(ls web/src/migrations/*.ts 2>/dev/null \
+            | grep -v '/index\.ts$' \
+            | xargs -r -n1 basename \
+            | sed 's/\.ts$//' \
+            | sort || true)
+
+          if [ -z "${FILES}" ]; then
+            echo "Файлов миграций нет — сверять нечего."
+            exit 0
+          fi
+
+          # Падение ssh/psql роняет шаг (set -e на присваивании) — это и есть
+          # «фейлить закрыто».
+          # batch < 0 отбрасываем: Payload держит там служебную строку `dev` —
+          # отметку о dev-режиме (push-схема), а не применённую миграцию. Она
+          # живёт в этой БД с 19.05 и Payload сам её в порядке миграций не
+          # учитывает; без фильтра гейт предупреждал бы про «прод впереди кода»
+          # на каждом деплое и приучил бы не читать свои предупреждения.
+          APPLIED=$(ssh -o BatchMode=yes GONBA \
+            "sudo -u postgres psql -d gonba -t -A -c 'SELECT name FROM payload_migrations WHERE batch >= 0'" \
+            | tr -d '\r' | sed '/^$/d' | sort)
+
+          if [ -z "${APPLIED}" ]; then
+            echo "::error::Таблица payload_migrations на проде пуста или недоступна — состояние схемы неизвестно, не деплоим."
+            exit 1
+          fi
+
+          MISSING=$(comm -23 <(printf '%s\n' "${FILES}") <(printf '%s\n' "${APPLIED}") || true)
+
+          if [ -n "${MISSING}" ]; then
+            echo "::error::Схема прода отстала от кода — эти миграции есть в коммите, но НЕ применены на проде:"
+            printf '  %s\n' ${MISSING}
+            echo ""
+            echo "Применить (по одной, с проверкой):"
+            echo "  ssh GONBA 'sudo -u postgres psql -d gonba -v ON_ERROR_STOP=1' < web/src/migrations/<имя>.sql"
+            echo "  ssh GONBA \"sudo -u postgres psql -d gonba -c \\\"INSERT INTO payload_migrations (name, batch, updated_at, created_at) VALUES ('<имя>', <max(batch)+1>, now(), now());\\\"\""
+            echo ""
+            echo "После этого достаточно перезапустить ЭТОТ прогон — гейт увидит применённые миграции сам."
+            exit 1
+          fi
+
+          # Обратный случай не фатален, но о нём стоит знать: на проде применено
+          # то, чего в коде нет (откатили файл, деплоим старый коммит).
+          EXTRA=$(comm -13 <(printf '%s\n' "${FILES}") <(printf '%s\n' "${APPLIED}") || true)
+          if [ -n "${EXTRA}" ]; then
+            echo "::warning::На проде применены миграции, которых нет в этом коммите (прод впереди кода):"
+            printf '  %s\n' ${EXTRA}
+          fi
+
+          echo "Все $(printf '%s\n' "${FILES}" | wc -l) миграций кода применены на проде — продолжаем."
 
       - name: Setup Node
         uses: actions/setup-node@v5

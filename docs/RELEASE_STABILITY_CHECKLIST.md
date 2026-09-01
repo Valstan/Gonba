@@ -40,7 +40,7 @@
   ssh GONBA "cat /home/valstan/GONBA/web/src/migrations/<file>.sql | sudo -u postgres psql -d gonba -v ON_ERROR_STOP=1"
   ssh GONBA "sudo -u postgres psql -d gonba -c \"INSERT INTO payload_migrations (name, batch) VALUES ('<name>', N)\""
   ```
-- Safety net в `deploy-prod.yml` фейлит ДО билда, если в коммите есть новые миграции — это защита от deploy без применённой схемы.
+- Гейт миграций в `deploy-prod.yml` спрашивает **прод-БД**: сверяет файлы `web/src/migrations/*.ts` деплоимого коммита со строками `payload_migrations` (служебная строка `dev` с `batch < 0` не в счёт). Непримененная миграция валит деплой ДО билда; уже применённая пропускается сама, ручной dispatch для этого больше не нужен. Гейт фейлит **закрыто**: БД недоступна или ответ пуст — не деплоим.
 
 ## Post-deploy (первые 15 минут)
 
