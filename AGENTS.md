@@ -1,6 +1,6 @@
 # AGENTS.md — entry point для AI-сессий
 
-Этот файл — первое что Codex должен прочитать в любой новой сессии разработки проекта GONBA. Он подсказывает, **где взять контекст** и **как правильно работать**, не повторяя ошибки прошлых сессий.
+Этот файл — первое что любой агент должен прочитать в новой сессии разработки проекта GONBA. Он подсказывает, **где взять контекст** и **как правильно работать**, не повторяя ошибки прошлых сессий.
 
 ---
 
@@ -166,6 +166,21 @@ git checkout main && git pull --ff-only
 - **GONBA-специфика:** merge в `main` сразу триггерит `.github/workflows/deploy-prod.yml` → прод. Каждый PR description — фактический changelog для прода.
 - **Hot-fix исключение** (ADR-0002 §8): прод упал, нужно в течение часа — owner может direct push в `main` (`enforce_admins=false`), но обязательный follow-up PR постфактум с описанием инцидента.
 
+### Текст не сочиняется внутри командной строки (D-046, mandate владельца)
+
+> **Пиши содержимое инструментом записи файлов, а команде отдавай путь.**
+
+Heredoc и многострочные аргументы запрещены. Дело не в том, что heredoc «глючит» — он не убирает **ни одного слоя экранирования**. Текст, написанный внутри команды, проходит до четырёх парсеров: кавычки аргумента инструмента → локальный шелл (на Windows их два с несовместимым синтаксисом) → для `ssh` ещё удалённый шелл → кодовая страница консоли. Автор держит в голове один слой, а платит за четыре, и отказ выглядит как ошибка в коде или данных, а не в доставке текста. Путь к файлу — один ASCII-токен, который переживает все слои; содержимое не встречает парсер ни разу.
+
+| Задача | Вместо | Правильно |
+|---|---|---|
+| Скрипт / патч / конфиг | `cat <<'EOF' > f.py` | записать файл инструментом записи |
+| Сообщение коммита | `-m` с переносами | файл → `git commit -F msg.txt` |
+| Тело PR / issue | `--body "…"` | файл → `gh pr create --body-file body.md` |
+| SQL на проде | `psql -c "…"` | файл → `scp` → `psql -f q.sql` |
+
+**Подпись в трейлере коммита:** `Co-Authored-By: <агент и его фактическая версия> <noreply@anthropic.com>` — каждый агент подписывается собой, имя модели в памятках не зашивается.
+
 ### Автономия под гейтами — diff→merge→deploy без человеческого «окей» (cross-project mandate #027, 2026-06-07)
 
 Владелец убрал ритуал «окей на дифф/мерж/деплой»: человеческое подтверждение **заменено автоматическими гейтами**. Автономия безопасна **⟺ гейты сильны** — поэтому она работает **только** пока зелёные typecheck/lint/build/CI/smoke. См. [pool #027](../brain_matrica/cross-project-ideas/ideas/027-gate-replaced-autonomy.md).
@@ -194,12 +209,11 @@ git checkout main && git pull --ff-only
 
 ### Session sync safeguard — GitHub источник истины между машинами (cross-project, pool #010, 2026-05-30)
 
-**GitHub — источник истины при работе на нескольких машинах** (днём один комп, вечером другой). **Никогда не оставляй сессию с несинхронизированной работой.** Сессии иногда уходят в архив автоматически (тумблер Cowork «Classify session states»); если работа не запушена — версии между компами разъезжаются.
+**GitHub — источник истины при работе на нескольких машинах** (днём один комп, вечером другой). **Никогда не оставляй сессию с несинхронизированной работой.** Сессия может уйти в архив автоматически, без явного закрытия; если работа не запушена — версии между компами разъезжаются.
 
 - **`/close_session` — единственная команда закрытия.** Коммитит+пушит ВСЁ (код+доки) через PR-flow и не считает сессию закрытой, пока `bash scripts/git_sync_check.sh --gate` не вернёт `exit 0`.
 - **NL-триггеры** «закрой сессию» / «заверши сессию» / «закрываемся» → запускают `/close_session`.
-- **SessionStart-хук Claude Code** (`.claude/settings.json` → `scripts/git_sync_check.sh --warn`) при входе в каждую сессию подсвечивает несинхронизированную работу. Другой агент выполняет ту же проверку вручную на `/start`. Хук только предупреждает (`exit 0`), не блокирует вход — гейт живёт в `/close_session`.
-- **Ручной шаг владельца:** отключить тумблер Cowork «Classify session states», чтобы сессии не уходили в архив без ведома. Защита работает и без этого, но вместе надёжнее.
+- **SessionStart-хук** (`.claude/settings.json` → `scripts/git_sync_check.sh --warn`) при входе в каждую сессию подсвечивает несинхронизированную работу. Другой агент выполняет ту же проверку вручную на `/start`. Хук только предупреждает (`exit 0`), не блокирует вход — гейт живёт в `/close_session`.
 
 См. [pool #010](../brain_matrica/cross-project-ideas/ideas/010-session-sync-safeguard.md), [ADR-0002](../brain_matrica/adr/0002-pr-only-flow-no-direct-push.md). Pioneer — setka.
 
@@ -224,20 +238,20 @@ git checkout main && git pull --ff-only
 - На прод (shared system) — деструктив только с явным подтверждением в том же ходе (#025): `ALTER TABLE`/`DROP`/`DELETE`/`UPDATE` на живых данных, `systemctl restart`/`stop`, удаление прод-файлов — всё требует `AskUserQuestion`-диалога. Режим `auto` (автономия #027) это **не** отменяет — черта прод-данных остаётся человеческим гейтом. Force-push в `main` и прямой push в `main` — в `deny` (ADR-0002); force-push в feature-ветку разрешён.
 - Секреты (токены, пароли) — никогда не пишем в коммит, не пишем в чат, не отдаём наружу. Если случайно увидел чей-то токен в `.env` — игнорируй и не повторяй.
 
-### Технические уроки сессии 2026-05-20
+### Прод-сборка и кэш: правила
 
-- **Прод-build только через `scripts/safe-build.sh`** (или ручная команда `systemd-run --unit=gonba-build --uid=valstan --gid=valstan --working-directory=/home/valstan/GONBA/web -- /bin/bash -lc "corepack pnpm run build:raw"`). Прямой `ssh ... 'corepack pnpm run build:raw'` умирает посередине prerender'а при SSH-disconnect.
+- **Прод-build только через `scripts/safe-build.sh`** (или ручная команда `systemd-run --unit=gonba-build --uid=valstan --gid=valstan --working-directory=~/GONBA/web -- /bin/bash -lc "corepack pnpm run build:raw"`). Прямой `ssh ... 'corepack pnpm run build:raw'` умирает посередине prerender'а при SSH-disconnect.
 - **`pnpm run build` использует watchdog с idle 180s** — Next.js 15 молчит дольше. Использовать `build:raw`.
 - **`systemd-run` без `--uid=valstan`** взлетает от root и берёт глобальный pnpm 11 (несовместимый с проектом). ALWAYS `--uid=valstan --gid=valstan`.
 - **На проде нет `push:true`-миграции.** Новые поля в коллекциях нужно вручную `ALTER TABLE ADD COLUMN ...` ИЛИ создать proper Payload migration в `web/src/migrations/`.
 - **Прямой UPDATE/INSERT в БД** минует Payload `afterChange`-хуки и не сбрасывает `unstable_cache`. Особенно касается глобалов `header_nav_items`, `footer_*` (Header/Footer кэшируются через `getCachedGlobal` → `unstable_cache` с тегом `global_<slug>`).
-  - **⚠️ `restart gonba` НЕДОСТАТОЧЕН для `unstable_cache`** (урок 2026-06-06, правка пункта меню «Облако» сырым SQL). `unstable_cache` персистится на **диске** (`.next/cache`) и переживает `systemctl restart` — после рестарта глобал всё равно отдаётся старый. Сырой SQL к тому же не триггерит `revalidateHeader`/`safeRevalidateTag`. Правильные варианты: **(а)** править глобал через Payload Local API (`payload.updateGlobal`/admin UI) — afterChange-хук вызовет `safeRevalidateTag('global_header')` в контексте Next-сервера; либо **(б)** после сырого SQL: `rm -rf /home/valstan/GONBA/web/.next/cache && sudo systemctl restart gonba` (чистит только data/ISR-кэш, не трогает чанки `.next/server`/`.next/static` → ChunkLoadError-риска нет). Standalone-tsx с `payload.updateGlobal` revalidate НЕ выполнит (`revalidateTag` вне request-scope глушится `safeRevalidateTag`).
-- **НЕ править versioned-документы (drafts-enabled коллекции) сырым SQL** (Posts/Pages/Projects — у всех `versions.drafts`). Payload и `@payloadcms/plugin-search` читают published-состояние из таблицы версий (`_<coll>_v.version__status`/`latest`), а не из главной таблицы. `UPDATE projects SET _status='published'` меняет только главную таблицу → плагин поиска НЕ синкает (latest-версия осталась `draft`), а следующая публикация через API **затирает** твою SQL-правку, промотав старую draft-версию поверх (так в сессии 2026-06-04 вернулся уже удалённый из галереи тестовый мусор). **Правильно:** публикация/правка versioned-доков — только через Payload Local API (`payload.update({ collection, id, data: { _status: 'published', … }, overrideAccess: true })`): создаёт published-версию + триггерит хуки и синк поиска. Для one-off массовых правок — временный tsx-скрипт на проде (`getPayload({ config })`, env из `/etc/gonba/gonba.env` через `set -a && . … && set +a`), удалить после прогона.
+  - **⚠️ `restart gonba` НЕДОСТАТОЧЕН для `unstable_cache`** (правка пункта меню сырым SQL уже стоила этого урока). `unstable_cache` персистится на **диске** (`.next/cache`) и переживает `systemctl restart` — после рестарта глобал всё равно отдаётся старый. Сырой SQL к тому же не триггерит `revalidateHeader`/`safeRevalidateTag`. Правильные варианты: **(а)** править глобал через Payload Local API (`payload.updateGlobal`/admin UI) — afterChange-хук вызовет `safeRevalidateTag('global_header')` в контексте Next-сервера; либо **(б)** после сырого SQL: `rm -rf ~/GONBA/web/.next/cache && sudo systemctl restart gonba` (чистит только data/ISR-кэш, не трогает чанки `.next/server`/`.next/static` → ChunkLoadError-риска нет). Standalone-tsx с `payload.updateGlobal` revalidate НЕ выполнит (`revalidateTag` вне request-scope глушится `safeRevalidateTag`).
+- **НЕ править versioned-документы (drafts-enabled коллекции) сырым SQL** (Posts/Pages/Projects — у всех `versions.drafts`). Payload и `@payloadcms/plugin-search` читают published-состояние из таблицы версий (`_<coll>_v.version__status`/`latest`), а не из главной таблицы. `UPDATE projects SET _status='published'` меняет только главную таблицу → плагин поиска НЕ синкает (latest-версия осталась `draft`), а следующая публикация через API **затирает** твою SQL-правку, промотав старую draft-версию поверх (так уже возвращался удалённый из галереи тестовый мусор). **Правильно:** публикация/правка versioned-доков — только через Payload Local API (`payload.update({ collection, id, data: { _status: 'published', … }, overrideAccess: true })`): создаёт published-версию + триггерит хуки и синк поиска. Для one-off массовых правок — временный tsx-скрипт на проде (`getPayload({ config })`, env из `/etc/gonba/gonba.env` через `set -a && . … && set +a`), удалить после прогона.
 - **`payload migrate` в headless** (CI / SSH без TTY) подвисает на drizzle y/N. Использовать обёртку `bash scripts/run-migrate.sh` (внутри `yes y | ...`). Fallback при подвисе — `psql -f web/src/migrations/<file>.sql` + ручной `INSERT INTO payload_migrations`.
-- **На Windows** `corepack pnpm` нужен с `script-shell = C:\Program Files\Git\bin\bash.exe` (см. memory `windows_pnpm_setup`). `pnpm 11` несовместим — используй pnpm 10 через corepack.
+- **На Windows** npm/pnpm нужен с `script-shell = C:\Program Files\Git\bin\bash.exe` (см. `docs/PROJECT.md`). `pnpm 11` несовместим — используй pnpm 10 через corepack.
 - **Локальный Postgres** для GONBA: установлен, `postgres:postgres@127.0.0.1:5432/gonba`. БД уже есть.
-- **Деплой — строго ПО ОДНОМУ (не параллелить).** `deploy-prod.yml` триггерится и от merge (авто, `workflow_run` на CI), и от ручного `gh workflow run`. Если запустить оба разом — `.next` пересобирается во время отдачи, манифест чанков рассинхронится → клиент ловит **ChunkLoadError** («Application error» на всех страницах), даже если код корректен (так был прод-outage 2026-06-05 при деплое site-decor). **Правило:** после merge ждать ЕДИНСТВЕННЫЙ авто-деплой; ручной dispatch — только когда авто-деплоя не будет (напр. повторный прогон). nginx тут чист (`proxy_pass` на Next, parens-чанки `app/(frontend)/…` отдаются 200) — дело не в скобках.
-- **Smoke-check деплоя НЕ ловит client-side ChunkLoadError** (проверяет HTTP 200 + контент-маркер в SSR-HTML). После деплоя фронт-изменений — **визуально проверить гидратацию в браузере** (Codex-in-Chrome: `getComputedStyle`/`document.title`/screenshot), не доверять только зелёному деплою. Класс «зелёный пайплайн ≠ корректный результат» (pool #011).
+- **Деплой — строго ПО ОДНОМУ (не параллелить).** `deploy-prod.yml` триггерится и от merge (авто, `workflow_run` на CI), и от ручного `gh workflow run`. Если запустить оба разом — `.next` пересобирается во время отдачи, манифест чанков рассинхронится → клиент ловит **ChunkLoadError** («Application error» на всех страницах), даже если код корректен (так уже случался прод-outage при параллельном деплое). **Правило:** после merge ждать ЕДИНСТВЕННЫЙ авто-деплой; ручной dispatch — только когда авто-деплоя не будет (напр. повторный прогон). nginx тут чист (`proxy_pass` на Next, parens-чанки `app/(frontend)/…` отдаются 200) — дело не в скобках.
+- **Smoke-check деплоя НЕ ловит client-side ChunkLoadError** (проверяет HTTP 200 + контент-маркер в SSR-HTML). После деплоя фронт-изменений — **визуально проверить гидратацию в браузере** (браузерный инструмент агента: `getComputedStyle`/`document.title`/screenshot), не доверять только зелёному деплою. Класс «зелёный пайплайн ≠ корректный результат» (pool #011).
 
 ---
 
@@ -254,7 +268,7 @@ ssh GONBA "journalctl -u gonba -n 50 --no-pager"
 ssh GONBA "sudo -u postgres pg_dump -Fc gonba" > prod-gonba-$(date +%Y%m%d).dump
 
 # safe-build на проде
-ssh GONBA "/home/valstan/GONBA/scripts/safe-build.sh"   # после первого деплоя скрипта
+ssh GONBA "~/GONBA/scripts/safe-build.sh"   # после первого деплоя скрипта
 
 # проверить какие PR висят
 gh pr list --state open --author @me
@@ -267,7 +281,7 @@ gh pr list --state open --author @me
 - **Прод вернул 502** → `ssh GONBA "sudo systemctl status gonba --no-pager"`. Если crash-loop с ENOENT на `.next/...json` — значит `next build` не доехал. Удалить `.next/`, прогнать `scripts/safe-build.sh`, restart.
 - **dev сервер локально показывает старые данные** → возможно `.next/cache/fetch-cache` или `unstable_cache`. Пересоберись с `rm -rf .next` или `restart`.
 - **Payload падает с `column ... does not exist`** → схема в БД отстала от коллекций. Добавить колонку через `ALTER TABLE` или Payload migrate.
-- **Drizzle висит на `Pulling schema from database` без y/N** → в headless-окружении применить `yes y | corepack pnpm dev` (memory `dev_schema_push_prompt`).
+- **Drizzle висит на `Pulling schema from database` без y/N** → в headless-окружении применить `yes y | corepack pnpm dev` (см. `docs/PROJECT.md`).
 - **`gh pr create` не работает** → `gh auth status` показывает, нужна ли авторизация.
 
 ---

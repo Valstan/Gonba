@@ -41,7 +41,7 @@ cd web && corepack pnpm exec tsc --noEmit 2>&1 | head -20 || echo 'TS errors abo
 
 ```bash
 ssh GONBA "sudo systemctl status gonba --no-pager 2>&1 | head -7"
-ssh GONBA "df -h /home/valstan 2>&1 | tail -2"  # место на диске
+ssh GONBA "df -h ~ 2>&1 | tail -2"  # место на диске
 ssh GONBA "free -h 2>&1 | head -2"               # память
 ```
 
