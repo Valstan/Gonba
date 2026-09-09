@@ -142,17 +142,23 @@ allowed-tools: Read, Bash, Glob, Grep, Edit, Write, AskUserQuestion
    ```bash
    git checkout -b <type>/<slug>   # feat/ fix/ chore/ docs/ refactor/
    ```
-2. Описательный commit (Conventional Commits, тело — что/почему/как применять на проде):
-   ```bash
-   git add -A
-   git commit -m "$(cat <<'EOF'
+2. Описательный commit (Conventional Commits, тело — что/почему/как применять на проде).
+
+   **Сообщение пишется файлом, а не внутри командной строки** (D-046): текст в командной строке проходит до четырёх парсеров, путь к файлу — один ASCII-токен. Записать инструментом записи файлов:
+
+   ```
    <type>(scope): <subject под 70 символов>
 
    <тело: что меняли, почему, как применять на проде — миграция? restart? ничего?>
 
-   Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
-   EOF
-   )"
+   Co-Authored-By: <агент и его фактическая версия> <noreply@anthropic.com>
+   ```
+
+   и отдать команде путь:
+
+   ```bash
+   git add -A
+   git commit -F <путь-к-файлу-сообщения>
    ```
 3. `git push -u origin <branch>`.
 
@@ -163,15 +169,19 @@ allowed-tools: Read, Bash, Glob, Grep, Edit, Write, AskUserQuestion
 Если ты на `main` и рабочих правок не было (только handoff) — создать `chore/handoff-YYYY-MM-DD`. Если уже на feature-ветке (5a или работали в ней) — добавить handoff-коммит **в ту же ветку**.
 
 ```bash
-git add docs/SESSION_HANDOFF.md docs/PENDING_FOLLOWUPS.md
-git commit -m "$(cat <<'EOF'
+Сообщение — файлом (D-046):
+
+```
 chore(session): handoff — <одна строка о нитке или «закрытие IDLE»>
 
 <2-3 строки развёрнутого описания>
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
-EOF
-)"
+Co-Authored-By: <агент и его фактическая версия> <noreply@anthropic.com>
+```
+
+```bash
+git add docs/SESSION_HANDOFF.md docs/PENDING_FOLLOWUPS.md
+git commit -F <путь-к-файлу-сообщения>
 git push
 ```
 

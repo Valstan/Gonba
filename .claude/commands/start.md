@@ -81,13 +81,15 @@ gh api -H "Accept: application/vnd.github.raw" \
 
 Хронологию «что сделано в последних сессиях» бери из `git log --oneline -15` + `gh pr list --state merged --limit 10` (отдельного журнала нет — [ADR-0007](../../docs/adr/0007-archive-development-log.md)).
 
-Memory-файлы автоматически подгружены через `MEMORY.md` — учитывай их в рекомендациях (особенно `windows_pnpm_setup`, `dev_schema_push_prompt`, `prod_server_access`, `feedback_cross_project_ideas`).
+Окруженческие грабли (Windows-шелл для npm, drizzle-prompt в headless, доступ к боксу) описаны в `AGENTS.md` и `docs/PROJECT.md` — в репозитории, а не в локальной памяти агента: канон обязан читаться с любой машины и любым агентом.
 
 ### Шаг 2.1. Самопроверка старения backlog'а (pool #033)
 
 После чтения `PENDING_FOLLOWUPS.md` пройдись по открытым (не ✅) пунктам с метками старения (`added` / `snoozed` / `touch` / `decay` — формат описан в шапке самого файла) и **всплыви в отчёте** те, что за порогом: открыто **> 30 дней** ИЛИ `snoozed ≥ 3`. Для каждого всплывшего — предложи **re-триаж тремя исходами** (не слепое возобновление): **возобновить** / **переформулировать** под текущий код / **выкинуть** (с причиной). Если за порогом ничего нет — в отчёте не упоминать. См. [pool #033](../../../brain_matrica/cross-project-ideas/ideas/033-deferred-backlog-aging-retriage.md).
 
-**Глобальный pool идей** — [`../brain_matrica/cross-project-ideas/INDEX.md`](../../../brain_matrica/cross-project-ideas/INDEX.md) (meta-репо [`brain_matrica`](https://github.com/Valstan/brain_matrica), путь относительный от Gonba/repo-root; см. `brain_matrica/README.md → Локальный путь`). Прочитай **только** строку про GONBA — ищи статусы `⚠️` (применимо, не применено) или `❓` (не оценено). Для каждой такой идеи открой `ideas/NNN-*.md` в `brain_matrica/cross-project-ideas/` и сверь `applicable_when` против текущего состояния GONBA. Если идея подходит — включи **одной строкой** в отчёт «Кстати: из pool'а — `<идея>` подходит, потому что `<причина>`. Применить?». Не настаивай. **Новые идеи добавляй в `brain_matrica` отдельной сессией** (`cd ../brain_matrica && claude`), не из этого репо. Fallback при отсутствии brain_matrica локально — `~/.claude/cross-project-ideas/` (legacy путь). См. инструкцию в `feedback_cross_project_ideas` memory.
+**Глобальный pool идей на `/start` НЕ читаем.** Это условный рефлекс, а не шаг открытия сессии: в библиотеку заглядывают перед вводом нового/нетривиального и при незнакомой грабле инструмента — см. `AGENTS.md` → «Consult-library reflex (#014)». Читать её на каждом старте значит платить полным сканом индекса за случай, который срабатывает раз в несколько сессий.
+
+**Новые идеи добавляются в `brain_matrica` отдельной сессией**, не из этого репо; из GONBA идея уезжает письмом в `mailbox/to-brain/` с `kind=idea`.
 
 ### Шаг 2.2. Срочные пункты по дате (due-date)
 
@@ -135,44 +137,11 @@ curl -s -o /dev/null -w 'prod: %{http_code} in %{time_total}s\n' --max-time 10 h
 
 Не делай ротацию автоматически — это destructive шаг, всегда с подтверждения пользователя.
 
-## Шаг 5.2. SSH opt-in для сессии (pool-идея #006)
+## Шаг 5.2. SSH — без опросника
 
-После probe прода (шаг 5) и проверки ротации (шаг 5.1) — спроси пользователя через `AskUserQuestion`, как обрабатывать SSH-вызовы к проду в текущей сессии. Это снимает фрикцию «нажать Allow 20 раз за сессию» при прод-диагностике, миграциях, чтении логов.
+Отдельного вопроса «нужен ли SSH в этой сессии» **не задаём**. Read-only обращения к боксу разрешены конфигурацией (`.claude/settings.json`), а необратимые операции с прод-данными всё равно проходят через `AskUserQuestion` в том же ходе (#025) — независимо от любого ответа в начале сессии.
 
-**Перед `AskUserQuestion`** проверь окружение (Bash / PowerShell):
-- Существует ли `~/.ssh/id_ed25519_gonba_deploy`.
-- Есть ли алиас `GONBA` в `~/.ssh/config` (`grep -i "Host GONBA" ~/.ssh/config`).
-
-Если ключа или алиаса нет — в варианте опции #3 ниже допиши «(на этой машине ключ не найден — вариант не сработает)» и считай вариант #1 (пропустить) разумным по умолчанию.
-
-**Сам `AskUserQuestion`:**
-
-```yaml
-question: «Нужен ли SSH-доступ к проду в этой сессии?»
-header: «SSH-доступ»
-multiSelect: false
-options:
-  - label: «Нет, пропустить»
-    description: «SSH не использую. Если возникнет нужда — переспрошу конкретно.»
-  - label: «Переспрашивать на каждый»
-    description: «Auto-mode classifier работает как раньше: каждый ssh GONBA — отдельное подтверждение.»
-  - label: «Полный доступ на сессию (Рекомендуется)»
-    description: «Read-only команды (journalctl, systemctl is-active, psql -c 'SELECT', cat, ls) — без переспрашивания. Destructive (ALTER, UPDATE/INSERT/DELETE, restart/stop, rm, sudo-write, scp в системные директории) — всё равно AskUserQuestion.»
-```
-
-**Что Claude делает при выборе #3 «Полный доступ»:**
-
-- В этой сессии запоминает соглашение: read-only SSH-команды (включая `scp` из `/tmp` на локалку) выполняет напрямую через `Bash` без `AskUserQuestion`.
-- При первом SSH-вызове кратко сообщает в чате: «(SSH opt-in активен — выполняю без переспрашивания)» — пользователь видит что соглашение помнится.
-- Перед **любой destructive** командой (ALTER, UPDATE, DELETE, restart, stop, rm, truncate, force-push, sudo write) — всё равно делает паузу и спрашивает через `AskUserQuestion`. Это вопрос здравого смысла, не permissions. Третий вариант **не отменяет** осторожность.
-- Скоуп — только текущая сессия. Следующая `/start` снова задаёт этот вопрос с чистого листа.
-
-**Что Claude делает при выборе #1 «Пропустить» или #2 «Переспрашивать»:**
-
-- Сохраняет дефолтное поведение Auto-mode classifier'а: каждый `ssh GONBA`-вызов проходит через подтверждение.
-- При #1 — дополнительно избегает SSH без явного запроса пользователя.
-
-См. cross-project pool: [`../brain_matrica/cross-project-ideas/ideas/006-full-session-ssh-optin.md`](../../../brain_matrica/cross-project-ideas/ideas/006-full-session-ssh-optin.md). Pioneer — setka.
+Опросник существовал до режима автономии под гейтами и не добавлял ни одного решения: он лишь переспрашивал то, что уже описано разрешениями и гейтом #025.
 
 ## Шаг 6. Отчёт пользователю
 
