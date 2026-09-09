@@ -328,6 +328,28 @@ jobs:
             sudo systemctl daemon-reload
             echo "unit обновлён из репо"
           fi
+          # Таймеры и их сервисы — тоже из репо, тем же идемпотентным способом.
+          # До этого деплой ставил ТОЛЬКО gonba.service, а `deploy/systemd/*.timer`
+          # лежали в репозитории и не применялись ничем: правка расписания
+          # выглядела сделанной, не будучи сделанной, и разошлась бы с боксом
+          # молча. Файл, который никто не исполняет, — не источник правды.
+          for unit in gonba-vk-sync.service gonba-vk-sync.timer \
+                      gonba-media-cache.service gonba-media-cache.timer; do
+            src="$BASE/deploy/systemd/$unit"
+            [ -f "$src" ] || continue
+            if ! cmp -s "$src" "/etc/systemd/system/$unit"; then
+              sudo cp "$src" "/etc/systemd/system/$unit"
+              sudo systemctl daemon-reload
+              # Таймер перечитывает расписание только при перезапуске: без этого
+              # daemon-reload обновит файл, а следующий срабатывание останется
+              # по старому OnCalendar.
+              case "$unit" in
+                *.timer) sudo systemctl reenable "$unit" >/dev/null 2>&1 || true
+                         sudo systemctl restart "$unit" ;;
+              esac
+              echo "unit обновлён из репо: $unit"
+            fi
+          done
           sudo systemctl restart gonba
           # держим последние 3 релиза
           ls -1dt "$BASE"/releases/*/ 2>/dev/null | grep -v '/current/$' | tail -n +4 | xargs -r rm -rf

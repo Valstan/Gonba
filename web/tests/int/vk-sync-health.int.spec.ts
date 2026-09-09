@@ -55,15 +55,32 @@ describe('summarizeVkSyncHealth', () => {
     expect(h.erroredSources).toBe(1)
   })
 
-  it('просрочен (sync старше 2× интервала +буфер) → unhealthy, staleSources', () => {
+  it('просрочен (sync старше самого широкого промежутка расписания +буфер) → unhealthy, staleSources', () => {
     const h = summarizeVkSyncHealth(
-      // интервал 3ч → порог 2*3+1=7ч; 8ч назад = просрочен
-      [{ lastSyncStatus: 'success', lastSyncAt: ago(8 * HOUR), syncIntervalHours: 3 }],
+      // Порог = max(2× интервала, ночной промежуток 7ч) + буфер 1ч = 8ч.
+      // 9ч назад — просрочен вне всяких сомнений.
+      [{ lastSyncStatus: 'success', lastSyncAt: ago(9 * HOUR), syncIntervalHours: 3 }],
       NOW,
     )
     expect(h.healthy).toBe(false)
     expect(h.staleSources).toBe(1)
     expect(h.details).toContain('просрочен')
+  })
+
+  /**
+   * Регресс на ежеутренний ложный алерт. Слоты таймера 06/10/13/18/23 MSK дают
+   * ночной промежуток ровно 7 часов, а прежний порог «2× интервала + час» при
+   * интервале 3ч был тоже ровно 7 часов — совпадение секунда в секунду. Любое
+   * опоздание утреннего прогона поднимало бы тревогу каждое утро, а индикатор,
+   * который регулярно краснеет без повода, перестают читать.
+   */
+  it('ночной промежуток расписания 23:00→06:00 не поднимает тревогу', () => {
+    const h = summarizeVkSyncHealth(
+      [{ lastSyncStatus: 'no-new-posts', lastSyncAt: ago(7 * HOUR + 10 * 60 * 1000), syncIntervalHours: 3 }],
+      NOW,
+    )
+    expect(h.healthy).toBe(true)
+    expect(h.staleSources).toBe(0)
   })
 
   it('один пропущенный прогон в пределах буфера → ещё healthy (нет ложной тревоги)', () => {
@@ -92,10 +109,10 @@ describe('summarizeVkSyncHealth', () => {
 
   it('дефолт интервала = 3ч, если поле пустое', () => {
     const h = summarizeVkSyncHealth(
-      [{ lastSyncStatus: 'success', lastSyncAt: ago(8 * HOUR), syncIntervalHours: null }],
+      [{ lastSyncStatus: 'success', lastSyncAt: ago(9 * HOUR), syncIntervalHours: null }],
       NOW,
     )
-    // null → 3ч → порог 7ч → 8ч просрочен
+    // null → 3ч → порог max(6ч, 7ч) + 1ч = 8ч → 9ч просрочен
     expect(h.staleSources).toBe(1)
     expect(h.healthy).toBe(false)
   })
