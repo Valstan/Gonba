@@ -22,7 +22,7 @@ export type VkSyncHealth = {
   healthy: boolean
   enabledSources: number
   erroredSources: number
-  /** Источники, чей последний sync старше 2× их интервала (+буфер) — таймер не идёт. */
+  /** Источники, чей последний sync старше порога простоя (+буфер) — таймер не идёт. */
   staleSources: number
   /** Самый свежий lastSyncAt среди включённых источников (ISO) или null. */
   lastSyncAt: string | null
@@ -32,9 +32,24 @@ export type VkSyncHealth = {
 
 const DEFAULT_INTERVAL_HOURS = 3
 const HOUR_MS = 60 * 60 * 1000
-// Грейс поверх 2× интервала: один пропущенный прогон таймера не должен поднимать
+// Грейс поверх порога: один пропущенный прогон таймера не должен поднимать
 // тревогу (всплеск нагрузки / разовый сетевой сбой), два подряд — уже сигнал.
 const STALE_BUFFER_MS = HOUR_MS
+
+/**
+ * Самый широкий промежуток РАСПИСАНИЯ таймера, а не производная от интервала.
+ *
+ * Слоты в `deploy/systemd/gonba-vk-sync.timer` — 06/10/13/18/23 MSK, и ночной
+ * промежуток 23:00 → 06:00 длиннее любого дневного. Без этой величины порог
+ * считался как «2 × интервал + час» = ровно 7 часов при интервале 3 ч, то есть
+ * **совпадал с ночным промежутком секунда в секунду**: любое опоздание утреннего
+ * прогона поднимало бы тревогу каждое утро. Индикатор, который регулярно
+ * краснеет без повода, перестают читать.
+ *
+ * Правишь слоты в юните — пересчитай это число: связь между расписанием и
+ * порогом здоровья из самого юнита не видна.
+ */
+const LARGEST_SCHEDULED_GAP_MS = 7 * HOUR_MS
 
 // «Опрошенные» = источники с определённым исходом последнего прогона. pending
 // (никогда не синканный) и null не считаем — они не пытались (зеркало
@@ -60,7 +75,10 @@ export function summarizeVkSyncHealth(
     if (!Number.isNaN(ts)) {
       if (mostRecentSyncAt == null || ts > mostRecentSyncAt) mostRecentSyncAt = ts
       const intervalMs = (Number(s.syncIntervalHours) || DEFAULT_INTERVAL_HOURS) * HOUR_MS
-      if (nowMs - ts > intervalMs * 2 + STALE_BUFFER_MS) staleSources++
+      // Порог берём по тому, что реально задаёт ритм: у частых источников это
+      // их собственный интервал, у всех наших — ночной промежуток расписания.
+      const staleAfterMs = Math.max(intervalMs * 2, LARGEST_SCHEDULED_GAP_MS) + STALE_BUFFER_MS
+      if (nowMs - ts > staleAfterMs) staleSources++
     }
   }
 
@@ -76,7 +94,7 @@ export function summarizeVkSyncHealth(
     )
   }
   if (staleSources > 0) {
-    reasons.push(`${staleSources} источник(ов) просрочены: sync не идёт >2× интервала (таймер?)`)
+    reasons.push(`${staleSources} источник(ов) просрочены: sync молчит дольше порога простоя (таймер?)`)
   }
 
   return {

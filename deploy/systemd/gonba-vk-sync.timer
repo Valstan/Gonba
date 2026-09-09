@@ -1,10 +1,22 @@
 [Unit]
-Description=GONBA VK Auto-Sync timer (every 3 hours)
+Description=GONBA VK Auto-Sync timer (06:00, 10:00, 13:00, 18:00, 23:00 MSK)
 
 [Timer]
-OnCalendar=*-*-* 00/3:00:00
+# Явные слоты вместо «каждые 3 часа»: расписание выбрано владельцем под
+# суточный ритм публикаций, а не выведено из круглого интервала.
+#
+# Время местное, то есть московское: зона бокса — Europe/Moscow (сверено с
+# debconf 09.09), и systemd трактует OnCalendar в локальной зоне.
+OnCalendar=*-*-* 06:00:00
+OnCalendar=*-*-* 10:00:00
+OnCalendar=*-*-* 13:00:00
+OnCalendar=*-*-* 18:00:00
+OnCalendar=*-*-* 23:00:00
 Persistent=true
-RandomizedDelaySec=5min
+# Разброс снят намеренно: слоты названы владельцем поимённо, и сдвигать их на
+# случайные минуты значит не исполнять названное расписание. Нагрузку он не
+# размазывает — прогон занимает секунды и на боксе один.
+RandomizedDelaySec=0
 Unit=gonba-vk-sync.service
 
 [Install]
