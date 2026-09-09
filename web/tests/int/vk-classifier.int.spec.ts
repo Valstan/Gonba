@@ -278,4 +278,109 @@ describe('правила редакции в промпте', () => {
     // Общее начало должно покрывать всю встроенную инструкцию, а не пару слов.
     expect(i).toBeGreaterThan(300)
   })
+
+  /**
+   * Обрезание по лимиту токенов приходит как УСПЕШНЫЙ ответ с пустым `content`,
+   * то есть снаружи неотличимо от «модель промолчала». На проде это стоило 47 %
+   * классификаций (8 из 17): раздумья съедали весь бюджет, и лечение — поднять
+   * лимит — было невозможно отличить от бесполезного, потому что причина в
+   * журнале не менялась. Различает их `finish_reason`, который лежал в ответе
+   * всё это время.
+   */
+  it('обрезание по бюджету токенов отличимо от настоящего молчания модели', async () => {
+    process.env.DEEPSEEK_API_KEY = 'test-key'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: '' }, finish_reason: 'length' }],
+          usage: { completion_tokens: 8000, completion_tokens_details: { reasoning_tokens: 8000 } },
+        }),
+      }),
+    )
+
+    const result = await classifyVkPost(args)
+
+    expect(result.usedFallback).toBe(true)
+    expect(result.rationale).toContain('обрезан лимитом токенов')
+    expect(result.rationale).toContain('8000')
+    // Контроль-негатив: причины действительно РАЗВЕДЕНЫ, а не переименованы.
+    expect(result.rationale).not.toContain('пустой результат')
+    expect(result.usage?.reasoningTokens).toBe(8000)
+  })
+
+  it('пустой ответ БЕЗ finish_reason=length по-прежнему зовётся пустым результатом', async () => {
+    // Вторая половина той же проверки: если бы новая ветка перехватывала всё
+    // подряд, различие снова схлопнулось бы — только в другую сторону.
+    process.env.DEEPSEEK_API_KEY = 'test-key'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: '' }, finish_reason: 'stop' }] }),
+      }),
+    )
+
+    const result = await classifyVkPost(args)
+
+    expect(result.rationale).toContain('пустой результат')
+    expect(result.rationale).not.toContain('обрезан лимитом')
+  })
+
+  /**
+   * Просьба brain: показать долю попаданий в префиксный кэш. Складываем в саму
+   * классификацию, а не в консоль — журнал сервиса ротируется, `vk_classification`
+   * остаётся и считается обычным SQL. `hit = 0` на однотипных вызовах = префикс сломан.
+   */
+  it('расход токенов и попадания в префиксный кэш попадают в классификацию', async () => {
+    process.env.DEEPSEEK_API_KEY = 'test-key'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: { content: JSON.stringify({ projectSlugs: ['gonba'], categorySlugs: [], rationale: 'ок' }) },
+              finish_reason: 'stop',
+            },
+          ],
+          usage: {
+            prompt_tokens: 487,
+            completion_tokens: 802,
+            completion_tokens_details: { reasoning_tokens: 637 },
+            prompt_cache_hit_tokens: 384,
+            prompt_cache_miss_tokens: 103,
+          },
+        }),
+      }),
+    )
+
+    const result = await classifyVkPost(args)
+
+    expect(result.provider).toBe('deepseek')
+    expect(result.usage).toMatchObject({
+      promptTokens: 487,
+      completionTokens: 802,
+      reasoningTokens: 637,
+      cacheHitTokens: 384,
+      cacheMissTokens: 103,
+    })
+  })
+
+  it('ответ без блока usage не роняет классификацию', async () => {
+    process.env.DEEPSEEK_API_KEY = 'test-key'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        chatCompletion(JSON.stringify({ projectSlugs: ['gonba'], categorySlugs: [], rationale: 'ок' })),
+      ),
+    )
+
+    const result = await classifyVkPost(args)
+
+    expect(result.provider).toBe('deepseek')
+    expect(result.usage).toBeUndefined()
+  })
 })
