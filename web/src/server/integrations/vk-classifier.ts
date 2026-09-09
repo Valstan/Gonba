@@ -4,6 +4,14 @@ export type VkClassifierProject = {
   summary?: string | null
 }
 
+export type VkClassificationUsage = {
+  promptTokens?: number
+  completionTokens?: number
+  reasoningTokens?: number
+  cacheHitTokens?: number
+  cacheMissTokens?: number
+}
+
 export type VkClassification = {
   projectSlugs: string[]
   categorySlugs: string[]
@@ -11,6 +19,8 @@ export type VkClassification = {
   provider: 'deepseek' | 'fallback'
   model: string | null
   usedFallback: boolean
+  /** Расход токенов последнего вызова провайдера; отсутствует, если вызова не было. */
+  usage?: VkClassificationUsage
 }
 
 type ClassifyArgs = {
@@ -48,12 +58,27 @@ const DEFAULT_MODEL = 'deepseek-v4-flash'
  */
 const DEFAULT_TIMEOUT_MS = 30_000
 /**
- * JSON-режим DeepSeek документированно рвёт ответ на полуслове при тесном лимите,
- * а входят ли токены раздумий в этот же лимит — в документации не сказано.
- * Пока не измерено живым запросом, держим запас: обрыв замаскировался бы под
- * обычную «ошибку классификатора».
+ * Токены раздумий ВХОДЯТ в `max_tokens` — измерено живым запросом 2026-09-09,
+ * до того в документации ответа не было и здесь стояла догадка.
+ *
+ * Контроль-негатив на один параметр (тот же промпт, отличается только лимит):
+ * при `max_tokens: 2000` → `finish_reason: length`, `content` ПУСТОЙ,
+ * `completion_tokens: 2000`, из них `reasoning_tokens: 2000` — раздумья съели
+ * бюджет целиком, на ответ не осталось ничего. При `max_tokens: 8000` тот же
+ * запрос → `finish_reason: stop`, `reasoning_tokens: 637`, ответ на месте.
+ *
+ * Цена прежнего лимита была не теоретической: на проде **47 % классификаций**
+ * (8 из 17 с момента доставки ключа) уходили в fallback с «пустым результатом»,
+ * причём 6 из 8 — из общей группы села, то есть ровно там, где маршрутизация
+ * требует раздумий, а не сводится к «опубликовано от имени проекта X».
+ * Лёгкие случаи укладывались в 2000 и создавали впечатление рабочего
+ * классификатора.
+ *
+ * 8000 — измеренный запас поверх наблюдавшихся 637 при `reasoning_effort: low`,
+ * а не круглое число: разброс между прогонами одного и того же промпта высокий,
+ * и тесный лимит превращает исход в лотерею.
  */
-const MAX_OUTPUT_TOKENS = 2000
+const MAX_OUTPUT_TOKENS = 8000
 const MAX_PROJECTS = 3
 
 /** off = раздумья выключены; остальное — уровень усилия DeepSeek. */
@@ -106,6 +131,51 @@ function extractMessageText(body: unknown): string | null {
 
   const trimmed = content.trim()
   return trimmed.length > 0 ? trimmed : null
+}
+
+/**
+ * Почему `finish_reason` разбирается отдельно от текста ответа.
+ *
+ * Обрезание по лимиту токенов приходит как **успешный** ответ с пустым
+ * `content` — снаружи оно неотличимо от «модель промолчала», и полгода
+ * выглядело именно так. Признак, который их различает, лежал в теле ответа
+ * всё это время и выбрасывался: `finish_reason: 'length'` против `'stop'`.
+ *
+ * Пока причина одна на оба случая, единственное лечение (поднять бюджет)
+ * невозможно отличить от бесполезного, потому что метрика не меняется.
+ */
+function extractFinishReason(body: unknown): string | null {
+  if (!body || typeof body !== 'object') return null
+  const choices = (body as { choices?: unknown }).choices
+  if (!Array.isArray(choices) || choices.length === 0) return null
+  const reason = (choices[0] as { finish_reason?: unknown }).finish_reason
+  return typeof reason === 'string' ? reason : null
+}
+
+/**
+ * Доля попаданий в префиксный кэш DeepSeek: совпавшее начало запроса
+ * тарифицируется кратно дешевле, но только если префикс стабилен. Складываем
+ * числа в саму классификацию, а не в консоль: журнал сервиса ротируется, а
+ * `vk_classification` остаётся и считается обычным SQL. `hit = 0` на
+ * однотипных вызовах означает, что префикс сломан.
+ */
+function extractUsage(body: unknown): VkClassificationUsage | undefined {
+  if (!body || typeof body !== 'object') return undefined
+  const usage = (body as { usage?: unknown }).usage
+  if (!usage || typeof usage !== 'object') return undefined
+  const num = (value: unknown): number | undefined => (typeof value === 'number' ? value : undefined)
+  const source = usage as Record<string, unknown>
+  const details = source.completion_tokens_details
+  return {
+    promptTokens: num(source.prompt_tokens),
+    completionTokens: num(source.completion_tokens),
+    reasoningTokens:
+      details && typeof details === 'object'
+        ? num((details as Record<string, unknown>).reasoning_tokens)
+        : undefined,
+    cacheHitTokens: num(source.prompt_cache_hit_tokens),
+    cacheMissTokens: num(source.prompt_cache_miss_tokens),
+  }
 }
 
 /**
@@ -210,15 +280,35 @@ export async function classifyVkPost(args: ClassifyArgs): Promise<VkClassificati
     if (!response.ok) return fallback(args, `DeepSeek ответил HTTP ${response.status}; оставлена привязка источника.`)
 
     const body = (await response.json()) as unknown
+    const usage = extractUsage(body)
+    const finishReason = extractFinishReason(body)
     const outputText = extractMessageText(body)
-    // Пустой content в JSON-режиме — известное поведение DeepSeek, не наша
-    // ошибка разбора. Отдельная причина в rationale, чтобы это было видно
-    // в админке и отличалось от «модель не выбрала проект».
-    if (!outputText) return fallback(args, 'DeepSeek вернул пустой результат; оставлена привязка источника.')
+    if (!outputText) {
+      // Два РАЗНЫХ отказа, которые раньше писались одной строкой и потому
+      // считались одним: бюджет токенов кончился на раздумьях (лечится
+      // лимитом) против того, что модель действительно вернула пустоту
+      // (лечится промптом или провайдером). Общая формулировка скрывала,
+      // какое лечение работает, — измеримыми они становятся только порознь.
+      if (finishReason === 'length') {
+        return {
+          ...fallback(
+            args,
+            `Ответ обрезан лимитом токенов: раздумья израсходовали бюджет (${usage?.reasoningTokens ?? '?'} из ${MAX_OUTPUT_TOKENS}). Оставлена привязка источника.`,
+          ),
+          usage,
+        }
+      }
+      return {
+        ...fallback(args, 'DeepSeek вернул пустой результат; оставлена привязка источника.'),
+        usage,
+      }
+    }
 
     const parsed = JSON.parse(outputText) as { projectSlugs?: unknown; categorySlugs?: unknown; rationale?: unknown }
     const selectedProjects = uniqueAllowed(parsed.projectSlugs, projectSet).slice(0, MAX_PROJECTS)
-    if (selectedProjects.length === 0) return fallback(args, 'DeepSeek не выбрал допустимый проект; оставлена привязка источника.')
+    if (selectedProjects.length === 0) {
+      return { ...fallback(args, 'DeepSeek не выбрал допустимый проект; оставлена привязка источника.'), usage }
+    }
 
     return {
       projectSlugs: selectedProjects,
@@ -227,6 +317,7 @@ export async function classifyVkPost(args: ClassifyArgs): Promise<VkClassificati
       provider: 'deepseek',
       model,
       usedFallback: false,
+      usage,
     }
   } catch (error) {
     // Таймаут отделяем от прочих сбоев намеренно: на живых данных именно это
