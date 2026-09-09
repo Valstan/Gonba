@@ -268,7 +268,16 @@ jobs:
           CHANGED=$(git diff --name-only HEAD~1 HEAD -- web/package-lock.json || true)
           if [ -n "${CHANGED}" ]; then
             echo "package-lock.json изменился — обновляем node_modules на боксе (таймеры/скрипты)…"
-            ssh GONBA "cd /home/valstan/GONBA/web && npm install --no-audit --no-fund 2>&1 | tail -5"
+            # G322: конвейер на УДАЛЁННОЙ стороне отдаёт код выхода последнего звена.
+            # Без pipefail `npm install … | tail -5` возвращал 0 всегда — упавший
+            # install уезжал зелёным, а ломались бы таймеры vk-sync/media-cache,
+            # то есть не сайт, и нашлось бы это поздно. Локальный `set -e` тут бессилен:
+            # он видит только код ssh, а ssh честно отдаёт код удалённого `tail`.
+            ssh GONBA 'bash -s' <<'REMOTE'
+          set -eo pipefail
+          cd /home/valstan/GONBA/web
+          npm install --no-audit --no-fund 2>&1 | tail -5
+          REMOTE
           else
             echo "lockfile не менялся — install на боксе пропущен."
           fi
@@ -297,6 +306,15 @@ jobs:
           set -e
           SHA="$1"
           BASE=/home/valstan/GONBA
+          # G321: `ssh host 'bash -s' "$A"` не передаёт argv — аргументы склеиваются
+          # в строку команды и разбираются заново, поэтому ПУСТОЙ аргумент исчезает
+          # бесследно, а не приезжает пустым. Без этой проверки пустой SHA давал
+          # REL="$BASE/releases/" и следующая же строка сносила `rm -rf` весь каталог
+          # релизов вместе с откатом. Падать здесь дёшево, разбирать последствия — нет.
+          if [ -z "$SHA" ]; then
+            echo "::error::SHA не доехал до бокса (пустой \$1) — каталог релизов не трогаем"
+            exit 1
+          fi
           REL="$BASE/releases/$SHA"
           rm -rf "$REL"; mkdir -p "$REL"
           tar xzf /tmp/gonba-app.tgz -C "$REL"
