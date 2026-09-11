@@ -6,6 +6,14 @@ import { messagesPublicRead } from '../../access/messagesPublicRead'
 
 export const Messages: CollectionConfig<'messages'> = {
   slug: 'messages',
+  // GraphQL-имена заданы явно: умолчание из слага — `Message` — совпадало с
+  // типом блока `message` плагина form-builder, и сборка схемы падала
+  // («multiple types named "Message"»), /api/graphql отдавал 500 с 28.08.
+  // Потребителей GraphQL в коде нет — фронт и синхронизация ходят Local API.
+  graphQL: {
+    singularName: 'ChatMessage',
+    pluralName: 'ChatMessages',
+  },
   labels: {
     singular: 'Сообщение',
     plural: 'Сообщения',
