@@ -148,7 +148,10 @@ export const Media: CollectionConfig = {
     // Temporary local storage before sync to Yandex Disk
     staticDir: path.resolve(dirname, '../../public/media'),
     focalPoint: true,
-    imageSizes: [],
+    // imageSizes намеренно НЕ задан: пустой массив [] рождал в GraphQL пустой тип
+    // MediaFields_sizes_Fields («must define one or more fields»), и схема не
+    // собиралась. Отсутствие ключа = те же «без производных размеров», но без
+    // пустой группы sizes в схеме и типах.
   },
   hooks: {
     afterRead: [

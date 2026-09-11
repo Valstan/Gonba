@@ -10,11 +10,10 @@ const getImageURL = (image?: Media | Config['db']['defaultIDType'] | null) => {
 
   let url = serverUrl + '/website-template-OG.webp'
 
-  if (image && typeof image === 'object' && 'url' in image) {
-    const sizes = (image as Media).sizes as { og?: { url?: string } } | undefined
-    const ogUrl = sizes?.og?.url
-
-    url = ogUrl ? serverUrl + ogUrl : serverUrl + image.url
+  // Производных размеров (og и прочих) у media нет — imageSizes не задан,
+  // поэтому OG-картинка — сам оригинал.
+  if (image && typeof image === 'object' && 'url' in image && image.url) {
+    url = serverUrl + image.url
   }
 
   return url
