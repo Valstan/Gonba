@@ -846,6 +846,9 @@ export async function syncVkSource(
           projectSlugs: classifier.projectSlugs,
           categorySlugs: classifier.categorySlugs,
           rationale: classifier.rationale,
+          // usage приходит только от живого вызова провайдера; у fallback его нет — ключ
+          // тогда не пишется вовсе, и SQL по usage считает ровно ответившие вызовы.
+          ...(classifier.usage ? { usage: classifier.usage } : {}),
           sourceProjectSlug: String(project.slug),
         },
         _status: 'published',
