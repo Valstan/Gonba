@@ -81,7 +81,7 @@ export const DEFAULT_DRAWER_GROUPS: DrawerGroup[] = [
     modifier: 'stay',
     heading: '· Пожить ·',
     items: [
-      { href: '/projects/eco-hotel-vyatka', title: 'ЭКО-отель', subtitle: 'над рекой, 6 номеров' },
+      { href: '/projects/eco-hotel-booking', title: 'ЭКО-отель', subtitle: 'над рекой, 6 номеров' },
     ],
   },
   {

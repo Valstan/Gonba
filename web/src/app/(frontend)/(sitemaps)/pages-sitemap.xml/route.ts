@@ -31,16 +31,16 @@ const getPagesSitemap = unstable_cache(
 
     const dateFallback = new Date().toISOString()
 
-    const defaultSitemap = [
-      {
-        loc: `${SITE_URL}/search`,
+    // Статические разделы, у которых нет документа в коллекции `pages`. Список
+    // сверен с `llms.txt` — тем, что сайт сам объявляет своими разделами; иначе
+    // карта и llms.txt расходятся, и половина сайта не видна ни людям, ни ИИ.
+    // `/projects` сюда не входит: он отдаёт 308 на якорь `/#projects`.
+    const defaultSitemap = ['/search', '/posts', '/usadba', '/events', '/services', '/shop', '/oblako'].map(
+      (path) => ({
+        loc: `${SITE_URL}${path}`,
         lastmod: dateFallback,
-      },
-      {
-        loc: `${SITE_URL}/posts`,
-        lastmod: dateFallback,
-      },
-    ]
+      }),
+    )
 
     const sitemap = results.docs
       ? results.docs
