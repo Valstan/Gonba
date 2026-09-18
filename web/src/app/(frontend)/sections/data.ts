@@ -133,13 +133,13 @@ export const sections: SectionDefinition[] = [
     imageKeywords: ['эко', 'отель', 'домик', 'баня'],
     ctas: [
       { label: 'Записи', href: '/sections/eco-hotel-booking#posts' },
-      { label: 'Страница проекта', href: '/projects/eco-hotel-vyatka' },
+      { label: 'Страница проекта', href: '/projects/eco-hotel-booking' },
       { label: 'Сервисы', href: '/services' },
     ],
     accentColor: '#22c55e',
     icon: '🏡',
     gradient: 'from-green-500 to-lime-500',
-    projectSlug: 'eco-hotel-vyatka',
+    projectSlug: 'eco-hotel-booking',
     enabledSections: ['posts', 'services', 'gallery', 'contacts'],
   },
   {

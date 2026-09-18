@@ -23,7 +23,7 @@ export const gonbaProjects: ProjectSeed[] = [
   {
     title: 'ЭКО‑отель «Жемчужина Вятки»',
     shortLabel: 'ЭКО-отель',
-    slug: 'eco-hotel-vyatka',
+    slug: 'eco-hotel-booking',
     projectType: 'ecoHotel',
     summary: 'Домики, баня, ретриты и бронирование размещений.',
     contacts: {
