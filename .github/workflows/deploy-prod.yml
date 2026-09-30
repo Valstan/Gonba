@@ -268,6 +268,29 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_only }}
         run: echo "build_only=true — артефакт собран успешно, деплой пропущен."
 
+      - name: Предупредить о грязном tracked-дереве бокса (до pull)
+        # Охраняемый инвариант: tracked-дерево бокса остаётся чистым, иначе
+        # СЛЕДУЮЩИЙ `git pull --ff-only` упадёт. Проверка — предупреждение, а не
+        # фейл: если incoming-коммит не трогает грязный файл, pull пройдёт, и
+        # блокировать деплой из-за состояния, которое именно сейчас не мешает,
+        # было бы неверно. Но увидеть надо ЗДЕСЬ, а не через два деплоя на
+        # невнятной гит-ошибке «local changes would be overwritten».
+        #
+        # Печатаем только tracked-изменения (untracked-выключен): в лог уходит
+        # список путей и --stat по ним, секретов там нет — локфайл и так лежит
+        # в публичном репозитории.
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_only) }}
+        run: |
+          set -eo pipefail
+          DIRTY=$(ssh GONBA 'cd /home/valstan/GONBA && git status --porcelain --untracked-files=no || true')
+          if [ -n "${DIRTY}" ]; then
+            echo "::warning::tracked-дерево бокса НЕ чистое — деплой, меняющий эти файлы, упадёт на git pull --ff-only:"
+            printf '%s\n' "${DIRTY}"
+            ssh GONBA 'cd /home/valstan/GONBA && git -c core.pager=cat diff --stat -- . || true'
+          else
+            echo "tracked-дерево бокса чистое — pull следующего деплоя не сломается."
+          fi
+
       - name: Pull latest main on prod (репо бокса — для таймеров/скриптов/юнита)
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_only) }}
         run: |
@@ -282,14 +305,37 @@ jobs:
           if [ -n "${CHANGED}" ]; then
             echo "package-lock.json изменился — обновляем node_modules на боксе (таймеры/скрипты)…"
             # G322: конвейер на УДАЛЁННОЙ стороне отдаёт код выхода последнего звена.
-            # Без pipefail `npm install … | tail -5` возвращал 0 всегда — упавший
+            # Без pipefail `npm ci … | tail -5` возвращал 0 всегда — упавший
             # install уезжал зелёным, а ломались бы таймеры vk-sync/media-cache,
             # то есть не сайт, и нашлось бы это поздно. Локальный `set -e` тут бессилен:
             # он видит только код ssh, а ssh честно отдаёт код удалённого `tail`.
             ssh GONBA 'bash -s' <<'REMOTE'
           set -eo pipefail
           cd /home/valstan/GONBA/web
-          npm install --no-audit --no-fund 2>&1 | tail -5
+          # Именно `npm ci`, а не `npm install` — это и есть лечение (наблюдение
+          # 30.09, дважды за день на живых прогонах). `npm install` перезаписывает
+          # package-lock.json по своему вкусу: на боксе он снял 63 аннотации
+          # `"libc"` у optional-зависимостей, оставив дерево бокса грязным, и
+          # следующий `git pull --ff-only` отказывался работать. Механизм не
+          # гипотеза — строки удаляет npm, а не мы.
+          #
+          # `npm ci` по контракту НЕ пишет лок: он сносит node_modules и ставит
+          # дерево ровно по локу, а расхождение лока с package.json считает ошибкой
+          # (то есть ещё и гейт на согласованность). Побочный плюс: дерево бокса
+          # становится тем же, что собрано в CI, а не «как решил npm 10 на месте».
+          #
+          # Гейт на СОСТОЯНИЕ после установки: проверяем, что tracked-дерево бокса
+          # осталось чистым. Код выхода `npm ci` этого не говорит — точно так же,
+          # как не говорил про importMap, и это тот же класс (шаг отработал, поломка
+          # пришла позже и в другом месте). Смотрим на артефакт, а не на код.
+          npm ci --no-audit --no-fund 2>&1 | tail -5
+          cd /home/valstan/GONBA
+          if ! git diff --quiet -- .; then
+            echo "::error::после npm ci tracked-дерево бокса осталось грязным — следующий pull упадёт:"
+            git -c core.pager=cat diff --stat -- .
+            exit 1
+          fi
+          echo "дерево бокса после установки чистое — лок не тронут."
           REMOTE
           else
             echo "lockfile не менялся — install на боксе пропущен."
