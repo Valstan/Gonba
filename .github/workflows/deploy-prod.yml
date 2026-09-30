@@ -228,7 +228,20 @@ jobs:
           # Включает output:'standalone' в next.config.js. Локально флаг НЕ ставят —
           # standalone-сборка мутирует node_modules (G41).
           STANDALONE_BUILD: '1'
-        run: npm run build:raw
+        run: |
+          set -eo pipefail
+          npm run build:raw
+          # Гейт на результат importmap-шага, а не на его код выхода.
+          # build:raw начинается с `payload generate:importmap`, и если тот
+          # молча ничего не записал, webpack падает тремя файлами ниже с
+          # «Module not found: Can't resolve './admin/importMap.js'» — симптом
+          # указывает на сборку, а причина на шаг выше (наблюдалось 30.09:
+          # шаг вернул 0 и не напечатал ни строки). Проверяем артефакт.
+          if [ ! -s "src/app/(payload)/admin/importMap.js" ]; then
+            echo "::error::importMap.js не создан или пуст — payload generate:importmap отработал вхолостую."
+            exit 1
+          fi
+          echo "importMap.js: $(wc -c < "src/app/(payload)/admin/importMap.js") байт"
 
       - name: Close SSH tunnel
         if: always()
