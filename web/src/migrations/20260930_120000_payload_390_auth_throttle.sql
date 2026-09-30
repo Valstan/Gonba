@@ -1,0 +1,23 @@
+-- Payload 3.90: колонка троттлинга forgot-password — users.reset_password_requested_at.
+--
+-- Спутник к 20260930_120000_payload_390_auth_throttle.ts для ручного накатывания
+-- на прод ДО мержа: `payload migrate` в headless виснет на drizzle y/N, поэтому
+-- гейт деплоя падает на любой новой миграции, а DDL применяет человек (см.
+-- .github/workflows/deploy-prod.yml → «Safety net»).
+--
+-- Правка ЧИСТО АДДИТИВНАЯ: один nullable столбец без DEFAULT. Существующим строкам
+-- пишется NULL, старый код колонки не знает — порядок «сначала БД, потом деплой»
+-- безопасен, отката DDL не требует.
+--
+-- Номер batch берётся из БД, а не из головы: `SELECT max(batch) FROM
+-- payload_migrations` + 1.
+--
+-- Применение:
+--   [файл на бокс] → ssh GONBA 'sudo -u postgres psql -d gonba -v ON_ERROR_STOP=1 -f <файл>'
+--   затем INSERT INTO payload_migrations (name, batch, updated_at, created_at)
+--     VALUES ('20260930_120000_payload_390_auth_throttle', <max+1>, now(), now());
+--
+-- Приёмка: \d users показывает reset_password_requested_at
+--   (timestamp(3) with time zone, nullable, без default).
+
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "reset_password_requested_at" timestamp(3) with time zone;
