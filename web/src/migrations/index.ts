@@ -13,6 +13,7 @@ import * as migration_20260710_120000 from './20260710_120000';
 import * as migration_20260809_120000 from './20260809_120000';
 import * as migration_20260809_120001 from './20260809_120001';
 import * as migration_20260901_131253_vk_editorial_rules from './20260901_131253_vk_editorial_rules';
+import * as migration_20260930_120000_payload_390_auth_throttle from './20260930_120000_payload_390_auth_throttle';
 
 export const migrations = [
   {
@@ -89,5 +90,10 @@ export const migrations = [
     up: migration_20260901_131253_vk_editorial_rules.up,
     down: migration_20260901_131253_vk_editorial_rules.down,
     name: '20260901_131253_vk_editorial_rules'
+  },
+  {
+    up: migration_20260930_120000_payload_390_auth_throttle.up,
+    down: migration_20260930_120000_payload_390_auth_throttle.down,
+    name: '20260930_120000_payload_390_auth_throttle'
   },
 ];
