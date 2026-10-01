@@ -169,8 +169,10 @@ export default buildConfig({
   jobs: {
     access: {
       run: ({ req }: { req: PayloadRequest }): boolean => {
-        // Allow logged in users to execute this endpoint (default)
-        if (req.user) return true
+        // Admin-роли могут запускать jobs через админку; рядовой logged-in
+        // пользователь — нет (раньше `if (req.user) return true` пускал всех).
+        const roles = req.user && Array.isArray(req.user.roles) ? (req.user.roles as string[]) : []
+        if (roles.some((r) => r === 'admin' || r === 'editor' || r === 'manager')) return true
 
         const secret = process.env.CRON_SECRET
         if (!secret) return false

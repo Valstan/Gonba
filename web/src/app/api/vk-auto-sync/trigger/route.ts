@@ -6,13 +6,18 @@ export async function POST(request: Request) {
   const secret = process.env.CRON_SECRET
   const authHeader = request.headers.get('authorization')
 
-  // Проверяем авторизацию: CRON_SECRET или admin
-  if (secret && authHeader !== `Bearer ${secret}`) {
-    // Проверяем, есть ли пользователь (из админки)
-    const authCookie = request.headers.get('cookie')
-    if (!authCookie?.includes('payload-token')) {
+  // Проверяем авторизацию: CRON_SECRET Bearer ИЛИ staff-роль (admin/editor/manager),
+  // подтверждённая payload.auth — а не просто наличие cookie 'payload-token'.
+  // Раньше при пустом CRON_SECRET проверка обходилась полностью.
+  const hasValidSecret = Boolean(secret) && authHeader === `Bearer ${secret}`
+  if (!hasValidSecret) {
+    const payload = await getPayload({ config: configPromise })
+    const { user } = await payload.auth({ headers: request.headers })
+    const roles = user && Array.isArray(user.roles) ? (user.roles as string[]) : []
+    const isStaff = roles.some((r) => r === 'admin' || r === 'editor' || r === 'manager')
+    if (!isStaff) {
       return Response.json(
-        { error: 'Unauthorized. Provide Bearer CRON_SECRET or payload-token cookie.' },
+        { error: 'Unauthorized. Provide Bearer CRON_SECRET or a staff account.' },
         { status: 401 },
       )
     }

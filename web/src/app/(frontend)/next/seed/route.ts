@@ -16,6 +16,12 @@ export async function POST(): Promise<Response> {
     return new Response('Action forbidden.', { status: 403 })
   }
 
+  // Seed правит контент/глобалы — только admin, не любой залогиненный.
+  const roles = Array.isArray(user.roles) ? (user.roles as string[]) : []
+  if (!roles.includes('admin')) {
+    return new Response('Action forbidden.', { status: 403 })
+  }
+
   try {
     // Create a Payload request object to pass to the Local API for transactions
     // At this point you should pass in a user, locale, and any other context you need for the Local API
