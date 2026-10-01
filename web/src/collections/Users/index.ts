@@ -38,6 +38,12 @@ export const Users: CollectionConfig = {
       defaultValue: ['user'],
       saveToJWT: true,
       options: ['admin', 'editor', 'manager', 'support', 'user'],
+      access: {
+        // Роль назначает/снимает только admin. Без этого PATCH /api/users/:id
+        // (update: adminOrSelf) позволял пользователю самому поднять себе admin.
+        create: ({ req }) => Boolean(req.user?.roles?.includes('admin')),
+        update: ({ req }) => Boolean(req.user?.roles?.includes('admin')),
+      },
     },
   ],
   timestamps: true,
