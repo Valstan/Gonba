@@ -110,7 +110,7 @@ Read-сторона того же шкафа, что и #009 (#009 — «наш�
 |---|---|
 | [`docs/SESSION_HANDOFF.md`](docs/SESSION_HANDOFF.md) | **Sticky note из прошлой сессии:** статус (ACTIVE/IDLE), текущая нитка, следующий шаг. **Читать первым** (шаг 0 в `/start`). Обновляется через `/close_session`. История — `git log -- docs/SESSION_HANDOFF.md`. |
 | [`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md) | Архитектурная картина: стек, структура репо, интеграции, прод-инфраструктура, кэш-инвалидация. Стабильное «как устроено сейчас». |
-| [`docs/PENDING_FOLLOWUPS.md`](docs/PENDING_FOLLOWUPS.md) | Открытые задачи и техдолги с приоритетами 🔴⏳🟡🟢. Хвосты из предыдущих сессий. |
+| [`docs/PENDING_FOLLOWUPS.md`](docs/PENDING_FOLLOWUPS.md) | Индекс открытых задач (приоритеты 🔴⏳🟡🟢). Тела пунктов — в [`docs/followups/`](docs/followups/). |
 | [`docs/plans/`](docs/plans/) | Многоэтапные планы (plan mode → файл сюда, не во внешнюю vendor-specific папку планов). См. `docs/plans/README.md`. |
 | [`docs/PROJECT.md`](docs/PROJECT.md) | Функциональная документация (env, скрипты, систем-операции). Менее «архитектурный», более «справочный». |
 | [`docs/RELEASE_STABILITY_CHECKLIST.md`](docs/RELEASE_STABILITY_CHECKLIST.md) | Pre-release checklist. Морально устарел — см. `/reliz`. |
@@ -128,7 +128,7 @@ Slash-команда `/start` всё это читает автоматичес�
 1. **Старт сессии** — `/start`. Получаешь сводку: что нового на main, какие хвосты, что в процессе. **Шаг 0** подсветит нитку из `docs/SESSION_HANDOFF.md` если она активна.
 2. **Работа над фичей** — обычные правки кода. После TS-check, локальной проверки и согласования с пользователем — `/reliz`.
 3. **Релиз** — `/reliz` ведёт через commit → push → PR → merge → build:raw через systemd-run → restart gonba → проверки. Один шаг = один диалог. После merge в `main` автоматически запускается CI и `.github/workflows/deploy-prod.yml`. **Тело PR = changelog** (хронология живёт в `git log` + PR, не в отдельном журнале — [ADR-0007](docs/adr/0007-archive-development-log.md)).
-4. **Закрытие сессии** — перед последним коммитом закрой/перенеси задачи в `PENDING_FOLLOWUPS.md`. Затем запусти `/close_session` (или скажи «закрой сессию» / «заверши сессию» — NL-триггеры ведут туда же): он обновит `docs/SESSION_HANDOFF.md`, закоммитит+запушит ВСЁ через PR и **не закроет сессию, пока вся работа не на GitHub** (sync-гейт `scripts/git_sync_check.sh --gate`, pool #010). GitHub — источник истины между машинами.
+4. **Закрытие сессии** — перед последним коммитом закрой/перенеси задачи в `PENDING_FOLLOWUPS.md` (тела — в `docs/followups/`). Затем запусти `/close_session` (или скажи «закрой сессию» / «заверши сессию» — NL-триггеры ведут туда же): он обновит `docs/SESSION_HANDOFF.md`, закоммитит+запушит ВСЁ через PR и **не закроет сессию, пока вся работа не на GitHub** (sync-гейт `scripts/git_sync_check.sh --gate`, pool #010). GitHub — источник истины между машинами.
 5. **При архитектурных решениях** — заведи новый ADR в `docs/adr/` по шаблону `_template.md`, чтобы будущие сессии знали «почему».
 6. **Многоэтапные планы (plan mode)** — пиши файл плана в `docs/plans/<slug>.md`, **не** во внешнюю vendor-specific папку. Файлы в `docs/plans/` идут в git и видны с любого компа; outside-repo плановые папки между компами не синхронизируются.
 

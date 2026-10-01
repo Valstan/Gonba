@@ -101,6 +101,7 @@ allowed-tools: Read, Bash, Glob, Grep, Edit, Write, AskUserQuestion
 - При `/close_session ACTIVE` — спроси пользователя «были ли отвергнутые подходы за эту сессию?». При `Status: IDLE` — durable failed approaches из старого SESSION_HANDOFF подними в `AGENTS.md`/ADR (если ещё не там), остальные отпусти.
 
 ## Шаг 4. Обновить PENDING_FOLLOWUPS.md (если нужно)
+(тела пунктов — в `docs/followups/*.md`, индекс — `docs/PENDING_FOLLOWUPS.md`)
 
 Если в сессии:
 - Закрыли какие-то открытые задачи — отметить `✅ Сделано` (с PR/коммитом) или снять из списка (хронология — `git log` + тело PR).
@@ -180,7 +181,7 @@ Co-Authored-By: <агент и его фактическая версия> <nore
 ```
 
 ```bash
-git add docs/SESSION_HANDOFF.md docs/PENDING_FOLLOWUPS.md
+git add docs/SESSION_HANDOFF.md docs/PENDING_FOLLOWUPS.md docs/followups
 git commit -F <путь-к-файлу-сообщения>
 git push
 ```
