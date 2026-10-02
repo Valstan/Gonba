@@ -5,7 +5,10 @@ import type { User } from '@/payload-types'
 const isE2EEnabled = () => process.env.ENABLE_E2E_HELPERS === 'true'
 
 const isAuthorized = (request: Request) => {
-  const expectedSecret = process.env.E2E_TEST_SECRET || 'local-e2e-secret'
+  // Дефолтного секрета нет: если E2E_TEST_SECRET не задан, эндпоинт всегда закрыт.
+  // (Раньше fallback 'local-e2e-secret' означал известный публичный секрет.)
+  const expectedSecret = process.env.E2E_TEST_SECRET
+  if (!expectedSecret) return false
   const providedSecret = request.headers.get('x-e2e-secret') || ''
   return providedSecret === expectedSecret
 }

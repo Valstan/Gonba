@@ -4,8 +4,19 @@ import { getPayload } from 'payload'
 import type { Booking } from '@/payload-types'
 import { validateBookingInput } from '@/server/booking/validateBooking'
 import { sendBookingNotification } from '@/server/notifications/sendBookingNotification'
+import { rateLimit } from '@/server/ugc/rateLimit'
+import { clientIp } from '@/server/ugc/ugc'
 
 export async function POST(request: Request) {
+  // Анти-абьюз публичной записи (F5 из аудита write-authz): 20 заявок / 10 мин / IP.
+  const rl = rateLimit(`bookings:${clientIp(request.headers)}`, 20, 10 * 60 * 1000)
+  if (!rl.ok) {
+    return Response.json(
+      { error: 'Слишком много заявок. Попробуйте позже.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } },
+    )
+  }
+
   const payload = await getPayload({ config: configPromise })
   const body = (await request.json()) as Record<string, unknown>
 
