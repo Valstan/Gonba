@@ -36,7 +36,7 @@ export default defineConfig({
   webServer: {
     command:
       process.env.PLAYWRIGHT_WEB_SERVER_COMMAND ||
-      'ENABLE_E2E_HELPERS=true E2E_TEST_SECRET=local-e2e-secret PORT=3100 NODE_OPTIONS=\"--max-old-space-size=3072\" corepack pnpm start',
+      'ENABLE_E2E_HELPERS=true E2E_TEST_SECRET=local-e2e-secret PORT=3100 NODE_OPTIONS=\"--max-old-space-size=3072\" npm start',
     reuseExistingServer: process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === '1',
     url: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3100',
     timeout: Number(process.env.PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS || 300000),

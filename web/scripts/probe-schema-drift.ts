@@ -27,7 +27,7 @@ import { getPayload } from 'payload'
  * ВАЖНО: направлять на **копию** прод-схемы, не на сам прод. Штатный рецепт:
  *   ssh GONBA "sudo -u postgres pg_dump -s gonba" > /tmp/prod-schema.sql
  *   createdb gonba_probe && psql -d gonba_probe -f /tmp/prod-schema.sql
- *   DATABASE_URL=postgres://…/gonba_probe corepack pnpm tsx scripts/probe-schema-drift.ts
+ *   DATABASE_URL=postgres://…/gonba_probe npx tsx scripts/probe-schema-drift.ts
  *
  * `PAYLOAD_MIGRATING=true` выставляется скриптом сам — он глушит авто-push на connect
  * (`db-postgres/connect.js`), иначе Payload молча привёл бы probe-БД к конфигу до замера.
@@ -35,7 +35,7 @@ import { getPayload } from 'payload'
  * Exit code: 0 — дрейфа нет; 1 — есть (пригодно как гейт в CI).
  *
  * Usage:
- *   corepack pnpm tsx scripts/probe-schema-drift.ts
+ *   npx tsx scripts/probe-schema-drift.ts
  */
 
 process.env.PAYLOAD_MIGRATING = 'true'

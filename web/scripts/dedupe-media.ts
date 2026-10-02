@@ -28,9 +28,9 @@ import { mergeMediaInto } from '../src/server/media-usage/repoint'
  * намеренно; afterDelete чистит Я.Диск-ресурс).
  *
  * Запуск (Windows dev / прод):
- *   corepack pnpm tsx scripts/dedupe-media.ts                 # dry, все группы
- *   corepack pnpm tsx scripts/dedupe-media.ts --limit 5       # dry, первые 5 групп
- *   corepack pnpm tsx scripts/dedupe-media.ts --apply         # СЛИЯНИЕ (после dry + pg_dump!)
+ *   npx tsx scripts/dedupe-media.ts                 # dry, все группы
+ *   npx tsx scripts/dedupe-media.ts --limit 5       # dry, первые 5 групп
+ *   npx tsx scripts/dedupe-media.ts --apply         # СЛИЯНИЕ (после dry + pg_dump!)
  */
 
 const argv = process.argv.slice(2)

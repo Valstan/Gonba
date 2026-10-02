@@ -9,12 +9,12 @@
 #   sudo systemctl daemon-reload && sudo systemctl restart gonba
 #
 # Lesson learned (2026-05-20):
-#   - Прямой `corepack pnpm run build:raw` через одну SSH-сессию умирает посередине
+#   - Прямой `npm run build:raw` через одну SSH-сессию умирает посередине
 #     prerender'а при SSH-disconnect, оставляя «полуготовый» .next без
 #     prerender-manifest.json. Сервис уходит в crash-loop с ENOENT.
-#   - `pnpm run build` использует watchdog --idle-ms=180000, что мало для Next.js 15
+#   - `npm run build` использует watchdog --idle-ms=180000, что мало для Next.js 15
 #     (он молчит до 5-6 минут на компиляции).
-#   - `systemd-run` без --uid=valstan берёт root's pnpm 11 — несовместим с engines.
+#   - `systemd-run` без --uid=valstan берёт root's инструменты — несовместим с engines.
 #
 # Этот скрипт запускает build через `systemd-run --unit=gonba-build --uid=valstan`,
 # отключает прошлую failed unit, чистит .next, и НЕ ждёт завершения сам —
@@ -66,7 +66,7 @@ sudo systemd-run \
   --gid="${USER_NAME}" \
   --working-directory="${WEB_DIR}" \
   -p "EnvironmentFile=${ENV_FILE}" \
-  -- /bin/bash -lc "corepack pnpm run build:raw"
+  -- /bin/bash -lc "npm run build:raw"
 
 echo ""
 echo "[safe-build] Build стартовал в фоне как systemd unit '${UNIT_NAME}'."

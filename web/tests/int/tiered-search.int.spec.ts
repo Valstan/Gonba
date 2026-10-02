@@ -9,7 +9,7 @@ import {
 
 // Чистый юнит-тест tieredSearch (pool #035): не поднимает Payload/БД, поэтому
 // гоняется отдельным файлом и без локального Postgres:
-//   corepack pnpm exec vitest run tests/int/tiered-search.int.spec.ts
+//   npx vitest run tests/int/tiered-search.int.spec.ts
 
 type Doc = { id: number; text: string }
 const doc = (id: number, text: string): Doc => ({ id, text })

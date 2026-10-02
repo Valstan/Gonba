@@ -21,7 +21,7 @@ echo "=== GONBA dev environment check ==="
 echo "  Repo: ${REPO_ROOT}"
 echo ""
 
-# --- Node / corepack / pnpm ---
+# --- Node / npm ---
 echo "[Tools]"
 if command -v node >/dev/null 2>&1; then
   ok "node $(node -v)"
@@ -29,30 +29,19 @@ else
   fail "node не найден"
 fi
 
-if command -v corepack >/dev/null 2>&1; then
-  ok "corepack $(corepack --version 2>&1 | head -1)"
+if command -v npm >/dev/null 2>&1; then
+  ok "npm $(npm -v)"
 else
-  fail "corepack не найден (нужен для pnpm 10)"
-fi
-
-if command -v corepack >/dev/null 2>&1; then
-  pnpm_version=$(corepack pnpm --version 2>&1 | tail -1 || echo "??")
-  if [[ "${pnpm_version}" =~ ^10\. ]]; then
-    ok "pnpm ${pnpm_version} (через corepack)"
-  elif [[ "${pnpm_version}" =~ ^11\. ]]; then
-    fail "pnpm ${pnpm_version} несовместим с engines проекта (нужен ^9 || ^10). См. memory windows_pnpm_setup."
-  else
-    warn "pnpm ${pnpm_version} — неожиданная версия"
-  fi
+  fail "npm не найден"
 fi
 
 # script-shell на Windows
 if [[ "${OS:-}" == "Windows_NT" ]] || [[ "$(uname -s 2>/dev/null)" =~ MINGW|MSYS ]]; then
-  ss=$(corepack pnpm config get script-shell 2>&1 | tail -1)
+  ss=$(npm config get script-shell 2>&1 | tail -1)
   if [[ "${ss}" == *"bash.exe"* ]]; then
-    ok "pnpm script-shell = ${ss}"
+    ok "npm script-shell = ${ss}"
   else
-    fail "pnpm script-shell = '${ss}' — на Windows нужен git-bash (Program Files/Git/bin/bash.exe). См. memory windows_pnpm_setup."
+    fail "npm script-shell = '${ss}' — на Windows нужен git-bash (Program Files/Git/bin/bash.exe). См. memory windows_pnpm_setup."
   fi
 fi
 echo ""
@@ -68,19 +57,19 @@ fi
 if [ -d "${WEB_DIR}/node_modules" ]; then
   ok "web/node_modules установлены"
 else
-  fail "web/node_modules пусто — запусти 'cd web && corepack pnpm install'"
+  fail "web/node_modules пусто — запусти 'cd web && npm install'"
 fi
 
 if [ -f "${WEB_DIR}/src/payload-types.ts" ]; then
   ok "web/src/payload-types.ts сгенерирован"
 else
-  warn "web/src/payload-types.ts отсутствует — запусти 'cd web && corepack pnpm run generate:types'"
+  warn "web/src/payload-types.ts отсутствует — запусти 'cd web && npm run generate:types'"
 fi
 
 if [ -f "${WEB_DIR}/src/app/(payload)/admin/importMap.js" ]; then
   ok "admin/importMap.js сгенерирован"
 else
-  warn "admin/importMap.js отсутствует — 'cd web && corepack pnpm run generate:importmap'"
+  warn "admin/importMap.js отсутствует — 'cd web && npm run generate:importmap'"
 fi
 echo ""
 

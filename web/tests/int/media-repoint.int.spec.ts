@@ -5,7 +5,7 @@ import { replaceUploads, MEDIA_FIELDS, CAROUSEL_FIELDS } from '@/server/media-us
 // `replaceUploads` — чистая рекурсивная замена value в Lexical upload-узлах
 // (from → to). Импорт repoint.ts не поднимает Payload/БД (только type-импорт
 // `Payload` + чистые функции), поэтому гоняется без локального Postgres:
-//   corepack pnpm exec vitest run tests/int/media-repoint.int.spec.ts
+//   npx vitest run tests/int/media-repoint.int.spec.ts
 
 // Минимальный Lexical-документ с одним upload-узлом media.
 const lexical = (mediaId: number) => ({

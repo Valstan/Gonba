@@ -5,22 +5,22 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "build": "node ./scripts/run-with-watchdog.mjs --idle-ms=600000 --stagnation-ms=900000 --max-ms=1800000 -- corepack pnpm run build:raw",
+    "build": "node ./scripts/run-with-watchdog.mjs --idle-ms=600000 --stagnation-ms=900000 --max-ms=1800000 -- npm run build:raw",
     "build:raw": "NODE_OPTIONS='--no-deprecation --max-old-space-size=6144' payload generate:importmap && NODE_OPTIONS='--no-deprecation --max-old-space-size=6144' next build && next-sitemap --config next-sitemap.config.cjs",
     "dev": "NODE_OPTIONS='--no-deprecation --max-old-space-size=3072' next dev",
-    "dev:prod": "NODE_OPTIONS=--no-deprecation rm -rf .next && pnpm build && pnpm start",
+    "dev:prod": "NODE_OPTIONS=--no-deprecation rm -rf .next && npm run build && npm start",
     "generate:importmap": "NODE_OPTIONS=--no-deprecation payload generate:importmap",
     "generate:types": "NODE_OPTIONS=--no-deprecation payload generate:types",
-    "ii": "NODE_OPTIONS=--no-deprecation pnpm --ignore-workspace install",
+    "ii": "NODE_OPTIONS=--no-deprecation npm install",
     "lint": "NODE_OPTIONS=--no-deprecation eslint .",
     "lint:fix": "NODE_OPTIONS=--no-deprecation eslint . --fix",
     "payload": "NODE_OPTIONS=--no-deprecation payload",
-    "reinstall": "NODE_OPTIONS=--no-deprecation rm -rf node_modules && rm pnpm-lock.yaml && pnpm --ignore-workspace install",
+    "reinstall": "NODE_OPTIONS=--no-deprecation rm -rf node_modules && npm install",
     "start": "NODE_OPTIONS='--no-deprecation --max-old-space-size=4096' next start",
     "typecheck": "NODE_OPTIONS=--no-deprecation tsc --noEmit",
-    "test": "pnpm run test:int && pnpm run test:e2e",
-    "test:e2e": "corepack pnpm run build && node ./scripts/run-with-watchdog.mjs --idle-ms=120000 --stagnation-ms=180000 --max-ms=900000 -- sh -lc 'E2E_TEST_SECRET=local-e2e-secret NODE_OPTIONS=\"--no-deprecation --max-old-space-size=3072 --import=tsx/esm\" corepack pnpm exec playwright test --config=playwright.config.ts --reporter=line'",
-    "test:int": "node ./scripts/run-with-watchdog.mjs --idle-ms=90000 --stagnation-ms=240000 --max-ms=900000 -- corepack pnpm run test:int:raw",
+    "test": "npm run test:int && npm run test:e2e",
+    "test:e2e": "npm run build && node ./scripts/run-with-watchdog.mjs --idle-ms=120000 --stagnation-ms=180000 --max-ms=900000 -- sh -lc 'E2E_TEST_SECRET=local-e2e-secret NODE_OPTIONS=\"--no-deprecation --max-old-space-size=3072 --import=tsx/esm\" npx playwright test --config=playwright.config.ts --reporter=line'",
+    "test:int": "node ./scripts/run-with-watchdog.mjs --idle-ms=90000 --stagnation-ms=240000 --max-ms=900000 -- npm run test:int:raw",
     "test:int:raw": "NODE_OPTIONS='--no-deprecation --max-old-space-size=1024' vitest run --config ./vitest.config.mts",
     "cache:clean": "tsx scripts/clean-media-cache.ts",
     "search:reindex": "tsx scripts/reindex-search.ts",
@@ -94,14 +94,6 @@
   },
   "engines": {
     "node": "^18.20.2 || >=20.9.0",
-    "pnpm": "^9 || ^10"
-  },
-  "packageManager": "pnpm@10.15.0",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "sharp",
-      "esbuild",
-      "unrs-resolver"
-    ]
+    "npm": "^10"
   }
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # run-migrate.sh — `payload migrate` неинтерактивно (auto-confirm drizzle y/N).
 #
-# Why: `corepack pnpm payload migrate` (или `pnpm dev` с push:true) при
+# Why: `npm run payload -- migrate` (или `pnpm dev` с push:true) при
 # существенных расхождениях схемы поднимает интерактивный y/N от drizzle.
 # В headless-окружении (CI, фоновый SSH, GUI без TTY) этот prompt подвешивает
 # процесс на минуты/часы (сессия 2026-05-21: 40+ минут до killing).
@@ -28,13 +28,13 @@ if [ ! -d "${WEB_DIR}" ]; then
   exit 1
 fi
 
-echo "[run-migrate] Запускаем 'corepack pnpm payload migrate' с auto-confirm…"
+echo "[run-migrate] Запускаем 'npm run payload -- migrate' с auto-confirm…"
 echo "[run-migrate] (При расхождении схемы drizzle спросит y/N — отвечаем 'y' автоматически)"
 echo ""
 
-# `yes y` бесконечно отдаёт «y\n», pnpm/payload берёт только сколько нужно
-yes y | (cd "${WEB_DIR}" && corepack pnpm payload migrate)
+# `yes y` бесконечно отдаёт «y\n», payload берёт только сколько нужно
+yes y | (cd "${WEB_DIR}" && npm run payload -- migrate)
 
 echo ""
 echo "[run-migrate] Готово. Проверь статус:"
-echo "    cd web && corepack pnpm payload migrate:status"
+echo "    cd web && npm run payload -- migrate:status"

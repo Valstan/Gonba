@@ -23,11 +23,11 @@ import { getPayload } from 'payload'
  * `buildCreateMigration` берёт `readdirSync(dir).filter(f => f.endsWith('.json')).sort().reverse()[0]`.
  *
  * ВАЖНО: снапшот описывает **конфиг**, а не прод. Перед пересборкой убедись, что расхождение
- * конфига с продом измерено и осознано: `corepack pnpm tsx scripts/probe-schema-drift.ts`
+ * конфига с продом измерено и осознано: `npx tsx scripts/probe-schema-drift.ts`
  * (см. `docs/PROJECT.md → Миграции: снапшот и сверка с продом`).
  *
  * Usage:
- *   corepack pnpm tsx scripts/write-schema-snapshot.ts [--name 20260728_120000]
+ *   npx tsx scripts/write-schema-snapshot.ts [--name 20260728_120000]
  */
 
 process.env.PAYLOAD_MIGRATING = 'true'

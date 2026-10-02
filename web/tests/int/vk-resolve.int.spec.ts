@@ -4,7 +4,7 @@ import { parseVkCommunityIdentifier } from '@/server/integrations/vk-auto-sync-r
 
 // Чистый юнит-тест парсера VK-идентификатора: не поднимает Payload/БД, поэтому
 // гоняется отдельным файлом и без локального Postgres:
-//   corepack pnpm exec vitest run tests/int/vk-resolve.int.spec.ts
+//   npx vitest run tests/int/vk-resolve.int.spec.ts
 describe('parseVkCommunityIdentifier', () => {
   it('распознаёт сообщество club/public/group как group', () => {
     expect(parseVkCommunityIdentifier('https://vk.com/club229392127')).toEqual({

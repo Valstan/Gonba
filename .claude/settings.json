@@ -38,14 +38,14 @@
       "Bash(gh run list*)",
       "Bash(gh run view*)",
       "Bash(gh run watch*)",
-      "Bash(corepack pnpm -C web run typecheck*)",
-      "Bash(corepack pnpm -C web run lint*)",
-      "Bash(corepack pnpm -C web run build:raw*)",
-      "Bash(corepack pnpm -C web run test*)",
-      "Bash(pnpm -C web run typecheck*)",
-      "Bash(pnpm -C web run lint*)",
-      "Bash(pnpm -C web run build:raw*)",
-      "Bash(pnpm -C web run test*)"
+      "Bash(npm --prefix web run typecheck*)",
+      "Bash(npm --prefix web run lint*)",
+      "Bash(npm --prefix web run build:raw*)",
+      "Bash(npm --prefix web run test*)",
+      "Bash(npm --prefix web run typecheck*)",
+      "Bash(npm --prefix web run lint*)",
+      "Bash(npm --prefix web run build:raw*)",
+      "Bash(npm --prefix web run test*)"
     ],
     "deny": [
       "Bash(git push origin main*)",
