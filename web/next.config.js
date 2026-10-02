@@ -73,6 +73,24 @@ const nextConfig = {
   redirects,
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
+  // D-096 #250: публичные ассеты без хэша в пути не должны переспрашиваться
+  // при каждом визите (было `Cache-Control: public, max-age=0`). `immutable`
+  // здесь сознательно НЕ ставим — имена файлов не версионированы; вместе с
+  // `stale-while-revalidate` браузер день отдаёт из кэша, неделя — фон.
+  headers: async () => [
+    {
+      source: '/:file(favicon.ico|favicon-32.png|apple-touch-icon.png|icon-192.png|icon-512.png|website-template-OG.webp|yandex_f7a95104ee6a11e9.html)',
+      headers: [
+        { key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' },
+      ],
+    },
+    {
+      source: '/:dir(images|brand|branding|art|projects)/:path*',
+      headers: [
+        { key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' },
+      ],
+    },
+  ],
 }
 
 export default withPayload(nextConfig, { devBundleServerPackages: false })
