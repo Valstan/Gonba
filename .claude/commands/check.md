@@ -32,7 +32,7 @@ gh pr list --state open --author @me 2>&1 | head -5
 
 ```bash
 echo '=== TypeScript ==='
-cd web && corepack pnpm exec tsc --noEmit 2>&1 | head -20 || echo 'TS errors above'
+cd web && npm exec tsc --noEmit 2>&1 | head -20 || echo 'TS errors above'
 ```
 
 ## Прод-серверный SSH-probe (опционально)

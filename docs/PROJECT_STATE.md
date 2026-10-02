@@ -124,7 +124,7 @@ CLAUDE.md / GEMINI.md / QWEN.md — тонкие адаптеры к AGENTS.md
   3. Чтение через сайт → endpoint берёт с Я.Диска, сохраняет в `MEDIA_CACHE_DIR` атомарно (`<name>.tmp.<pid>...` → `rename`)
   4. Файлы старше 30 дней в `MEDIA_CACHE_DIR` чистит ежедневный systemd-таймер `gonba-media-cache.timer` (`web/scripts/clean-media-cache.ts`, использует `max(atime, mtime)`)
   5. `afterDelete` хук → удаляет ресурс с Я.Диска (через `yandexPath`/`yandexResourceId`)
-- **Защитная сетка** для orphan-записей без `yandexPath` — `pnpm run media:migrate-yadisk -- --dry` (см. `web/scripts/migrate-media-to-yandex.ts`)
+- **Защитная сетка** для orphan-записей без `yandexPath` — `npm run media:migrate-yadisk -- --dry` (см. `web/scripts/migrate-media-to-yandex.ts`)
 - Подробности и история — [`docs/plans/media-to-yadisk.md`](plans/media-to-yadisk.md), ADR-0001
 
 ### VK (импорт постов)
@@ -141,7 +141,7 @@ CLAUDE.md / GEMINI.md / QWEN.md — тонкие адаптеры к AGENTS.md
 
 ## БД
 
-- На локалке: `postgres:postgres@127.0.0.1:5432/gonba`, `push: true` (drizzle добавляет колонки автоматически, иногда с y/N-prompt — обходится через `yes y | corepack pnpm dev` см. memory `dev_schema_push_prompt`).
+- На локалке: `postgres:postgres@127.0.0.1:5432/gonba`, `push: true` (drizzle добавляет колонки автоматически, иногда с y/N-prompt — обходится через `yes y | npm run dev` см. memory `dev_schema_push_prompt`).
 - На проде: `push: true` тоже включён, но фактически любые новые поля доезжают через **ручной `ALTER TABLE`** (потому что после `next build` на проде первый запрос не успевает применить schema до прерывания). См. техдолг про полноценные миграции.
 
 ## Прод

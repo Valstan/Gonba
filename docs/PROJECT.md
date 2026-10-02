@@ -148,32 +148,32 @@ VK через шлюз SARAFAN (read-only, основной путь с 2026-07-
 
 Тесты:
 
-- Vitest (`pnpm run test:int`)
-- Playwright (`pnpm run test:e2e`)
+- Vitest (`npm run test:int`)
+- Playwright (`npm run test:e2e`)
 
 ## Скрипты и команды
 
 Запуск:
 
-- `pnpm dev` / `npm run dev` — dev
-- `pnpm build` / `npm run build` — build
-- `pnpm start` / `npm run start` — production
+- `npm run dev` — dev
+- `npm run build` — build
+- `npm start` — production
 
 Тесты:
 
-- `pnpm test` — интеграционные + e2e
-- `pnpm test:int`
-- `pnpm test:e2e`
+- `npm test` — интеграционные + e2e
+- `npm run test:int`
+- `npm run test:e2e`
 
 Payload:
 
-- `pnpm generate:types` — после изменений в схемах
-- `pnpm generate:importmap` — после изменений компонентов
+- `npm run generate:types` — после изменений в схемах
+- `npm run generate:importmap` — после изменений компонентов
 
 Скрипты:
 
-- `pnpm run media:migrate-yadisk` — защитная сетка для записей без `yandexPath` (post-phase-3). Аргументы: `--dry`, `--limit N`, `--id <id>`, `--max N`. Идемпотентно. Подробности — `web/scripts/migrate-media-to-yandex.ts`.
-- `pnpm run cache:clean` — удалить из `MEDIA_CACHE_DIR` файлы, к которым не обращались более N дней (default 30). Аргументы: `--dir <path>`, `--ttl-days <N>`, `--dry`. Запускается systemd-таймером `gonba-media-cache.timer` (см. ниже).
+- `npm run media:migrate-yadisk` — защитная сетка для записей без `yandexPath` (post-phase-3). Аргументы: `--dry`, `--limit N`, `--id <id>`, `--max N`. Идемпотентно. Подробности — `web/scripts/migrate-media-to-yandex.ts`.
+- `npm run cache:clean` — удалить из `MEDIA_CACHE_DIR` файлы, к которым не обращались более N дней (default 30). Аргументы: `--dir <path>`, `--ttl-days <N>`, `--dry`. Запускается systemd-таймером `gonba-media-cache.timer` (см. ниже).
 - `POST /yadisk-api/sync` — сверка/обновление Yandex-метаданных медиа батчами (admin/manager)
 - `tsx scripts/russify.ts` — русификация/seed контента (см. `web/scripts/russify.ts`)
 
@@ -190,14 +190,14 @@ Payload:
 
 Инструменты (оба read-only):
 
-- `corepack pnpm tsx scripts/write-schema-snapshot.ts [--name YYYYMMDD_HHMMSS]` — пересобрать
+- `npx tsx scripts/write-schema-snapshot.ts [--name YYYYMMDD_HHMMSS]` — пересобрать
   снапшот против **актуального конфига** (пишет только `.json`; сначала измерь дрейф probe'ом).
-- `corepack pnpm tsx scripts/probe-schema-drift.ts` — сверка конфиг ↔ БД, на которую смотрит
+- `npx tsx scripts/probe-schema-drift.ts` — сверка конфиг ↔ БД, на которую смотрит
   `DATABASE_URL`. Направлять на **копию** прод-схемы:
   ```bash
   ssh GONBA "sudo -u postgres pg_dump -s gonba" > /tmp/prod-schema.sql
   # createdb gonba_probe + psql -f, затем:
-  DATABASE_URL=postgres://…/gonba_probe corepack pnpm tsx scripts/probe-schema-drift.ts
+  DATABASE_URL=postgres://…/gonba_probe npx tsx scripts/probe-schema-drift.ts
   ```
   Классифицирует: шум drizzle-kit (`SET DEFAULT` на уже стоящих дефолтах) / осознанный дрейф
   (3 FK `submission_*` CASCADE, анти-G135 — allowlist в скрипте) / настоящий дрейф (exit 1).
@@ -259,7 +259,7 @@ ssh GONBA "journalctl -u gonba -n 50 --no-pager"
 
 # Обновить код из репозитория и пересобрать (правильный способ — через safe-build.sh)
 ssh GONBA "cd /home/valstan/GONBA && git pull && /home/valstan/GONBA/scripts/safe-build.sh && sudo systemctl restart gonba"
-# (НЕ запускать `corepack pnpm run build:raw` напрямую через ssh — SSH-disconnect убивает prerender)
+# (НЕ запускать `npm run build:raw` напрямую через ssh — SSH-disconnect убивает prerender)
 
 # Снять дамп БД prod в локальный файл
 ssh GONBA "sudo -u postgres pg_dump -Fc gonba" > prod-gonba.dump
@@ -294,8 +294,8 @@ ssh GONBA "sudo systemctl start gonba-vk-sync.service && journalctl -u gonba-vk-
 
 Первоначальная установка сервиса:
 
-1. `corepack pnpm install`
-2. `scripts/safe-build.sh` (или `systemd-run --uid=valstan --gid=valstan --working-directory=/home/valstan/GONBA/web -- /bin/bash -lc "corepack pnpm run build:raw"`)
+1. `npm install`
+2. `scripts/safe-build.sh` (или `systemd-run --uid=valstan --gid=valstan --working-directory=/home/valstan/GONBA/web -- /bin/bash -lc "npm run build:raw"`)
 3. Создать секреты вне дерева репо (ADR-0005): `sudo mkdir -p /etc/gonba && sudo install -o root -g valstan -m 0640 <env-source> /etc/gonba/gonba.env`
 4. `sudo cp deploy/systemd/gonba.service /etc/systemd/system/gonba.service`
 5. `sudo systemctl daemon-reload`
@@ -305,9 +305,9 @@ ssh GONBA "sudo systemctl start gonba-vk-sync.service && journalctl -u gonba-vk-
 9. Переменные окружения на проде: `EnvironmentFile=-/etc/gonba/gonba.env` (build читает через `systemd-run -p EnvironmentFile=`, см. `scripts/safe-build.sh`)
 
 **Важно:**
-- Не использовать `pnpm run build` (под watchdog) и тем более `npm run build` — задача про правильный watchdog есть в `PENDING_FOLLOWUPS.md`. Прямой путь — `build:raw` через safe-build.sh.
-- Прямой `corepack pnpm run build:raw` через одну SSH-сессию умирает посередине prerender'а при SSH-disconnect → артефакт `.next` остаётся неполным → сервис в crash-loop. Поэтому `systemd-run`.
-- Прод НЕ применяет миграции автоматически (`push: true` не успевает из-за timeout прерывания первого запроса). После добавления полей в коллекциях запускать `pnpm payload migrate:up` или вручную `ALTER TABLE`.
+- Не использовать `npm run build` (под watchdog) и тем более `npm run build` — задача про правильный watchdog есть в `PENDING_FOLLOWUPS.md`. Прямой путь — `build:raw` через safe-build.sh.
+- Прямой `npm run build:raw` через одну SSH-сессию умирает посередине prerender'а при SSH-disconnect → артефакт `.next` остаётся неполным → сервис в crash-loop. Поэтому `systemd-run`.
+- Прод НЕ применяет миграции автоматически (`push: true` не успевает из-за timeout прерывания первого запроса). После добавления полей в коллекциях запускать `npm payload migrate:up` или вручную `ALTER TABLE`.
 
 ### CI / автоматический деплой (build в CI, standalone-артефакт — с 2026-06-11)
 
@@ -481,13 +481,13 @@ docker compose up
 - Для Yandex.Disk API используются отдельные маршруты `/yadisk-api/*`.
 - Роли в `requireAdmin`: `admin` и `manager`.
 - Медиа из Payload сохраняется на Yandex.Disk (после ADR-0001 Implemented 2026-05-22 — Я.Диск primary, локалка = TTL-кэш через `/api/media/file/[id]` proxy).
-- Для защитной миграции orphan-записей без `yandexPath` — `pnpm run media:migrate-yadisk` (idempotent, поддерживает `--dry`).
+- Для защитной миграции orphan-записей без `yandexPath` — `npm run media:migrate-yadisk` (idempotent, поддерживает `--dry`).
 - Превью для файлов Диска отдается через `/yadisk-api/preview` (иначе приватные ссылки дают 403).
 - Для корректной работы `next/image` на проде должен быть задан `NEXT_PUBLIC_SERVER_URL` (домен продакшена).
 - Для защиты от ручных перемещений на Диске медиа периодически сверяется по `resource_id` (на чтении документа).
 - Проект уже содержит интеграции и готовые сервисы — **не создавать новые велосипеды**, сначала искать существующую реализацию в `web/src/server/`, `web/src/endpoints/`, `web/src/utilities/`.
 - `sudo` **беспарольный** и его можно использовать.
-- Перед каждым релизом **желательно прогонять тесты** (`pnpm test`).
+- Перед каждым релизом **желательно прогонять тесты** (`npm test`).
 - Для стабильных релизов использовать чеклист: `docs/RELEASE_STABILITY_CHECKLIST.md`.
 - После значимых изменений в структуре проекта **обновлять эту документацию**, чтобы сохранять актуальную линию разработки.
 
