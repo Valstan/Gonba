@@ -13,10 +13,10 @@
 ## Pre-release (локально)
 
 1. `bash scripts/dev-doctor.sh` — все 12 проверок должны быть зелёными
-2. `corepack pnpm --dir web typecheck` — без ошибок
-3. (Опционально, дольше) `corepack pnpm --dir web run lint`
-4. (Опционально, ~3-5 мин) `corepack pnpm --dir web run test:int`
-5. (Опционально, ~5-10 мин) `corepack pnpm --dir web run test:e2e`
+2. `npm --dir web typecheck` — без ошибок
+3. (Опционально, дольше) `npm --dir web run lint`
+4. (Опционально, ~3-5 мин) `npm --dir web run test:int`
+5. (Опционально, ~5-10 мин) `npm --dir web run test:e2e`
 
 Полное прохождение всех гейтов даёт CI workflow на push в любую ветку (`.github/workflows/ci.yml`) — поэтому ручной прогон опционален для не-конфликтных правок.
 

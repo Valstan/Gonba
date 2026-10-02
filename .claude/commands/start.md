@@ -114,9 +114,9 @@ Git-sync уже сделан в шаге 0. Здесь — только чтен
 Только чтения:
 
 - `web/.env` существует? (`Glob` или `Read` краткий)
-- `web/node_modules/.modules.yaml` существует? (если нет — `pnpm install` нужен)
+- `web/node_modules/.modules.yaml` существует? (если нет — `npm install` нужен)
 - `web/src/payload-types.ts` свежее чем последний коммит в `web/src/collections/` или `web/src/globals/`? (через `git log -1 --format='%ct' -- <path>`)
-- На Windows: `corepack pnpm config get script-shell` показывает git-bash?
+- На Windows: `npm config get script-shell` показывает git-bash?
 
 ## Шаг 5. Прод (опционально — если SSH доступен)
 

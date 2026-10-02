@@ -198,14 +198,14 @@ Heredoc и многострочные аргументы запрещены. Д�
 | Операция | Режим | Гейт = подтверждение |
 |---|---|---|
 | Правки файлов, `mkdir`/`mv` в рабочей папке | **авто** | — |
-| Коммит, ветка, push в feature, PR, **авто-мерж** | **авто** | локальные `corepack pnpm -C web run typecheck` + `lint` зелёные **И** CI зелёный (`web-quality` required) |
+| Коммит, ветка, push в feature, PR, **авто-мерж** | **авто** | локальные `npm --prefix web run typecheck` + `lint` зелёные **И** CI зелёный (`web-quality` required) |
 | **Деплой на прод** | **авто** | происходит сам от merge (`deploy-prod.yml` `workflow_run` после зелёного CI); smoke-check содержимого + **визуальная** проверка гидратации в доступном браузерном инструменте — это и есть гейт-подтверждение |
 | **Необратимые прод-операции с данными** (`ALTER`/`DROP`/`DELETE`/`UPDATE` на живых данных, прод-миграции с данными, versioned-доки → только Local API) | **подтверждать в том же ходе** (#025) | **эту черту не пересекаем** — гейт остаётся человеческим (`AskUserQuestion`) |
 
 **Поток (внутри PR-flow, не прямой push):** ветка → правки (авто) → **локальные гейты** → push ветки → PR → CI зелёный → **авто-мерж** → авто-деплой от merge → smoke + визуальная проверка → доклад. Ни одного человеческого промпта на happy-path; гейты — это подтверждение.
 
 **Обязанности (без них автономия снимает единственную проверку):**
-- **Перед `gh pr merge`** — прогнать `corepack pnpm -C web run typecheck` и `lint` локально; мержить только если оба зелёные И CI зелёный. Красный гейт → НЕ мержить, чинить.
+- **Перед `gh pr merge`** — прогнать `npm --prefix web run typecheck` и `lint` локально; мержить только если оба зелёные И CI зелёный. Красный гейт → НЕ мержить, чинить.
 - **Сериализация деплоев** (G24): после merge ждать **единственный** авто-деплой; ручной `gh workflow run deploy-prod` — в `deny` (не запускать внахлёст). Workflow и сам сериализован (`concurrency: deploy-prod`).
   - **Сериализуются не только деплои, но и мержи** (урок 2026-08-30, стоил красного прогона). Деплой стартует не от мержа, а от **завершения CI** (`workflow_run`), то есть между мержем и стартом деплоя есть окно в несколько минут. Смержив второй PR в это окно, получаешь: деплой первого доходит до шага «подтянуть main на боксе», видит там уже **второй** коммит и падает на сверке `EXPECTED_SHA` — гейт отрабатывает верно, но прогон красный, а прод остаётся на старом релизе. **Правило:** следующий PR мержить только после того, как деплой предыдущего **завершился**, а не после того, как прошёл его CI. Проверка — `gh run list --workflow=deploy-prod.yml --limit 1` должен показать `completed` на предыдущем SHA.
 - **После деплоя фронт-изменений** — визуально проверить гидратацию (зелёный пайплайн ≠ корректный результат, pool #011), не только HTTP 200.
@@ -255,15 +255,15 @@ Heredoc и многострочные аргументы запрещены. Д�
 
 ### Прод-сборка и кэш: правила
 
-- **Прод-build только через `scripts/safe-build.sh`** (или ручная команда `systemd-run --unit=gonba-build --uid=valstan --gid=valstan --working-directory=~/GONBA/web -- /bin/bash -lc "corepack pnpm run build:raw"`). Прямой `ssh ... 'corepack pnpm run build:raw'` умирает посередине prerender'а при SSH-disconnect.
-- **`pnpm run build` использует watchdog с idle 180s** — Next.js 15 молчит дольше. Использовать `build:raw`.
-- **`systemd-run` без `--uid=valstan`** взлетает от root и берёт глобальный pnpm 11 (несовместимый с проектом). ALWAYS `--uid=valstan --gid=valstan`.
+- **Прод-build только через `scripts/safe-build.sh`** (или ручная команда `systemd-run --unit=gonba-build --uid=valstan --gid=valstan --working-directory=~/GONBA/web -- /bin/bash -lc "npm run build:raw"`). Прямой `ssh ... 'npm run build:raw'` умирает посередине prerender'а при SSH-disconnect.
+- **`npm run build` использует watchdog с idle 180s** — Next.js 15 молчит дольше. Использовать `build:raw`.
+- **`systemd-run` без `--uid=valstan`** взлетает от root и берёт root's глобальный тулчейн (на момент урока 2026-06 — pnpm 11, несовместимый с проектом). ALWAYS `--uid=valstan --gid=valstan`.
 - **На проде нет `push:true`-миграции.** Новые поля в коллекциях нужно вручную `ALTER TABLE ADD COLUMN ...` ИЛИ создать proper Payload migration в `web/src/migrations/`.
 - **Прямой UPDATE/INSERT в БД** минует Payload `afterChange`-хуки и не сбрасывает `unstable_cache`. Особенно касается глобалов `header_nav_items`, `footer_*` (Header/Footer кэшируются через `getCachedGlobal` → `unstable_cache` с тегом `global_<slug>`).
   - **⚠️ `restart gonba` НЕДОСТАТОЧЕН для `unstable_cache`** (правка пункта меню сырым SQL уже стоила этого урока). `unstable_cache` персистится на **диске** (`.next/cache`) и переживает `systemctl restart` — после рестарта глобал всё равно отдаётся старый. Сырой SQL к тому же не триггерит `revalidateHeader`/`safeRevalidateTag`. Правильные варианты: **(а)** править глобал через Payload Local API (`payload.updateGlobal`/admin UI) — afterChange-хук вызовет `safeRevalidateTag('global_header')` в контексте Next-сервера; либо **(б)** после сырого SQL: `rm -rf ~/GONBA/web/.next/cache && sudo systemctl restart gonba` (чистит только data/ISR-кэш, не трогает чанки `.next/server`/`.next/static` → ChunkLoadError-риска нет). Standalone-tsx с `payload.updateGlobal` revalidate НЕ выполнит (`revalidateTag` вне request-scope глушится `safeRevalidateTag`).
 - **НЕ править versioned-документы (drafts-enabled коллекции) сырым SQL** (Posts/Pages/Projects — у всех `versions.drafts`). Payload и `@payloadcms/plugin-search` читают published-состояние из таблицы версий (`_<coll>_v.version__status`/`latest`), а не из главной таблицы. `UPDATE projects SET _status='published'` меняет только главную таблицу → плагин поиска НЕ синкает (latest-версия осталась `draft`), а следующая публикация через API **затирает** твою SQL-правку, промотав старую draft-версию поверх (так уже возвращался удалённый из галереи тестовый мусор). **Правильно:** публикация/правка versioned-доков — только через Payload Local API (`payload.update({ collection, id, data: { _status: 'published', … }, overrideAccess: true })`): создаёт published-версию + триггерит хуки и синк поиска. Для one-off массовых правок — временный tsx-скрипт на проде (`getPayload({ config })`, env из `/etc/gonba/gonba.env` через `set -a && . … && set +a`), удалить после прогона.
 - **`payload migrate` в headless** (CI / SSH без TTY) подвисает на drizzle y/N. Использовать обёртку `bash scripts/run-migrate.sh` (внутри `yes y | ...`). Fallback при подвисе — `psql -f web/src/migrations/<file>.sql` + ручной `INSERT INTO payload_migrations`.
-- **На Windows** npm/pnpm нужен с `script-shell = C:\Program Files\Git\bin\bash.exe` (см. `docs/PROJECT.md`). `pnpm 11` несовместим — используй pnpm 10 через corepack.
+- **На Windows** npm/pnpm нужен с `script-shell = C:\Program Files\Git\bin\bash.exe` (см. `docs/PROJECT.md`). `npm 11` несовместим — используй pnpm 10 через corepack.
 - **Локальный Postgres** для GONBA: установлен, `postgres:postgres@127.0.0.1:5432/gonba`. БД уже есть.
 - **Деплой — строго ПО ОДНОМУ (не параллелить).** `deploy-prod.yml` триггерится и от merge (авто, `workflow_run` на CI), и от ручного `gh workflow run`. Если запустить оба разом — `.next` пересобирается во время отдачи, манифест чанков рассинхронится → клиент ловит **ChunkLoadError** («Application error» на всех страницах), даже если код корректен (так уже случался прод-outage при параллельном деплое). **Правило:** после merge ждать ЕДИНСТВЕННЫЙ авто-деплой; ручной dispatch — только когда авто-деплоя не будет (напр. повторный прогон). nginx тут чист (`proxy_pass` на Next, parens-чанки `app/(frontend)/…` отдаются 200) — дело не в скобках.
 - **Smoke-check деплоя НЕ ловит client-side ChunkLoadError** (проверяет HTTP 200 + контент-маркер в SSR-HTML). После деплоя фронт-изменений — **визуально проверить гидратацию в браузере** (браузерный инструмент агента: `getComputedStyle`/`document.title`/screenshot), не доверять только зелёному деплою. Класс «зелёный пайплайн ≠ корректный результат» (pool #011).
@@ -296,7 +296,7 @@ gh pr list --state open --author @me
 - **Прод вернул 502** → `ssh GONBA "sudo systemctl status gonba --no-pager"`. Если crash-loop с ENOENT на `.next/...json` — значит `next build` не доехал. Удалить `.next/`, прогнать `scripts/safe-build.sh`, restart.
 - **dev сервер локально показывает старые данные** → возможно `.next/cache/fetch-cache` или `unstable_cache`. Пересоберись с `rm -rf .next` или `restart`.
 - **Payload падает с `column ... does not exist`** → схема в БД отстала от коллекций. Добавить колонку через `ALTER TABLE` или Payload migrate.
-- **Drizzle висит на `Pulling schema from database` без y/N** → в headless-окружении применить `yes y | corepack pnpm dev` (см. `docs/PROJECT.md`).
+- **Drizzle висит на `Pulling schema from database` без y/N** → в headless-окружении применить `yes y | npm run dev` (см. `docs/PROJECT.md`).
 - **`gh pr create` не работает** → `gh auth status` показывает, нужна ли авторизация.
 
 ---
