@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest'
 import { matchesStableVkSlug } from '@/server/integrations/vk-auto-sync'
 
 // Чистая функция — без БД/Payload:
-//   corepack pnpm exec vitest run tests/int/vk-idempotency.int.spec.ts
+//   npx vitest run tests/int/vk-idempotency.int.spec.ts
 describe('matchesStableVkSlug — идемпотентность VK по стабильному ключу', () => {
   const stable = 'vk-123-41'
 

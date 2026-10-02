@@ -19,7 +19,7 @@ const usage = (over: Partial<MediaUsageResult['usages'][number]> = {}) => ({
 // Чистый билдер SQL карты использований media. Импорт findMediaUsage.ts не
 // поднимает Payload/БД (только type-импорт `Payload` + чистый билдер), поэтому
 // гоняется без локального Postgres:
-//   corepack pnpm exec vitest run tests/int/media-usage.int.spec.ts
+//   npx vitest run tests/int/media-usage.int.spec.ts
 describe('media-usage source map', () => {
   it('каждый источник ссылается на известную коллекцию (инвариант полноты)', () => {
     for (const src of ALL_MEDIA_SOURCES) {

@@ -9,7 +9,7 @@ import {
 } from '@/Header/nav-data'
 
 // Чистый вывод данных бокового меню из глобала header. Без Payload/БД:
-//   corepack pnpm exec vitest run tests/int/header-drawer.int.spec.ts
+//   npx vitest run tests/int/header-drawer.int.spec.ts
 const asHeader = (partial: Partial<Header>): Header => partial as unknown as Header
 
 const customItem = (section: string, url: string, label: string, subtitle?: string) => ({

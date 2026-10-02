@@ -5,7 +5,7 @@ import { decideVkSyncAlert } from '@/server/integrations/vk-auto-sync'
 // Чистая функция-решение для дедупа VK_SYNC_ALERT. Импорт vk-auto-sync.ts не
 // поднимает Payload/БД (только type-импорты + чистый parseVkCommunityIdentifier),
 // поэтому гоняется без локального Postgres:
-//   corepack pnpm exec vitest run tests/int/vk-sync-alert.int.spec.ts
+//   npx vitest run tests/int/vk-sync-alert.int.spec.ts
 describe('decideVkSyncAlert', () => {
   it('нет опрошенных источников → не алертит', () => {
     const d = decideVkSyncAlert({ attempted: 0, errored: 0, prevConsecutiveAllFail: 0 })

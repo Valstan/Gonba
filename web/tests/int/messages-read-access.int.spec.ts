@@ -4,7 +4,7 @@ import { messagesPublicRead } from '@/access/messagesPublicRead'
 
 // Чистый юнит-тест документ-уровневого read-доступа Messages: не поднимает
 // Payload/БД (читает только req.user), гоняется без локального Postgres:
-//   corepack pnpm exec vitest run tests/int/messages-read-access.int.spec.ts
+//   npx vitest run tests/int/messages-read-access.int.spec.ts
 //
 // Контракт: staff (admin|editor) видят всё (true); все остальные — Where-фильтр,
 // исключающий скрытые модерацией сообщения (isModerated != true).

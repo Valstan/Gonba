@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest'
 import { summarizeVkSyncHealth } from '@/server/integrations/vk-sync-health'
 
 // Чистая функция-сводка для health-флага VK в /api/health. Без Payload/БД:
-//   corepack pnpm exec vitest run tests/int/vk-sync-health.int.spec.ts
+//   npx vitest run tests/int/vk-sync-health.int.spec.ts
 const HOUR = 60 * 60 * 1000
 const NOW = Date.parse('2026-06-13T12:00:00.000Z')
 const ago = (ms: number) => new Date(NOW - ms).toISOString()

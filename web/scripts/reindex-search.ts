@@ -21,7 +21,7 @@ import { getPayload } from 'payload'
  * Идемпотентно. Запускать ПОСЛЕ деплоя + миграции 20260604_120000.
  *
  * Usage:
- *   corepack pnpm tsx scripts/reindex-search.ts [--collections posts,pages,projects] [--dry]
+ *   npx tsx scripts/reindex-search.ts [--collections posts,pages,projects] [--dry]
  */
 
 const ALL = ['posts', 'pages', 'projects'] as const

@@ -13,7 +13,7 @@ import { MigrateDownArgs, MigrateUpArgs, sql } from '@payloadcms/db-postgres'
  * (ADD COLUMN/CREATE INDEX IF NOT EXISTS + guard на pg_constraint).
  *
  * Реиндекс существующих pages/projects (плагин синкает только при save) —
- * отдельный шаг ПОСЛЕ деплоя: `corepack pnpm tsx scripts/reindex-search.ts`.
+ * отдельный шаг ПОСЛЕ деплоя: `npx tsx scripts/reindex-search.ts`.
  * Зеркало для psql — `20260604_120000.sql`.
  */
 export async function up({ db }: MigrateUpArgs): Promise<void> {

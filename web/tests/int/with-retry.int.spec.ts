@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { withRetry } from '@/utilities/withRetry'
 
 // Чистая обёртка повтора (pool #040). Без БД/Payload — гоняется как unit:
-//   corepack pnpm exec vitest run tests/int/with-retry.int.spec.ts
+//   npx vitest run tests/int/with-retry.int.spec.ts
 // baseMs: 0 во всех кейсах → без реальных таймеров, тест мгновенный.
 describe('withRetry', () => {
   it('успех с первой попытки → вызывает fn один раз, возвращает значение', async () => {
