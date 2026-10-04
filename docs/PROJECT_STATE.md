@@ -9,10 +9,10 @@
 ## Стек
 
 - **Next.js 15** (App Router) + **React 19**
-- **Payload CMS 3.75** в том же Next-приложении
+- **Payload CMS 3.90** в том же Next-приложении
 - **PostgreSQL 16** через `@payloadcms/db-postgres` (Drizzle ORM)
 - **TypeScript 5.7**, **TailwindCSS 4**
-- **pnpm 10** (corepack-managed)
+- **npm** (единый пакетный менеджер, #256; лок — `package-lock.json`)
 - **Node 20** на проде, **24** локально
 
 ## Структура репо

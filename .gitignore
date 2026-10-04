@@ -81,3 +81,7 @@ docs/Описание*.txt
 # отзывает владелец. Новые токены — в комнату KARMAN, не в файл.
 seed-vk-source.sql
 seed-*-source.sql
+
+# Телефон (hotline): присутствие сессии — локально, не коммитить.
+# Ленты hotline/outbox/ — коммитить обычным flow (второй канал через GitHub).
+hotline/presence.json
