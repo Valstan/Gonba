@@ -1,6 +1,5 @@
-# 🟡 Техдолги
 
-> Часть раскладки backlog «индекс + файлы» (2026-10-01, D-097/ADR-0013): тела пунктов живут здесь, обзор и формат меток — в [`docs/PENDING_FOLLOWUPS.md`](../PENDING_FOLLOWUPS.md).
+- ⏳ **JSON-LD на страницах проектов — per-project `LocalBusiness`/`Organization` (остаток п.2 чек-листа D-088, замер 09.10).** Ответ brain отправлен строкой (`mailbox/to-brain/2026-10-09-d088-seo-geo-line.md`): site-wide Organization есть, `BlogPosting` на записях есть, а на `/projects/<slug>` — только site-wide + `BreadcrumbList` (замер 09.10: canonical/JSON-LD на трёх маршрутах). NAP-источник в CMS уже есть — у проектов заполнены группы `contacts`/`location` (их правит `ProjectDetailEditor`). Работа: выбрать тип сущности на проект (эко-отель → `Resort`/`LodgingBusiness`? мастерская → `LocalBusiness`) и собрать JSON-LD из полей проекта, без выдуманных фактов. Канонизация D-088 п.7 закрыта тем же заходом (PR #268, приёмка с прод). _(aging: added 2026-10-09 · snoozed 0 · touch 2026-10-09 · fresh)_
 
 - ⏳ **Ядро 6.8.0-146 установлено 04.10 (apt upgrade 38 → 7), работает 138 — вступление только через reboot.** Бокс общий (6 жильцов + cron КАРМАНа: vault-backup, health_watch), все сервисы enabled — подняться должны сами. Решение о reboot — за владельцем; после reboot — проверка всех сайтов + `uname -r`. _(aging: added 2026-10-04 · snoozed 0 · touch 2026-10-04 · fresh)_
 
