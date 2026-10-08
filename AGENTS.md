@@ -255,6 +255,7 @@ Heredoc и многострочные аргументы запрещены. Д�
 
 ### Прод-сборка и кэш: правила
 
+- **Прод-окно: fail-ветка обязана заканчивать поднятым сервисом** (08.10, стоило ~6ч простоя всех сайтов: скрипт апгрейда PG остановил юниты, упёрся и вышел по FAIL, не подняв их обратно). Откат — это в первую очередь `start` на старой версии, потом разбор. Стоп-условия мандата не отменяют fail-safe.
 - **Прод-build только через `scripts/safe-build.sh`** (или ручная команда `systemd-run --unit=gonba-build --uid=valstan --gid=valstan --working-directory=~/GONBA/web -- /bin/bash -lc "npm run build:raw"`). Прямой `ssh ... 'npm run build:raw'` умирает посередине prerender'а при SSH-disconnect.
 - **`npm run build` использует watchdog с idle 180s** — Next.js 15 молчит дольше. Использовать `build:raw`.
 - **`systemd-run` без `--uid=valstan`** взлетает от root и берёт root's глобальный тулчейн (на момент урока 2026-06 — pnpm 11, несовместимый с проектом). ALWAYS `--uid=valstan --gid=valstan`.
