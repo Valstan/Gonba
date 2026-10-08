@@ -33,6 +33,8 @@ src/
 
 ## Configuration
 
+> **Наш стек:** адаптер БД — `@payloadcms/db-postgres` (`postgresAdapter`), менеджер пакетов — npm. Примеры ниже с `mongooseAdapter`/MongoDB — вендорная методология Payload: механизмы (хуки, доступы, компоненты) переносимы, конкретные адаптеры и «MongoDB transactions» — нет, копировать адаптер из примеров нельзя.
+
 ### Minimal Config Pattern
 
 ```typescript
@@ -589,13 +591,6 @@ export default buildConfig({
 3. **Global Components** - Global document views
 4. **Field Components** - Custom field UI and cells
 
-### Component Types
-
-1. **Root Components** - Global Admin Panel (logo, nav, header)
-2. **Collection Components** - Collection-specific (edit view, list view)
-3. **Global Components** - Global document views
-4. **Field Components** - Custom field UI and cells
-
 ### Server vs Client Components
 
 **All components are Server Components by default** (can use Local API directly):
@@ -1045,7 +1040,7 @@ For deeper exploration of specific topics, refer to the context files located in
    - Configuration fundamentals
    - Database adapters overview
 
-2. **`security-critical.md`** - Critical security patterns (⚠️ IMPORTANT)
+2. **`security-critical.mdc`** - Critical security patterns (⚠️ IMPORTANT)
 
    - Local API access control
    - Transaction safety in hooks
