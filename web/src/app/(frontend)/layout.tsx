@@ -88,6 +88,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
 export const metadata: Metadata = {
   metadataBase: new URL(getServerSideURL()),
+  // Канонический адрес каждой страницы (п.7 чек-листа D-088): './'
+  // резолвится относительно metadataBase в путь текущей страницы,
+  // без поисковых параметров. Страницы не переопределяют alternates,
+  // поэтому правило действует на всё (frontend)-дерево сразу.
+  alternates: {
+    canonical: './',
+  },
   openGraph: mergeOpenGraph(),
   twitter: {
     card: 'summary_large_image',
