@@ -191,20 +191,95 @@ export const serviceJsonLd = (s: ServiceInput, path: string): Record<string, unk
       : undefined,
 })
 
+/**
+ * Тип сущности проекта по `projectType` из CMS — редакторская семантика,
+ * которую администратор уже задал в коллекции, а не догадка рантайма.
+ * Остальные типы остаются Organization: тип сущности — утверждение о фактах,
+ * и расширять маппинг можно только по тому же принципу (редактор явно пометил
+ * `projectType`).
+ *  - ecoHotel   → жильё с бронированием (домики/номера) — LodgingBusiness;
+ *  - craftStudio/deerFarm → физическая мастерская/ферма — LocalBusiness.
+ */
+const PROJECT_ENTITY_TYPES: Record<string, string> = {
+  ecoHotel: 'LodgingBusiness',
+  craftStudio: 'LocalBusiness',
+  deerFarm: 'LocalBusiness',
+}
+
+/**
+ * «Широта,Долгота» из CMS (формат поля: `56.5240, 50.6830`) → GeoCoordinates.
+ * Всё, что не разбирается строго, → undefined: непарсимое значение не
+ * выдумывается как координата, поле просто не попадает в вывод.
+ */
+const parseCoordinates = (raw?: string | null): { latitude: number; longitude: number } | undefined => {
+  if (!raw) return undefined
+  const match = /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/.exec(raw)
+  if (!match) return undefined
+  const latitude = Number.parseFloat(match[1])
+  const longitude = Number.parseFloat(match[2])
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return undefined
+  if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return undefined
+  return { latitude, longitude }
+}
+
 type ProjectInput = {
   title?: string | null
   summary?: string | null
   excerpt?: string | null
   heroImage?: unknown
   logo?: unknown
+  projectType?: string | null
+  location?: {
+    address?: string | null
+    mapUrl?: string | null
+    coordinates?: string | null
+  } | null
+  contacts?: {
+    phone?: string | null
+    email?: string | null
+    whatsApp?: string | null
+  } | null
 }
-export const projectJsonLd = (pr: ProjectInput, path: string): Record<string, unknown> => ({
-  '@context': 'https://schema.org',
-  '@type': 'Organization',
-  name: pr.title || undefined,
-  description: pr.summary || pr.excerpt || undefined,
-  url: absoluteUrl(path),
-  image: mediaUrl(pr.heroImage) || mediaUrl(pr.logo) || undefined,
-  parentOrganization: { '@id': ORG_ID() },
-  areaServed: { '@type': 'AdministrativeArea', name: SITE.addressRegion },
-})
+
+/**
+ * Проект как сущность schema.org: тип по `projectType` + NAP **только** из
+ * полей CMS (`contacts`/`location`, их правит `ProjectDetailEditor`). Пустое
+ * поле → undefined → JSON.stringify его выбрасывает: разметка не придумывает
+ * адрес/телефон/координаты, которых нет в данных.
+ *
+ * WhatsApp сознательно не мапится: у Organization/LocalBusiness нет честного
+ * свойства для него, а `contactPoint` потребовал бы выдуманного `contactType`.
+ */
+export const projectJsonLd = (pr: ProjectInput, path: string): Record<string, unknown> => {
+  const url = absoluteUrl(path)
+  const address = pr.location?.address?.trim()
+  const phone = pr.contacts?.phone?.trim()
+  const email = pr.contacts?.email?.trim()
+  const mapUrl = pr.location?.mapUrl?.trim()
+  const coordinates = parseCoordinates(pr.location?.coordinates)
+  return {
+    '@context': 'https://schema.org',
+    '@type': (pr.projectType && PROJECT_ENTITY_TYPES[pr.projectType]) || 'Organization',
+    name: pr.title || undefined,
+    description: pr.summary || pr.excerpt || undefined,
+    url,
+    image: mediaUrl(pr.heroImage) || mediaUrl(pr.logo) || undefined,
+    parentOrganization: { '@id': ORG_ID() },
+    areaServed: { '@type': 'AdministrativeArea', name: SITE.addressRegion },
+    // NAP — ровно то, что заполнено в CMS, и ничего больше.
+    telephone: phone || undefined,
+    email: email || undefined,
+    hasMap: mapUrl ? absoluteUrl(mapUrl) : undefined,
+    geo: coordinates
+      ? { '@type': 'GeoCoordinates', latitude: coordinates.latitude, longitude: coordinates.longitude }
+      : undefined,
+    address: address
+      ? {
+          '@type': 'PostalAddress',
+          streetAddress: address,
+          addressRegion: SITE.addressRegion,
+          addressCountry: SITE.addressCountry,
+        }
+      : undefined,
+  }
+}
