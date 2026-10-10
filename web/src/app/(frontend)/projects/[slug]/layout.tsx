@@ -36,7 +36,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps) {
 
   return (
     <ProjectProvider project={project} projects={projects} enabledSections={enabledSections}>
-      {/* pool #051 (GEO): Organization-узел проекта — серверно, на всех вкладках. */}
+      {/* pool #051 (GEO): сущность проекта (LodgingBusiness/LocalBusiness/Organization — по projectType) — серверно, на всех вкладках. */}
       <JsonLd data={projectJsonLd(project, `/projects/${project.slug || slug}`)} />
       <div
         className="relative isolate min-h-screen"

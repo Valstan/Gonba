@@ -27,6 +27,8 @@ const getSelect = (): ProjectsSelect => ({
   sortOrder: true,
   galleryYandexFolder: true,
   chat: true,
+  // projectType — источник типа сущности для per-project JSON-LD (web/src/seo/jsonld.ts).
+  projectType: true,
   // Этно-модерн поля (миграция 20260525_080000). Cast — пока локальный
   // payload-types.ts не пересгенерирован; CI на сборке регенерирует.
   ...({

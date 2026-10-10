@@ -35,6 +35,7 @@ export type ProjectRecord = Pick<
   | 'sortOrder'
   | 'galleryYandexFolder'
   | 'chat'
+  | 'projectType'
 > & {
   kind?: EthnoProjectKind | null
   homepageGroup?: EthnoHomepageGroup | null

@@ -115,6 +115,85 @@ describe('eventJsonLd / productJsonLd / serviceJsonLd', () => {
   })
 })
 
+describe('projectJsonLd — per-entity тип + NAP из CMS', () => {
+  it('ecoHotel → LodgingBusiness с NAP из contacts/location', () => {
+    const p = jsonld.projectJsonLd(
+      {
+        title: 'ЭКО‑отель «Жемчужина Вятки»',
+        summary: 'Домики, баня, ретриты и бронирование размещений.',
+        projectType: 'ecoHotel',
+        location: { address: 'с. Гоньба, ул. Набережная, 1', mapUrl: 'https://yandex.ru/maps/123', coordinates: '56.5240, 50.6830' },
+        contacts: { phone: '8 999 914 22 27', email: 'stay@example.test' },
+      },
+      '/projects/eco-hotel-booking',
+    ) as Record<string, any>
+    expect(p['@type']).toBe('LodgingBusiness')
+    expect(p.telephone).toBe('8 999 914 22 27')
+    expect(p.email).toBe('stay@example.test')
+    expect(p.hasMap).toBe('https://yandex.ru/maps/123')
+    expect(p.geo).toEqual({ '@type': 'GeoCoordinates', latitude: 56.524, longitude: 50.683 })
+    expect(p.address).toMatchObject({
+      '@type': 'PostalAddress',
+      streetAddress: 'с. Гоньба, ул. Набережная, 1',
+      addressRegion: 'Кировская область',
+      addressCountry: 'RU',
+    })
+    expect(p.parentOrganization['@id']).toBe(`${BASE}/#organization`)
+    expect(p.url).toBe(`${BASE}/projects/eco-hotel-booking`)
+  })
+
+  it('craftStudio/deerFarm → LocalBusiness; прочие типы остаются Organization', () => {
+    const studio = jsonld.projectJsonLd({ title: 'Лепота', projectType: 'craftStudio' }, '/projects/vyatskaya-lepota') as Record<string, any>
+    const farm = jsonld.projectJsonLd({ title: 'Гоньба', projectType: 'deerFarm' }, '/projects/gonba') as Record<string, any>
+    const club = jsonld.projectJsonLd({ title: 'Клуб', projectType: 'travelClub' }, '/projects/travel-club-malmyzh') as Record<string, any>
+    const other = jsonld.projectJsonLd({ title: 'Прочее', projectType: 'other' }, '/projects/x') as Record<string, any>
+    const unknown = jsonld.projectJsonLd({ title: 'Без типа' }, '/projects/y') as Record<string, any>
+    expect(studio['@type']).toBe('LocalBusiness')
+    expect(farm['@type']).toBe('LocalBusiness')
+    expect(club['@type']).toBe('Organization')
+    expect(other['@type']).toBe('Organization')
+    expect(unknown['@type']).toBe('Organization')
+  })
+
+  it('пустые contacts/location → NAP-поля отсутствуют, а не выдумываются', () => {
+    const p = JSON.parse(
+      JSON.stringify(jsonld.projectJsonLd({ title: 'Пустой', projectType: 'craftStudio' }, '/projects/empty')),
+    )
+    expect(p.telephone).toBeUndefined()
+    expect(p.email).toBeUndefined()
+    expect(p.hasMap).toBeUndefined()
+    expect(p.geo).toBeUndefined()
+    expect(p.address).toBeUndefined()
+    // Что остаётся всегда — имя, ссылка на родителя и регион.
+    expect(p.name).toBe('Пустой')
+    expect(p.parentOrganization['@id']).toBe(`${BASE}/#organization`)
+  })
+
+  it('coordinates: строгий разбор — мусор, запятая-разделитель и выход за диапазон → без geo', () => {
+    const base = { title: 'T', projectType: 'craftStudio' }
+    const at = (coordinates: string) =>
+      (jsonld.projectJsonLd({ ...base, location: { coordinates } }, '/projects/x') as Record<string, any>).geo
+    expect(at('56.5240, 50.6830')).toMatchObject({ latitude: 56.524, longitude: 50.683 })
+    expect(at('56.5240,50.6830')).toBeDefined()
+    expect(at('  -12.5 , 140.25  ')).toMatchObject({ latitude: -12.5, longitude: 140.25 })
+    expect(at('не определено')).toBeUndefined()
+    expect(at('56.5')).toBeUndefined()
+    expect(at('56.5; 50.5')).toBeUndefined()
+    expect(at('96.0, 50.0')).toBeUndefined() // широта > 90
+    expect(at('56.0, 200.0')).toBeUndefined() // долгота > 180
+    expect(at('56.5 abc, 50.5')).toBeUndefined() // regex строгий, parseFloat проглотил бы
+  })
+
+  it('whatsApp не выдумывает contactPoint — в выводе его нет', () => {
+    const p = jsonld.projectJsonLd(
+      { title: 'T', projectType: 'craftStudio', contacts: { phone: '8 000 000 00 00', whatsApp: '8 000 000 00 00' } },
+      '/projects/x',
+    ) as Record<string, any>
+    expect(p.telephone).toBe('8 000 000 00 00')
+    expect(p.contactPoint).toBeUndefined()
+  })
+})
+
 describe('serializeJsonLd (XSS-safe)', () => {
   it('экранирует </script>, < и &; вывод обратимо парсится в исходные данные', () => {
     const data = { name: '</script><img src=x onerror=alert(1)> & co' }
