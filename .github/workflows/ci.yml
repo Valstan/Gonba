@@ -120,6 +120,18 @@ jobs:
           fi
           echo "importMap.js до сборки: $(wc -c < "src/app/(payload)/admin/importMap.js") байт"
 
+      - name: FK mines — гейт G135 (NOT NULL + ON DELETE SET NULL)
+        # Гейт на СВОЙСТВО, а не на состав файлов (класс #228). Мина G135 =
+        # «required relationship → NOT NULL + ON DELETE SET NULL»: жёсткое
+        # удаление родителя падает PG 23502, и всплывает это на бою, а не на
+        # CREATE. Пункт техдолга фиксировал число мин текстом — счёт сам вырос
+        # 6→9, пока пункт лежал. Здесь правило машинное: известные мины в
+        # web/scripts/fk-mines-allowlist.json (у каждой причина + статус);
+        # НОВАЯ мина → красный шаг. Шаг ПОСЛЕ Integration tests: схему в БД
+        # джоба кладёт push из модели при их боутоне — это и есть проверяемая
+        # поверхность (новая коллекция появляется здесь первой).
+        run: npm run audit:fk-mines
+
       - name: Build
         run: npm run build
 

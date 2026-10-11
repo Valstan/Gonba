@@ -32,6 +32,8 @@
     "scripts/dedupe-media.ts",
     "scripts/migrate-enabled-sections.ts",
     "scripts/probe-schema-drift.ts",
+    // Гейт FK-мин G135: зовётся из CI-шага (`npm run audit:fk-mines`), не import'ом.
+    "scripts/scan-fk-mines.ts",
     "scripts/seed-vk-auto-sync.ts",
     "scripts/sync-project-hub-topology.ts",
     "scripts/write-schema-snapshot.ts"

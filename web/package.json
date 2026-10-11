@@ -23,6 +23,7 @@
     "test:int": "node ./scripts/run-with-watchdog.mjs --idle-ms=90000 --stagnation-ms=240000 --max-ms=900000 -- npm run test:int:raw",
     "test:int:raw": "NODE_OPTIONS='--no-deprecation --max-old-space-size=1024' vitest run --config ./vitest.config.mts",
     "cache:clean": "tsx scripts/clean-media-cache.ts",
+    "audit:fk-mines": "tsx scripts/scan-fk-mines.ts",
     "search:reindex": "tsx scripts/reindex-search.ts",
     "content:plan": "tsx scripts/apply-gonba-content-plan.ts",
     "media:migrate-yadisk": "tsx scripts/migrate-media-to-yandex.ts",
