@@ -50,6 +50,18 @@ jobs:
     timeout-minutes: 30
     # При workflow_run запускаемся только если CI прошёл успешно
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    defaults:
+      run:
+        # `shell: bash` = `bash --noprofile --norc -eo pipefail {0}`. Дефолтный
+        # шелл Actions зовёт `bash -e {0}` БЕЗ pipefail (G322), поэтому код
+        # выхода конвейера = код ПОСЛЕДНЕГО звена: упавшее `ssh … | sed` или
+        # `npm ci … | tail` уезжало зелёным. Правило действует на все шаги
+        # разом и не зависит от того, вспомнит ли автор следующего шага.
+        # ВНИМАНИЕ при добавлении шагов: под pipefail конвейер, в котором
+        # падает НЕ последнее звено, роняет шаг — там, где провал раннего
+        # звена должен деградировать в предупреждение (KARMAN-ассертация) или
+        # в свою ::error-строку (smoke-маркер), конвейер получил `|| true`.
+        shell: bash
 
     steps:
       - name: Checkout
@@ -346,7 +358,10 @@ jobs:
         run: |
           set -euo pipefail
           # Удостоверение живёт минуты и одноразово (КАРМАН отбивает повтор jti).
-          ASSERTION="$(curl -sS --max-time 15             -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN"             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=karman-vault" | jq -r '.value // empty')"
+          # `|| true` на конвейере — не роскошь: шаг осознанно деградирует в
+          # предупреждение (см. ниже), а под pipefail упавший curl ронял бы
+          # шаг ещё до проверки $ASSERTION. Поведение как до defaults.run.shell.
+          ASSERTION="$(curl -sS --max-time 15             -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN"             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=karman-vault" | jq -r '.value // empty' || true)"
           if [ -z "$ASSERTION" ]; then
             echo "::warning::не удалось получить OIDC-удостоверение — доставка секретов пропущена"
             exit 0
@@ -434,7 +449,7 @@ jobs:
             echo "CDN ${path}: ${STATUS}"
             [ "${STATUS}" = "200" ] || { echo "::error::CDN ${path} = ${STATUS}, ожидался 200"; exit 1; }
           done
-          PROJECTS_HEADERS=$(curl -sS -D - -o /dev/null --max-time 20 "${BASE}/projects" | tr -d '\r')
+          PROJECTS_HEADERS=$(curl -sS -D - -o /dev/null --max-time 20 "${BASE}/projects" | tr -d '\r' || true)
           PROJECTS_STATUS=$(printf '%s\n' "${PROJECTS_HEADERS}" | awk 'NR == 1 { print $2 }')
           PROJECTS_LOCATION=$(printf '%s\n' "${PROJECTS_HEADERS}" | awk 'tolower($1) == "location:" { print $2 }')
           echo "CDN /projects: ${PROJECTS_STATUS} → ${PROJECTS_LOCATION}"
@@ -452,7 +467,15 @@ jobs:
           set -e
           MARKER='id="projects"'   # единая витрина проектов на главной
           BODY=$(ssh GONBA "curl -s --max-time 20 http://127.0.0.1:3000/")
-          COUNT=$(printf '%s' "${BODY}" | grep -o "${MARKER}" | wc -l | tr -d ' ')
+          # `{ grep … || true; }` — без группировки `|| true` съел бы конец
+          # конвейера: без матча grep возвращает 1, и под pipefail
+          # (defaults.run.shell) шаг умирал бы на конвейере БЕЗ ::error-строки
+          # ниже. Ноль вхождений — это ровно тот случай, для которого строка
+          # «вероятно отдан УСТАРЕВШИЙ prerender» и написана; сообщение должно
+          # доехать до лога, а не смениться на `Error: Process completed…`.
+          # Группировка в `{ …; }` держит wc/tr в том же конвейере при любом
+          # коде grep.
+          COUNT=$(printf '%s' "${BODY}" | { grep -o "${MARKER}" || true; } | wc -l | tr -d ' ')
           echo "Маркер '${MARKER}' на / (local): ${COUNT} вхождений"
           if [ "${COUNT}" -lt 1 ]; then
             echo "::error::На / нет маркера '${MARKER}' — вероятно отдан УСТАРЕВШИЙ prerender, хотя код был 200. Деплой НЕуспешен."

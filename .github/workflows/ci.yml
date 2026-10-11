@@ -36,6 +36,12 @@ jobs:
     defaults:
       run:
         working-directory: web
+        # bash = `bash -eo pipefail {0}`: дефолтный шелл Actions зовёт
+        # `bash -e {0}` без pipefail (G322) — код конвейера = код последнего
+        # звена. Все шаги джобы — одиночные команды npm, но правило должно
+        # действовать и на следующий добавленный шаг (тот же долг, что закрыт
+        # в deploy-prod.yml).
+        shell: bash
 
     steps:
       - name: Checkout
