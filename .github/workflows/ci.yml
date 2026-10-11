@@ -105,6 +105,21 @@ jobs:
       - name: Integration tests
         run: npm run test:int
 
+      - name: Generate Payload import map — гейт на артефакт ДО сборки
+        # Тот же молчащий шаг, что ронял деплой (30.09, 11.10): генератор
+        # мог выйти 0 и не записать файл, а next build умирал ниже. Гейт на
+        # результат шага СРАЗУ — красный шаг секунд за 10 вместо 3-минутной
+        # сборки. Симптом «Can't resolve '../importMap'» после этого шага
+        # означает уже другую причину.
+        run: |
+          set -eo pipefail
+          npm run generate:importmap
+          if [ ! -s "src/app/(payload)/admin/importMap.js" ]; then
+            echo "::error::importMap.js не создан или пуст — payload generate:importmap отработал вхолостую"
+            exit 1
+          fi
+          echo "importMap.js до сборки: $(wc -c < "src/app/(payload)/admin/importMap.js") байт"
+
       - name: Build
         run: npm run build
 
