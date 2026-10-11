@@ -1,15 +1,15 @@
 # Session Handoff
 
 **Status:** IDLE
-**Updated:** 2026-10-11
+**Updated:** 2026-10-11 (дополнено после красного прогона 38127781755)
 **Branch:** main
-**Прод:** на `origin/main` (деплой doc-PR будет добавлен); предыдущий релиз `f2e6327` (PR #276) — run `38126543283`, completed/success. Проверка деплоя: `gh run list --workflow=deploy-prod.yml --limit 1` (ждём `completed` — G24).
+**Прод:** на `origin/main` (`63eacdb`, PR #278) — run `38128728711`, completed/success, ШАГ «Generate Payload import map — гейт на артефакт ДО сборки» в логе: `importMap.js до сборки: 8099 байт`; local/CDN health 200, маркер 1 вхождение. Проверка деплоя: `gh run list --workflow=deploy-prod.yml --limit 1` (ждём `completed` — G24).
 
 ---
 
 ## Текущая нитка
 
-Ниток нет — сессия 11.10 закрыла stale-триаж и дубль backlog'а: PR #276 (`shell: bash` во всех workflow + канон `NODE_ENV=production` для one-off tsx + три пункта backlog) и PR-закрытие дубля `jobs.access.run`. Всё замержено, прод зелёный, `pipefail` подтверждён в живом логе деплоя.
+Ниток нет — сессия 11.10 закрыта полностью: stale-триаж + инцидент молчащего importmap (второе повторение) + гейт-лечение. Три PR (#276, #277, #278), все смержены и выкачены.
 
 ## Следующий шаг
 
@@ -17,10 +17,29 @@
 
 ## Контекст
 
-- **Сессия 11.10 (PR #276, `f2e6327`):** `defaults.run.shell: bash` в `ci.yml` + `deploy-prod.yml` (G322: конвейер теперь падает на РАННЕМ звене); три точки с осознанной деградацией получили `|| true` / `{ …; }` — KARMAN-ассертация, smoke `/projects`, контент-маркер; AGENTS.md: one-off tsx только с `NODE_ENV=production`; закрыты backlog-пункты «shell: bash», «tsx-конвенция», «сверка юнитов» (замер: 0 расхождений по 5 юнитам).
-- **Приёмка PR #276 деплоем (не рассуждением):** run `38126543283` — все 16 run-шагов в логе `shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}`, маркер 1 вхождение, local/CDN health 200, `/projects` 308 → `/#projects`. Живой прод после: health 200, маркер на главной найден.
-- **Дубль backlog снят:** `jobs.access.run` (пункт от 18.09) — уже починен в PR #252 (`4b216b4`, аудит write-authz #015); закрыт как дубль F-строки.
-- **`gh` на этой машине:** `C:\Program Files\GitHub CLI\gh.exe` (путь из AppData в прошлых хендофтах устарел — `Get-Command gh` находит только Program Files). PowerShell-замечание: выражения `--jq "…+…"` рвутся — без строковых склеек.
+- **PR #276 (`f2e6327`):** `defaults.run.shell: bash` в `ci.yml` + `deploy-prod.yml` (G322); три точки деградации получили `|| true`/`{ …; }` (KARMAN-ассертация, smoke `/projects`, контент-маркер); AGENTS.md: one-off tsx только с `NODE_ENV=production`; закрыты «shell: bash», «tsx-конвенция», «сверка юнитов» (0 расхождений по 5 юнитам на боксе). Приёмка деплоем: run `38126543283`, в логе все 16 run-шагов под `bash -e -o pipefail {0}`.
+- **PR #277 (`6772ccd`, docs):** handoff + дубль `jobs.access.run` закрыт (починен ещё в #252). **Его деплой упал** — run `38127781755`: молчащий `generate:importmap` внутри `build:raw` (ноль строк, exit 0) → `next build` упал на `../importMap`. Прод не тронут (падение до Ship; на боксе остался `f2e6327`, `is-active`). Побочно подтверждено: docs-only PR тоже гоняет сборку — «безопасных» PR нет.
+- **PR #278 (`63eacdb`):** лечение — `generate:importmap` отдельным шагом ПЕРЕД Build + гейт на артефакт (в обоих workflow). Приёмка деплоем: `38128728711` success, `importMap.js до сборки: 8099 байт`. Урок: гейт результата ПОСЛЕ шага-потребителя декоративен (тот же экземпляр класса #228). Письмо brain — `mailbox/to-brain/2026-10-11-result-gate-after-consumer-is-decorative.md` (idea, suggest).
+- **`gh` на этой машине:** `C:\Program Files\GitHub CLI\gh.exe` (путь из старых хендофтов — AppData — устарел). `--jq "…+…"` в PowerShell рвётся. Логи с кириллицей из `gh run view --log`: `| Out-File -Encoding utf8`, читать UTF8 (прямой grep в PowerShell ловит мохибейк — совпадения по кириллице не находятся).
+- **Локальные гейты на Windows:** `npm run typecheck/lint` падают в PowerShell (POSIX-префикс `NODE_OPTIONS=`) — `npx tsc --noEmit` + `npx eslint .` из bash.
+
+## Не забыть (low-priority)
+
+- **Машина COMPUTER-20261008 (эта):** локального Postgres **нет вовсе** — DB-suite'ы падают локально на `ECONNREFUSED:5432`, в CI зелёные. Гейт по чистым функциям гонять локально; полный прогон — другая машина.
+- **PowerServer-грабли сессии:** `git`/`npm` пишут в stderr → красный `NativeCommandError` при exit 0 — код выхода проверять `$LASTEXITCODE`. Консоль врёт про UTF-8 (кириллица в curl-выводе — мохибейком; проверять байты через `read`).
+- **Ротация SSH наполовину (с 09.10):** новый ключ `gonba-deploy@COMPUTER-20261008` пускает только с этой машины; CI ходит старым `...@PC40-20260810` из GH secret `SSH_PRIVATE_KEY` — до зелёного штатного деплоя старую строку из `authorized_keys` НЕ снимать.
+- **Проверка пуша:** «push timed out» ≠ успех — всегда `git ls-remote <ref>` + сверка SHA.
+- **Снос 16-кластера** — пункт с `due: 2026-10-16` в `docs/followups/in-progress.md`, только со словом (деструктив #025).
+- **`web/next-env.d.ts`** переписывается при локальном `lint`/`build` — после гейтов `git status` и откат.
+- **Авто-мерж в репозитории выключен** — merge только руками; с 02.10 protection требует `--admin` (осознанно).
+- **Stale-триаж не закрыт:** литерал SARAFAN-шлюза ждёт шага владельца; root cause молчащего importmap — не доведён (пункт в tech-debt проснулся: теперь «watch»). Watch-уровень: `sharp`/`postcss` high (оба — мажоры), security-аудит #057 (30.11).
+- **fwupd failed** — решение владельца оставить; **trener-sandbox-probe2/3 failed** — чужие юниты, только доложить.
+- **На боксе лежит чужой `/tmp/prod-cleanup.sh`** — общий бокс, не трогать.
+- **Окна на боксе — скриптом-файлом через `systemd-run --remain-after-exit` с логом**; fail-ветка обязана поднимать сервис (AGENTS.md).
+
+---
+
+> Sticky note — сессия 11.10: stale-триаж закрыт (#276), дубль снят (#277, его деплой красный из-за флейка importmap — прод не тронут), лечение гейтом #278 + зелёный деплой. Status IDLE. Следующий содержательный шаг — за владельцем (DeepSeek/снос 16/афиша/reboot/SSH).
 
 ## Не забыть (low-priority)
 
@@ -39,4 +58,4 @@
 
 ---
 
-> Sticky note — сессия 11.10: stale-триаж закрыт (PR #276 + зелёный деплой с подтверждённым pipefail в логе), дубль `jobs.access.run` снят. Status IDLE. Следующий содержательный шаг — за владельцем (DeepSeek/снос 16/афиша/reboot/SSH).
+> Sticky note — сессия 11.10: stale-триаж закрыт (#276), дубль `jobs.access.run` снят (#277), гейт importMap до сборки введён после второго молчащего шага (#278), письмо brain — «гейт после потребителя декоративен». Status IDLE. Следующий содержательный шаг — за владельцем (DeepSeek/снос 16/афиша/reboot/SSH).
