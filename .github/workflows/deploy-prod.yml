@@ -233,6 +233,31 @@ jobs:
           done
           [ "$ok" = 1 ] || { echo "::error::Postgres за туннелем недоступен (10×2с)"; exit 1; }
 
+      - name: Generate Payload import map — гейт на артефакт ДО сборки
+        # 30.09 и повторно 11.10 (прогон 38127781755, релиз 6772ccd):
+        # `payload generate:importmap`, запущенный ВНУТРИ build:raw, вернул
+        # exit 0 и не написал ни строки — importMap.js не создан, а `&&`
+        # пропустил дальше, и next build упал тремя файлами ниже
+        # («Can't resolve '../importMap'» в layout/page/not-found).
+        # Гейт PR #241 (`test -s` после build:raw) стоял ПОСЛЕ сборки и не
+        # успевал сработать: сборка умирала раньше него. Здесь шаг вынесен
+        # ИЗ build:raw и получил собственный гейт сразу: файл есть и непустой
+        # → идём в Build; генератор смолчал → красный шаг с внятной причиной
+        # за секунды, а не на третьей минуте сборки. build:raw продолжает
+        # звать generate:importmap сам (идемпотентно, локальный dev-путь не
+        # меняется) — этот шаг лишь гарантирует артефакт ДО webpack.
+        working-directory: web
+        env:
+          NODE_ENV: production
+        run: |
+          set -eo pipefail
+          npm run generate:importmap
+          if [ ! -s "src/app/(payload)/admin/importMap.js" ]; then
+            echo "::error::payload generate:importmap отработал вхолостую — importMap.js не создан или пуст. next build упадёт на 'Can't resolve importMap' (класс: молчащий нулевой шаг, 30.09 + 11.10). Вывод генератора выше."
+            exit 1
+          fi
+          echo "importMap.js до сборки: $(wc -c < "src/app/(payload)/admin/importMap.js") байт"
+
       - name: Build (standalone, prerender из прод-БД)
         working-directory: web
         env:
@@ -243,7 +268,10 @@ jobs:
         run: |
           set -eo pipefail
           npm run build:raw
-          # Гейт на результат importmap-шага, а не на его код выхода.
+          # Гейт на результат importmap-шага, а не на его код выхода (изначально
+          # поставлен 30.09, PR #241). С 11.10 генератор вынесен ОТДЕЛЬНЫМ шагом
+          # ПЕРЕД сборкой со своим гейтом (см. выше) — там он срабатывает за
+          # секунды; проверка здесь остаётся страховкой «файл был и не пропал».
           # build:raw начинается с `payload generate:importmap`, и если тот
           # молча ничего не записал, webpack падает тремя файлами ниже с
           # «Module not found: Can't resolve './admin/importMap.js'» — симптом
