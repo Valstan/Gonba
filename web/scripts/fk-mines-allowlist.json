@@ -1,0 +1,47 @@
+[
+  {
+    "id": "form_submissions.form_id",
+    "refTable": "forms",
+    "note": "G135 оригинал №1. Сабмишен без формы смысла не имеет, но историю заявок при удалении формы терять нельзя → скорее RESTRICT; design-решение + прод-DDL за владельцем (#025)"
+  },
+  {
+    "id": "messages.project_id",
+    "refTable": "projects",
+    "note": "G135 оригинал №2. Удаление проекта с включённым чатом — сейчас упадёт 23502; возможно CASCADE (чат без проекта бессмыслен), решается вместе с пунктом"
+  },
+  {
+    "id": "orders_items.product_id",
+    "refTable": "products",
+    "note": "G135 оригинал №3. ЕДИНСТВЕННАЯ явно спорная: CASCADE стёр бы историю заказов → RESTRICT или required→nullable; категорически не auto-лечить"
+  },
+  {
+    "id": "products_images.image_id",
+    "refTable": "media",
+    "note": "G135 оригинал №4. Media защищена usage-движком C.2 (удаление проверяет ссылки), мина теоретическая, но реальная"
+  },
+  {
+    "id": "submission_comments.submission_id",
+    "refTable": "submissions",
+    "note": "Миграция 20260710_120000 заводила CASCADE, но guard IF NOT EXISTS молча скипнул: push успел раньше создать constraint с SET NULL — фикс не лег, мина осталась (пример подавленной идемпотентности). Лечение: то же CASCADE отдельной миграцией"
+  },
+  {
+    "id": "submission_reactions.submission_id",
+    "refTable": "submissions",
+    "note": "Тот же guard-miss 20260710_120000: дочерняя строка без публикации бессмысленна → CASCADE, как и задумано"
+  },
+  {
+    "id": "submission_views.submission_id",
+    "refTable": "submissions",
+    "note": "Тот же guard-miss 20260710_120000 → CASCADE, как и задумано"
+  },
+  {
+    "id": "vk_auto_sync.category_id",
+    "refTable": "categories",
+    "note": "G135 оригинал №5. Категория источника: скорее RESTRICT (импорт продолжит ссылаться) — design за владельцем"
+  },
+  {
+    "id": "vk_auto_sync.project_id",
+    "refTable": "projects",
+    "note": "G135 оригинал №6. То же: удаление проекта с активным VK-источником должно быть осознанным → RESTRICT-кандидат"
+  }
+]
