@@ -141,7 +141,7 @@ CLAUDE.md / GEMINI.md / QWEN.md — тонкие адаптеры к AGENTS.md
 
 ## БД
 
-- На локалке: `postgres:postgres@127.0.0.1:5432/gonba`, `push: true` (drizzle добавляет колонки автоматически, иногда с y/N-prompt — обходится через `yes y | npm run dev` см. memory `dev_schema_push_prompt`).
+- На локалке: локальный PG на машине владельца — `postgresql://gonba:<пароль>@127.0.0.1:5432/gonba` (пароль — файл в профиле пользователя, указатель в `AGENTS.md`), `push: true` (drizzle добавляет колонки автоматически, иногда с y/N-prompt — обходится через `yes y | npm run dev` см. memory `dev_schema_push_prompt`).
 - На проде: `push: true` тоже включён, но фактически любые новые поля доезжают через **ручной `ALTER TABLE`** (потому что после `next build` на проде первый запрос не успевает применить schema до прерывания). См. техдолг про полноценные миграции.
 
 ## Прод

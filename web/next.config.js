@@ -39,6 +39,10 @@ const nextConfig = {
   // deploy-prod.yml). Локальный `next build` — обычный, node_modules не портит.
   output: process.env.STANDALONE_BUILD === '1' ? 'standalone' : undefined,
   outputFileTracingRoot: dirname,
+  // Отпечаток стека наружу не нужен: Next не отдаёт `X-Powered-By: Next.js`.
+  // Второй, `X-Powered-By: Payload`, гасит `proxy_hide_header` в nginx-vhost'е —
+  // заголовки ответа у нас живут одним слоем в nginx (см. docs/followups/tech-debt.md).
+  poweredByHeader: false,
   images: {
     remotePatterns: [
       ...developmentImageHosts,
