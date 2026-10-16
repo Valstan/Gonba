@@ -26,6 +26,9 @@ git fetch --all --prune 2>&1 | tail -2
 git status --short --branch
 git log --oneline -3
 gh pr list --state open --author @me 2>&1 | head -5
+
+echo '=== деплой-гейт (G24) ==='
+bash scripts/deploy_gate_check.sh --warn 2>&1 | head -4
 ```
 
 Если `$1 != --quick`, добавь ещё:
@@ -55,6 +58,7 @@ ssh GONBA "free -h 2>&1 | head -2"               # память
 | прод `/projects` | ✅ 200 / ❌ ... |
 | dev local | ✅ up / ⬜ down |
 | git | clean / N ahead / M behind |
+| деплой (G24) | ✅ в полёте нет / ⛔ идёт / ⚠️ не проверить |
 | TS | ✅ clean / ❌ N errors |
 
 В конце — короткое summary: «всё ок» или «есть проблема в X, посмотри».
