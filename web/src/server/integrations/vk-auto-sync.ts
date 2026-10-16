@@ -621,6 +621,13 @@ export async function syncVkSource(
       const detail = rejected.length
         ? `Годных постов нет: отклонено ${rejected.length} (${rejected.map((r) => r.reason).join(', ')})`
         : 'Все посты уже импортированы'
+      // Прогон дошёл до конца и ошибки не встретил — значит прошлый текст ошибки
+      // обязан уйти вместе со статусом. Эта ветка (самая частая: «всё уже
+      // импортировано») до 2026-10-16 статус писала, а `lastError` не гасила, и в
+      // проде это выглядело ровно как противоречие в таблице: `no-new-posts` и
+      // рядом таймаут шлюза недельной давности (источники 4/5/7, замер 16.10).
+      // Забывается ровно здесь, потому что «успех» и «зачистка» разъехались по
+      // разным веткам; инвариант стережёт tests/int/vk-sync-last-error.int.spec.ts.
       await payload.update({
         collection: 'vk-auto-sync',
         id: sourceId,
@@ -628,6 +635,7 @@ export async function syncVkSource(
         data: {
           lastSyncStatus: 'no-new-posts',
           lastSyncAt: new Date().toISOString(),
+          lastError: null, // здоровый прогон — чистим возможный stale-текст ошибки
           syncLog: [logEntry('no-new-posts', detail), ...(sourceDoc.syncLog || [])].slice(0, 50),
         },
       })
@@ -679,6 +687,7 @@ export async function syncVkSource(
           lastSyncedPostId: newPost.id,
           lastSyncStatus: 'no-new-posts',
           lastSyncAt: new Date().toISOString(),
+          lastError: null, // здоровый прогон — чистим возможный stale-текст ошибки
           syncLog: [logEntry('skipped', detail, newPost.id), ...syncLogAtStart].slice(0, 50),
         },
       })
