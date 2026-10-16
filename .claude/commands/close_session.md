@@ -213,9 +213,10 @@ git push
    - не draft;
    - содержимое **явно одобрено пользователем в этой сессии** (он сказал «merge» / «мержим»);
    - нет нерешённых review-комментариев;
-   - **PR — doc/process**: `gh pr diff <N> --name-only` не содержит путей вне `docs/ | mailbox/ | .claude/ | *.md`.
+   - **PR — doc/process**: `gh pr diff <N> --name-only` не содержит путей вне `docs/ | mailbox/ | .claude/ | *.md`;
+   - **деплой не в полёте**: `bash scripts/deploy_gate_check.sh --gate` → `exit 0` (G24: merge = авто-деплой, и мерж в окно чужого деплоя ломает тот деплой на сверке `EXPECTED_SHA`).
 3. Кандидатов собрать в **один** `AskUserQuestion` (не по каждому отдельно): список PR + явное предупреждение «merge запустит прод-пересбор (`deploy-prod.yml`)». Если пользователь уже явно сказал «мержи PR #N» в этой сессии — можно без повторного вопроса.
-4. После подтверждения: `gh pr merge <N> --squash --delete-branch` (запомнить номера/ветки — пригодятся в Шаге 7).
+4. После подтверждения: `gh pr merge <N> --squash --delete-branch` (перед самим мержем — `bash scripts/deploy_gate_check.sh --gate` = 0; запомнить номера/ветки — пригодятся в Шаге 7).
 5. **Код-PR** (трогают `web/` / `scripts/` / `deploy/` / `.github/`) — **не auto-merge'ить.** Перечислить в отчёте: «PR #N содержит код — merge через `/reliz`».
 6. Если готовых doc/process-PR нет — шаг пропустить **молча**.
 
