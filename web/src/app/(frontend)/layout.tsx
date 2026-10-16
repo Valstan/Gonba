@@ -3,7 +3,6 @@ import type { Metadata } from 'next'
 import { cn } from '@/utilities/ui'
 import { GeistMono } from 'geist/font/mono'
 import { GeistSans } from 'geist/font/sans'
-import { JetBrains_Mono, Manrope, PT_Serif } from 'next/font/google'
 import React from 'react'
 
 import { AdminBar } from '@/components/AdminBar'
@@ -16,50 +15,62 @@ import { InitTheme } from '@/providers/Theme/InitTheme'
 import { mergeOpenGraph } from '@/utilities/mergeOpenGraph'
 import { draftMode } from 'next/headers'
 
+import './fonts.css'
 import './globals.css'
 import { getServerSideURL } from '@/utilities/getURL'
 import { JsonLd } from '@/components/seo/JsonLd'
 import { organizationJsonLd, websiteJsonLd } from '@/seo/jsonld'
 
-const ptSerif = PT_Serif({
-  subsets: ['cyrillic', 'latin'],
-  weight: ['400', '700'],
-  style: ['normal', 'italic'],
-  variable: '--font-pt-serif',
-  display: 'swap',
-})
-
-const manrope = Manrope({
-  subsets: ['cyrillic', 'latin'],
-  weight: ['300', '400', '500', '600', '700', '800'],
-  variable: '--font-manrope',
-  display: 'swap',
-})
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ['cyrillic', 'latin'],
-  weight: ['400', '500'],
-  variable: '--font-jetbrains-mono',
-  display: 'swap',
-})
+// PT Serif, Manrope и JetBrains Mono приходят из `./fonts.css` — это наши файлы
+// в `public/fonts`, а не сборка `next/font/google`: тот ходил за шрифтами в
+// Google прямо во время сборки, и 16.10.2026 из-за этого дважды покраснел
+// пайплайн (второй раз — обязательный чек CI, то есть PR нельзя было смёржить).
+// Переменные `--font-*` теперь объявлены в fonts.css на `:root`, а `globals.css`
+// пользуется ими через `var(...)`, так что классы на <html> больше не нужны.
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const { isEnabled } = await draftMode()
 
   return (
     <html
-      className={cn(
-        GeistSans.variable,
-        GeistMono.variable,
-        ptSerif.variable,
-        manrope.variable,
-        jetbrainsMono.variable,
-      )}
+      className={cn(GeistSans.variable, GeistMono.variable)}
       lang="ru"
       suppressHydrationWarning
     >
       <head>
         <InitTheme />
+        {/* Предзагрузка — только те лица, что нужны первому экрану (заголовки
+            PT Serif 400 и текст Manrope): раньше `next/font/google` грузил так
+            все 12 лиц кириллицы и латиницы, включая те, что в первом экране не
+            встречаются. Курсив и 700 подтянутся по мере надобности. */}
+        <link
+          as="font"
+          crossOrigin="anonymous"
+          href="/fonts/pt-serif-400-normal-cyrillic.woff2"
+          rel="preload"
+          type="font/woff2"
+        />
+        <link
+          as="font"
+          crossOrigin="anonymous"
+          href="/fonts/pt-serif-400-normal-latin.woff2"
+          rel="preload"
+          type="font/woff2"
+        />
+        <link
+          as="font"
+          crossOrigin="anonymous"
+          href="/fonts/manrope-wght-cyrillic.woff2"
+          rel="preload"
+          type="font/woff2"
+        />
+        <link
+          as="font"
+          crossOrigin="anonymous"
+          href="/fonts/manrope-wght-latin.woff2"
+          rel="preload"
+          type="font/woff2"
+        />
         <link href="/favicon.ico" rel="icon" sizes="any" />
         <link href="/favicon-32.png" rel="icon" type="image/png" sizes="32x32" />
         <link href="/apple-touch-icon.png" rel="apple-touch-icon" sizes="180x180" />
