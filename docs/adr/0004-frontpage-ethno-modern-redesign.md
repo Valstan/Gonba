@@ -68,6 +68,12 @@
 - Появляются 3 новых Google-шрифта (PT Serif, Manrope, JetBrains Mono). Через `next/font/google` self-hosted, без cookie-warning, но всё-таки +ko font weights в bundle.
 - Часть существующих SCSS файлов (например, `EditableProjectsGrid` уже использует свои переменные) останется как есть — новая система токенов добавляется поверх через CSS-vars без замены.
 
+## Обновление 2026-10-16 — шрифты переезжают из `next/font/google` в репозиторий
+
+Решение «все три шрифта через `next/font/google`» (строка 33 выше) **отменено по факту эксплуатации**, а не по вкусу. Загрузчик `next/font/google` ходит за CSS и файлами в Google **в момент сборки** и разбирает чужой ответ строгим regex'ом (`find-font-files-in-css.js` построчно берёт первый `src: url(...)`, `loader.js:122` требует расширения шрифта в конце). 16.10.2026 из-за этого пайплайн покраснел **дважды за час** с `TypeError: Cannot read properties of null (reading '1')`, причём второй раз — на обязательном чеке CI, то есть без повторного прогона PR нельзя было смёржить. Прод ни в одном из случаев не пострадал: деплой не доезжает до переключения симлинка релиза.
+
+Теперь шрифты свои: файлы в `web/public/fonts` (28 штук, 311 КБ), правила с `unicode-range` и запасными метриками — в `web/src/app/(frontend)/fonts.css`, переменные `--font-pt-serif` / `--font-manrope` / `--font-jetbrains-mono` объявлены там же на `:root`. Состав и байты взяты **с прода** — то есть ровно то, что уже отдавалось посетителю: начертания, веса, поднаборы и метрики запаса не изменились ни на байт. **Дизайнерское решение остаётся в силе** (PT Serif — заголовки, Manrope — body, JetBrains Mono — eyebrows); изменился способ доставки, а не выбор. Механизм, замеры и цена — `docs/followups/tech-debt.md`; сторож против незаметного возврата зависимости — `web/tests/int/no-google-fonts-build-dependency.int.spec.ts`.
+
 ## References
 
 - [`docs/plans/etno-modern-redesign.md`](../plans/etno-modern-redesign.md) — детальный план PR1-4
