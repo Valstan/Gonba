@@ -152,7 +152,7 @@ CLAUDE.md / GEMINI.md / QWEN.md — тонкие адаптеры к AGENTS.md
 - **Секреты/конфиг — `/etc/gonba/gonba.env`** (root:valstan, `0640`), **вне дерева репо** (ADR-0005 / pool #008). Читаются тремя юнитами через `EnvironmentFile=` и build'ом через `systemd-run -p EnvironmentFile=`. В репо — только `web/.env.example`. Изменение секрета на проде = правка этого файла (нужен root) + `systemctl restart gonba`.
 - **Vault bootstrap — `/etc/gonba/secrets-token.env`** (`0600`, отдельно от восстанавливаемого `gonba.env`). Файл опционален: без него recovery-клиент предупреждает и не мешает обычному старту.
 - Build: **в CI** (`deploy-prod.yml`): `STANDALONE_BUILD=1 npm run build:raw` в раннере, prerender читает живую прод-БД через SSH-туннель (`-L 15432:5432`), артефакт scp → `releases/<sha>` → симлинк → restart. План/design-решение — `docs/plans/build-to-ci.md`. On-box `scripts/safe-build.sh` — только hot-fix-fallback (см. шапку скрипта).
-- Nginx терминирует TLS, проксирует на `127.0.0.1:3000`. Публичный домен — `гоньба.рф` (`xn--80abf4be9f.xn--p1ai`).
+- Nginx терминирует TLS, проксирует на `127.0.0.1:3000`. Публичный домен — `гоньба.рф` (`xn--80abf4be9f.xn--p1ai`). `www`-поддомен контента не имеет вообще: отдельный vhost `www-gonba` отдаёт только `301` на apex (оба порта), сертификат один на два имени — линия apex'а, расширенная `--expand`.
 - systemd таймер `gonba-vk-sync.timer` каждые 3 часа дёргает `POST /api/vk-auto-sync/trigger`.
 
 ## Кэш-инвалидация
