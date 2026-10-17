@@ -11,3 +11,12 @@
 # Windows-скрипты: CRLF привычен для PowerShell, файлы несут кириллицу и UTF-8 BOM
 # (PowerShell 5.1 читает UTF-8 без BOM как CP1251 и падает на кириллице).
 *.ps1 text eol=crlf
+
+# Обёртка для двойного клика: cmd.exe надёжнее с CRLF.
+*.cmd text eol=crlf
+
+# Конфиг запускателя OpenCode Web читают ОБЕ версии (PowerShell и bash): CRLF в конце
+# строки попал бы в значение (ssh-цель, порты) и сломал подключение. Держим LF.
+*.conf text eol=lf
+# Шаблон конфига (то же правило).
+*.conf.example text eol=lf
