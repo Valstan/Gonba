@@ -96,6 +96,40 @@ ssh GONBA "opencode-pair-link 49374 14974"
    `*-00000000.so` / `*-00000000.dylib` старше 60 минут — страховка для запусков вне юнита;
 3. замер до/после первого запуска (см. «Приёмка») — вклад в разведку платформы.
 
+## Глаза: headless-браузер на боксе (директива brain 17.10 — выполнена)
+
+Зачем: бокс безголовый, модель не видит ни создаваемого интерфейса, ни GUI вообще. Ставим локальный
+Chromium **без окон**: агент сам открывает свой сайт, снимает PNG и читает его как картинку.
+
+```bash
+# 1. браузер — user-local, без sudo, ноль системных изменений (проверено 17.10)
+npx -y playwright@latest install chromium          # 681 МБ в ~/.cache/ms-playwright
+
+# 2. снимок интерфейса: PORT — порт dev-сервера, который строит сессия (локальный 127.0.0.1)
+npx playwright screenshot --viewport-size=1440,900 --wait-for-timeout=5000 \
+  http://127.0.0.1:PORT shot.png
+# → дальше модель читает shot.png как изображение
+```
+
+Модель нужна **с vision** — по названию в нашем пуле такая одна, `nemotron-3.5-super-vl-free`
+(«vl»; картинкой ещё не проверяли — проверить при первом живом использовании); текстовые free
+(`deepseek-v4.1-flash-free`, `big-pickle` и прочие) картинок не читают, для «посмотри» модель
+переключают в сессии. **Скрины остаются на боксе** (на экране бывает что угодно) — в письма
+и репозиторий их не таскать.
+
+**Три факта, добытых замером (портативны, отписаны Мозгу):**
+
+1. **`npx playwright screenshot` работает как есть, а сырой бинарь полного Chrome — нет.**
+   На Ubuntu 24.04 стоит `kernel.apparmor_restrict_unprivileged_userns=1`: песочница пространств
+   имён запрещена политикой, поэтому `chrome --headless=new` в юните с `NoNewPrivileges=yes`
+   завершается `rc=134` (abort, core dump). С `--no-sandbox` тот же бинарь страницу снимает.
+   Канонической команде флаг не нужен — Playwright идёт через `chrome-headless-shell`.
+2. **`sudo apt-get install chromium` на Ubuntu 24.04 — тупик:** у пакета `chromium` кандидата нет
+   вовсе, а `chromium-browser` — snap-заглушка (`2:1snap1-0ubuntu2`). Рабочий путь один — Playwright.
+3. **Система бокса не менялась:** отсутствующие mesa-пакеты (`libegl-mesa0`, `libgl1-mesa-dri`,
+   `libglx-mesa0`, `mesa-libgallium`, `mesa-vulkan-drivers`) скриншотам не мешают, `--with-deps`
+   не понадобился. Цена — 681 МБ `~/.cache/ms-playwright` + ~270 МБ npm-кэш (диск бокса 78% → 80%).
+
 ## Установка (по шагам)
 
 ```bash
@@ -156,6 +190,14 @@ sudo systemctl enable --now opencode-tmp-sweep.timer
 2. Ссылка `/auth/connect/<код>` отдаёт куку только при браузерном `Accept: text/html` (`302` + `set-cookie`); при `Accept: application/json` вместо куки выдаёт `{"token":"…"}` — это путь приложений, не браузера.
 3. `opencode run` без явного `< /dev/null` **съедает stdin**, если вызван в скрипте по пайпу — остаток скрипта уходит модели как промпт.
 4. `opencode models` без `XDG_DATA_HOME` смотрит в дефолтный каталог данных — для пула задавать `XDG_DATA_HOME=/home/valstan/.local/share/opencode-anon`.
+
+## Приёмка «глаз» (17.10.2026, вечер — по директиве `2026-10-17-headless-browser-for-opencode-dev`)
+
+- [x] браузер скачан user-local: `chromium-1248` + `chromium_headless_shell-1248` + `ffmpeg-1013` (681 МБ, Playwright 1.64.1); **системных пакетов не ставили ни одного**, юнит агента не менялся.
+- [x] каноническая команда из письма: `npx playwright screenshot --viewport-size=1440,900 --wait-for-timeout=3000 https://example.com /tmp/eyes-pw.png` → rc=0, PNG **88 993 байта**, `file` подтверждает `PNG image data, 1440 x 900`.
+- [x] **в контексте агента** (реплика юнита через `systemd-run`: `--uid=valstan`, `PrivateTmp=yes`, `NoNewPrivileges=yes`, `MemoryHigh=500M`/`MemoryMax=700M`, `Nice=5`, `CPUWeight=50`, `HOME=/home/valstan`): снимок своего сервиса `http://127.0.0.1:49374/` → rc=0, PNG **41 940 байт**, 1440×900, юнит завершился `result=success` (в лимит памяти уложился).
+- [x] негативный контроль: сырой `chrome --headless=new --screenshot=…` **без** `--no-sandbox` → `rc=134` (та же стена песочницы и в контексте юнита) — отсюда и вывод, что канон идёт через headless-shell.
+- [x] замер памяти агента на том же заходе (due-пункт backlog): `MemoryCurrent` **252 МБ**, `MemoryPeak` **391 МБ**, `NRestarts=0`, oom в журнале — **0**, метёлка `/tmp` — `удалено=0`.
 
 ## Откат
 
