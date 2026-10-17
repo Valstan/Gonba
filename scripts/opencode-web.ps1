@@ -38,12 +38,43 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# Ярлык запускают двойным кликом: непредвиденная ошибка должна выглядеть одной
+# понятной строкой, а не стеком PowerShell (туннель, если он наш, за собой убираем).
+trap {
+    Write-Host ''
+    Write-Host "Запускатель остановился с ошибкой: $($_.Exception.Message)"
+    Write-Host 'Если на экране осталось чёрное окно ssh.exe (туннель) — закрой его и запусти ярлык снова.'
+    try {
+        if ($ownTunnel -and $tunnel -and -not $tunnel.HasExited) { $tunnel.Kill() }
+    } catch { }
+    exit 1
+}
+
 $DefaultTarget = 'GONBA'
 $DefaultLocalPort = 14974
 $DefaultRemotePort = 49374
 $RemoteUnit = 'opencode-web'
 $PairHelper = 'opencode-pair-link'
 $DoneMarker = 'OC_DONE'
+
+# ---------------------------------------------------------------- чтение вывода
+
+# `Get-Content -Raw` на ПУСТОМ файле отдаёт $null, а не пустую строку. Дальше
+# `.Trim()` в Invoke-OcSshSession падал с «Невозможно вызвать метод для выражения
+# со значением NULL» — и ровно в том сценарии, для которого запускатель написан:
+# двойной клик из настоящей консоли. Там ssh, в отличие от консоли без stdin, не
+# сыплет предупреждением GetConsoleMode, stderr пуст — и запускатель умирал сразу
+# после подъёма туннеля. Регрессия на этот класс: scripts/opencode-web.test.ps1
+# (подставляет реально пустой stderr и гоняет копию с защитой и без неё).
+function Read-OcRawText {
+    param([string]$Path)
+    $raw = ''
+    if (Test-Path -LiteralPath $Path) {
+        $raw = Get-Content -LiteralPath $Path -Raw -ErrorAction SilentlyContinue
+        if ($null -eq $raw) { $raw = '' }
+    }
+    return $raw
+}
 
 # ---------------------------------------------------------------- файл настроек
 
@@ -154,14 +185,14 @@ function Invoke-OcSshSession {
         -RedirectStandardOutput $outFile -RedirectStandardError $errFile -NoNewWindow -PassThru
     while (((Get-Date) - $started).TotalMilliseconds -lt $TimeoutMs) {
         if (Test-Path -LiteralPath $outFile) {
-            $text = (Get-Content -LiteralPath $outFile -Raw -ErrorAction SilentlyContinue)
+            $text = Read-OcRawText -Path $outFile
             if ($text -and $text -match "$DoneMarker`:(\d+)") { $status = 'ready'; break }
         }
         if ($proc.HasExited) { $status = 'exited'; break }
         Start-Sleep -Milliseconds 200
     }
-    if (Test-Path -LiteralPath $outFile) { $text = (Get-Content -LiteralPath $outFile -Raw -ErrorAction SilentlyContinue) }
-    if (Test-Path -LiteralPath $errFile) { $errText = (Get-Content -LiteralPath $errFile -Raw -ErrorAction SilentlyContinue) }
+    $text = Read-OcRawText -Path $outFile
+    $errText = Read-OcRawText -Path $errFile
     if (-not $proc.HasExited) {
         try { $proc.Kill() } catch { }
         try { [void]$proc.WaitForExit(3000) } catch { }
@@ -413,6 +444,13 @@ $pairCmd = New-OcRemoteCommand -Template '__HELPER__ __RPORT__ __LPORT__; echo "
     __HELPER__ = $PairHelper; __RPORT__ = $remotePort; __LPORT__ = $localPort
 }
 $pair = Invoke-OcSshSession -SshArgs $sshArgs -Target $target -Command $pairCmd -TimeoutMs 30000
+if ($pair.status -eq 'timeout') {
+    # Бокс общий и маленький, а на его публичном :22 висит фон интернета — новое
+    # подключение иногда не укладывается в 30 с (замер 17.10: повтор помогал,
+    # подробности в ранбуке). Один повтор дешевле, чем мёртвое окно у владельца.
+    Write-Host 'SSH не ответил за 30 с — повторяю запрос ссылки один раз.'
+    $pair = Invoke-OcSshSession -SshArgs $sshArgs -Target $target -Command $pairCmd -TimeoutMs 30000
+}
 $link = ''
 if ($pair.out -match 'http://\S+') { $link = $Matches[0] }
 if ($link) {
