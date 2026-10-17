@@ -281,6 +281,8 @@ ssh GONBA "sudo systemctl start gonba-vk-sync.service && journalctl -u gonba-vk-
 | `gonba.service` | `gonba.service` | Next.js + Payload (web) |
 | `gonba-vk-sync.service` + `.timer` | то же | VK auto-sync, каждые 3ч |
 | `gonba-media-cache.service` + `.timer` | то же | TTL-чистка медиа-кэша, ежедневно 04:00 |
+| `opencode-web.service` | `opencode-web.service` | OpenCode-агент + веб-UI (анонимный пул), loopback :49374 — **секретов gonba.env не грузит** |
+| `opencode-tmp-sweep.service` + `.timer` | то же | Метёлка `/tmp` от утечки opencode (G463), каждые 15 мин |
 
 Все юниты грузят конфиг/секреты через `EnvironmentFile=-/etc/gonba/gonba.env` (ADR-0005). Домен-vars (`NEXT_PUBLIC_SERVER_URL` / `PAYLOAD_PUBLIC_SERVER_URL`) лежат **в `gonba.env`** и запекаются в бандл на build'е (`safe-build.sh` передаёт тот же `EnvironmentFile` в build-unit).
 
@@ -308,6 +310,44 @@ ssh GONBA "sudo systemctl start gonba-vk-sync.service && journalctl -u gonba-vk-
 - Не использовать `npm run build` (под watchdog) и тем более `npm run build` — задача про правильный watchdog есть в `PENDING_FOLLOWUPS.md`. Прямой путь — `build:raw` через safe-build.sh.
 - Прямой `npm run build:raw` через одну SSH-сессию умирает посередине prerender'а при SSH-disconnect → артефакт `.next` остаётся неполным → сервис в crash-loop. Поэтому `systemd-run`.
 - Прод НЕ применяет миграции автоматически (`push: true` не успевает из-за timeout прерывания первого запроса). После добавления полей в коллекциях запускать `npm payload migrate:up` или вручную `ALTER TABLE`.
+
+### OpenCode Web на проде (анонимный пул, 2026-10-17)
+
+Прод-бокс умеет отдавать **веб-UI OpenCode-агента**: работа идёт в браузере с любого компьютера, без терминала. Полный ранбук — [`docs/plans/opencode-web-on-prod.md`](plans/opencode-web-on-prod.md); схема пулов взята у Мозга (плейбук `brain_matrica/docs/plans/opencode-two-pools-deploy.md`).
+
+- **Пул анонимный:** без `auth login` и ключей, работают бесплатные модели `opencode/*-free` (beam, big-pickle, deepseek-v4.1-flash-free, glm-5.3-flash-free, longcat-2.5-preview-free, mimo-v2.6-flash-free, nemotron-3-ultra-free, nemotron-3.5-lightning-free, nemotron-3.5-super-vl-free, space-bunny-free). Лимит — по IP бокса, к локальным пулам владельца не примешивается.
+- **Слушает только `127.0.0.1:49374`.** Наружу — через SSH-туннель; нового публичного порта нет.
+- **Вход** — одноразовая ссылка (код живёт 5 минут → кука `opencode_session_<локальный порт>` на ≈30 дней). Пароль сервера лежит в `/home/valstan/.config/opencode-web/anon.env` (0600), в git не попадает и в чат не печатается.
+
+С компьютера владельца (алиас `GONBA` уже в `~/.ssh/config`):
+
+```bash
+ssh -N -L 14974:127.0.0.1:49374 GONBA            # туннель (окно держать открытым)
+ssh GONBA "opencode-pair-link 49374 14974"        # печатает ссылку входа
+# открыть ссылку в браузере
+```
+
+Одним кликом на Windows: `powershell -ExecutionPolicy Bypass -File scripts\opencode-web.ps1`.
+
+Операции:
+
+```bash
+ssh GONBA "systemctl status opencode-web --no-pager"      # состояние (память/CPU)
+ssh GONBA "journalctl -u opencode-web -n 50 --no-pager"   # логи сервера
+ssh GONBA "sudo systemctl restart opencode-web"           # перезапуск
+ssh GONBA "sudo systemctl stop opencode-web"              # стоп (освобождает ~370 МБ ОЗУ)
+ssh GONBA "systemctl list-timers opencode-tmp-sweep.timer --no-pager"
+```
+
+**Границы (осознанные):**
+
+- Агент работает в **отдельном клоне** `/home/valstan/work/GONBA`, не в боевом `/home/valstan/GONBA`: деплой делает там `git pull --ff-only` и падает на локальных правках.
+- Юнит — «добрый сосед»: `Nice=5`, `CPUWeight=50`, `IOWeight=50`, `MemoryHigh=500M`, `MemoryMax=700M`, `MemorySwapMax=0`, `OOMScoreAdjust=200`. Замер 17.10: холостой сервер держит **~370 МБ** при ~780 МБ доступной ОЗУ на боксе — самый крупный процесс бокса после `next-server`. Если боксу тесно, `stop` снимает эту нагрузку.
+- `NoNewPrivileges=yes` + политики `deploy/opencode/opencode.json` → `sudo`/`su` внутри агента не работают; запрещены `git push origin main|master` (все формы), `gh workflow run deploy*` и чтение `/etc/gonba/*`. Прод-операции остаются за владельцем (#025).
+- **Сборок на боксе нет** (канон: сборка в CI, бокс runtime-only) — тяжёлые прогоны бьют соседей по общему боксу.
+- `PrivateTmp=yes` + метёлка `opencode-tmp-sweep` — защита от утечки fff в `/tmp` (G463: у соседнего проекта утечка съела диск до 100% и уронила Postgres).
+- **Бесплатные модели могут использоваться для обучения** → не давать агенту прод-секреты и приватные репозитории.
+- Тонкость: голый `opencode` на боксе пытается поднять свой фоновый сервис на `:49374` и конфликтует с юнитом — CLI запускать с `--server http://127.0.0.1:49374` (это же путь для `opencode models|run|stats`).
 
 ### CI / автоматический деплой (build в CI, standalone-артефакт — с 2026-06-11)
 

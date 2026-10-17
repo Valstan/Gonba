@@ -2,3 +2,8 @@
 # при запуске git_sync_check.sh как SessionStart-хука на Windows через Git Bash).
 # Нормализуем на всех машинах.
 *.sh text eol=lf
+
+# Юниты systemd монтируются копированием с бокса (`sudo cp`): CRLF внутри значения
+# директивы — тот же класс, что CRLF в шелл-скрипте. Держим LF на всех машинах.
+*.service text eol=lf
+*.timer text eol=lf

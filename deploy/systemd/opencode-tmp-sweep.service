@@ -1,0 +1,6 @@
+[Unit]
+Description=OpenCode fff/tmp sweep (G463 guard — подметает утечку распаковки в /tmp)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/opencode-tmp-sweep
