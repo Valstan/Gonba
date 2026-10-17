@@ -25,7 +25,7 @@
 | Данные пула | `/home/valstan/.local/share/opencode-anon` (`XDG_DATA_HOME`) — своя `opencode.db`, свой пул лимитов |
 | Пароль сервера | `/home/valstan/.config/opencode-web/anon.env` (`OPENCODE_PASSWORD=…`, `chmod 600`) — в git не попадает |
 | Глобальный конфиг/политики | `deploy/opencode/opencode.json` → `/home/valstan/.config/opencode/opencode.json` |
-| Рабочий каталог агента | `/home/valstan/work/GONBA` — **отдельный клон**, не боевой `/home/valstan/GONBA` |
+| Рабочий каталог агента | `/home/valstan/repo/Gonba` — **отдельный клон**, не боевое дерево `/home/valstan/GONBA`; юнит стартует через ярлык `~/work/GONBA` → `~/repo/Gonba` |
 | Метёлка `/tmp` (G463) | `scripts/opencode-tmp-sweep.sh` → `/usr/local/bin/opencode-tmp-sweep` + `opencode-tmp-sweep.{service,timer}` |
 
 ## Как входить (с компьютера владельца)
@@ -115,8 +115,15 @@ sudo -n systemctl restart opencode-web
   Замеры 17.10 шли вверх, и это важнее самих чисел: первый старт 362 МБ (пик 387 МБ, прогрев),
   через 5,5 ч — 252 МБ (пик 391 МБ), **а к вечеру, через 8,3 ч жизни, — 510 МБ при пике 525 МБ**,
   то есть вплотную к `MemoryHigh` (500 МиБ = 524 288 000 байт) при `MemoryMax` 700 МиБ.
-  Вывод честный: «устоявшиеся 220–250 МБ» — это состояние первых часов, а не потолок; чем занято
-  остальное (сам сервер или дочерние процессы модели) — открытый вопрос, пункт в backlog (due 18.10).
+  Вывод честный: «устоявшиеся 220–250 МБ» — это состояние первых часов, а не потолок.
+  **Вечерний замер того же дня (22:48, аптайм 3,5 ч) закрыл открытый вопрос:** `systemd-cgls`
+  показывает **один** процесс (`opencode serve`) и **ни одного** дочернего процесса модели —
+  модель ходит по сети, локальных детей у сервера нет, то есть число держит сам сервер вместе
+  с состоянием активной сессии. Числа: **426 МБ** при пике **500,4 МБ** (0,99 от `MemoryHigh` —
+  порог задет, но не пробит; `NRestarts=0`, oom 0). Рост немонотонный (510 → 426 МБ), значит
+  цифра идёт за нагрузкой, а не течёт сама. Оговорка: сессия, которая мерила, живёт в том же
+  cgroup и её состояние — часть числа; суточный замер 18.10 и решение по потолку — ещё открыты
+  (пункт в backlog, due 18.10).
   Потолок 700 МБ выбран сознательно: пусть ядро убьёт агента, а не уведёт в swap общий бокс;
   поднимать — только по замеру, помня про ~670 МБ доступной ОЗУ и 808 МБ занятого swap.
 - `StartLimitBurst=5/300s` — цикл падений не превращается в молотилку.
@@ -126,12 +133,29 @@ sudo -n systemctl restart opencode-web
 
 ## Где агент работает
 
-`WorkingDirectory=/home/valstan/work/GONBA` — **отдельный клон** репозитория.
+`WorkingDirectory=/home/valstan/work/GONBA` — **отдельный клон** репозитория, а после
+переезда 17.10 реальный путь у него `/home/valstan/repo/Gonba` (юнит резолвится ярлыком
+`~/work` → `repo`, `repo/GONBA` → `Gonba`; новые клоны на боксе заводим уже в `~/repo/`).
 Боевое дерево `/home/valstan/GONBA` трогать нельзя: деплой делает
 `git pull --ff-only origin main` и падает на незакоммиченных локальных правках
 ([deploy-prod.yml](../../.github/workflows/deploy-prod.yml) — шаг проверки чистоты дерева).
 
 Правки уходят обычным PR-флоу (`gh` на боксе авторизован как Valstan, scopes `repo`, `workflow`).
+
+**Юнит поставлен вручную, а не деплоем** — `deploy-prod.yml` идемпотентно ставит только
+`gonba.service` и таймеры (`gonba-vk-sync`, `gonba-media-cache`), улей в этот список не входит.
+Значит источник правды по юниту — копия на боксе (`systemctl cat opencode-web`), а файл
+`deploy/systemd/opencode-web.service` — её происхождение; правя одно, сверь с другим.
+
+### Чего агент в улье не может — и почему это свойство установки, а не случайность
+
+`sudo *` и чтение `/etc/gonba/*` запрещены политикой, плюс в юните стоит `NoNewPrivileges=yes`.
+Следствие, которое надо помнить при планировании работ: **изнутри улья невозможны замеры по
+прод-БД, правки юнитов, рестарты сервисов и любые прод-операции** — это делает сессия с `sudo`
+(Claude Code на боксе). Замер, который агент улья всё-таки может: `systemctl show`/`systemd-cgls` по
+своему юниту, `journalctl` по нему, `/api/health` сайта, `git grep` по репозиторию.
+Обратная сторона — полезная: агент улья не может случайно сломать прод, а гейт #025 для него
+не «спросить и забыть», а физическая невозможность.
 
 ## Политики (жёсткие запреты)
 
@@ -201,7 +225,7 @@ sudo install -m 0755 /tmp/oc-install/opencode /usr/local/bin/opencode
 opencode --version
 
 # 2. каталоги и пароль (пароль не печатать в чат/логи)
-mkdir -p ~/.config/opencode-web ~/.local/share/opencode-anon ~/work
+mkdir -p ~/.config/opencode-web ~/.local/share/opencode-anon ~/repo
 chmod 700 ~/.config/opencode-web
 [ -s ~/.config/opencode-web/anon.env ] || \
   printf 'OPENCODE_PASSWORD=%s\n' "$(openssl rand -base64 48 | tr -d '/+=\n' | cut -c1-40)" \
@@ -213,7 +237,10 @@ mkdir -p ~/.config/opencode
 cp ~/GONBA/deploy/opencode/opencode.json ~/.config/opencode/opencode.json
 
 # 4. рабочий клон (не боевой!)
-[ -d ~/work/GONBA ] || git clone https://github.com/Valstan/Gonba.git ~/work/GONBA
+# Реальный путь после переезда 17.10 — ~/repo/Gonba; на этой машине путь в юните
+# (~/work/GONBA) жив ярлыком. На НОВОЙ машине ярлыка не будет: либо клонируй
+# в ~/work/GONBA, либо поправь WorkingDirectory юнита на реальный путь.
+[ -d ~/repo/Gonba ] || git clone https://github.com/Valstan/Gonba.git ~/repo/Gonba
 
 # 5. юниты и метёлка
 sudo cp ~/GONBA/scripts/opencode-tmp-sweep.sh /usr/local/bin/opencode-tmp-sweep
