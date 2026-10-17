@@ -7,3 +7,7 @@
 # директивы — тот же класс, что CRLF в шелл-скрипте. Держим LF на всех машинах.
 *.service text eol=lf
 *.timer text eol=lf
+
+# Windows-скрипты: CRLF привычен для PowerShell, файлы несут кириллицу и UTF-8 BOM
+# (PowerShell 5.1 читает UTF-8 без BOM как CP1251 и падает на кириллице).
+*.ps1 text eol=crlf
