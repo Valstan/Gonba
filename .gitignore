@@ -85,3 +85,7 @@ seed-*-source.sql
 # Телефон (hotline): присутствие сессии — локально, не коммитить.
 # Ленты hotline/outbox/ — коммитить обычным flow (второй канал через GitHub).
 hotline/presence.json
+
+# Клиент OpenCode Web: цель SSH, путь к ключу и порты конкретного компьютера.
+# Рядом лежит шаблон `scripts/opencode-web.conf.example` — он в git, этот файл нет.
+scripts/opencode-web.conf
