@@ -246,17 +246,41 @@ jobs:
         # за секунды, а не на третьей минуте сборки. build:raw продолжает
         # звать generate:importmap сам (идемпотентно, локальный dev-путь не
         # меняется) — этот шаг лишь гарантирует артефакт ДО webpack.
+        # 17.10 класс ударил трижды за вечер (39049403412, 39050762680,
+        # 39052630058): генератор молча выходит 0 и артефакта нет, при этом
+        # реран того же прогона зелёный. Поэтому шаг повторяет генератор до
+        # трёх раз: попытка вхолостую → ::warning:: (флейк остаётся видимым в
+        # логе) и повтор через 3 с; три вхолостую подряд → красный шаг с
+        # диагностикой (node/npm/cwd/листинг каталога). Худший случай этой
+        # правки — тот же красный шаг: прод не трогается вовсе, Ship идёт
+        # сильно позже гейта.
         working-directory: web
         env:
           NODE_ENV: production
         run: |
           set -eo pipefail
-          npm run generate:importmap
-          if [ ! -s "src/app/(payload)/admin/importMap.js" ]; then
-            echo "::error::payload generate:importmap отработал вхолостую — importMap.js не создан или пуст. next build упадёт на 'Can't resolve importMap' (класс: молчащий нулевой шаг, 30.09 + 11.10). Вывод генератора выше."
-            exit 1
-          fi
-          echo "importMap.js до сборки: $(wc -c < "src/app/(payload)/admin/importMap.js") байт"
+          TARGET="src/app/(payload)/admin/importMap.js"
+          diagnostics() {
+            echo "--- диагностика попытки $1 ---"
+            echo "node: $(node -v 2>&1) | npm: $(npm -v 2>&1) | cwd: $(pwd)"
+            ls -la "src/app/(payload)/admin/" 2>&1 | head -10 || true
+          }
+          attempt=0
+          while :; do
+            attempt=$((attempt + 1))
+            npm run generate:importmap
+            if [ -s "$TARGET" ]; then
+              echo "importMap.js до сборки: $(wc -c < "$TARGET") байт (попытка $attempt)"
+              exit 0
+            fi
+            diagnostics "$attempt"
+            if [ "$attempt" -ge 3 ]; then
+              echo "::error::payload generate:importmap отработал вхолостую 3 попытки подряд — importMap.js не создан или пуст. next build упадёт на 'Can't resolve importMap' (класс: молчащий нулевой шаг, 30.09 + 11.10 + 17.10). Вывод генератора и диагностика выше."
+              exit 1
+            fi
+            echo "::warning::payload generate:importmap смолчал (попытка $attempt из 3, известный флейк 17.10) — повторяю"
+            sleep 3
+          done
 
       - name: Build (standalone, prerender из прод-БД)
         working-directory: web
