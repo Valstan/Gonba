@@ -342,7 +342,7 @@ ssh GONBA "systemctl list-timers opencode-tmp-sweep.timer --no-pager"
 **Границы (осознанные):**
 
 - Агент работает в **отдельном клоне** `/home/valstan/work/GONBA`, не в боевом `/home/valstan/GONBA`: деплой делает там `git pull --ff-only` и падает на локальных правках.
-- Юнит — «добрый сосед»: `Nice=5`, `CPUWeight=50`, `IOWeight=50`, `MemoryHigh=500M`, `MemoryMax=700M`, `MemorySwapMax=0`, `OOMScoreAdjust=200`. Замер 17.10: холостой сервер держит **~370 МБ** при ~780 МБ доступной ОЗУ на боксе — самый крупный процесс бокса после `next-server`. Если боксу тесно, `stop` снимает эту нагрузку.
+- Юнит — «добрый сосед»: `Nice=5`, `CPUWeight=50`, `IOWeight=50`, `MemoryHigh=500M`, `MemoryMax=700M`, `MemorySwapMax=0`, `OOMScoreAdjust=200`. Замер 17.10: первый старт даёт **362 МБ / пик 387 МБ** (прогрев, индексация), после прогрева сервер держится на **220 МБ / пик 274 МБ** при ~910 МБ доступной ОЗУ на боксе — это крупнейший процесс бокса после `next-server`. Если боксу тесно, `stop` снимает эту нагрузку.
 - `NoNewPrivileges=yes` + политики `deploy/opencode/opencode.json` → `sudo`/`su` внутри агента не работают; запрещены `git push origin main|master` (все формы), `gh workflow run deploy*` и чтение `/etc/gonba/*`. Прод-операции остаются за владельцем (#025).
 - **Сборок на боксе нет** (канон: сборка в CI, бокс runtime-only) — тяжёлые прогоны бьют соседей по общему боксу.
 - `PrivateTmp=yes` + метёлка `opencode-tmp-sweep` — защита от утечки fff в `/tmp` (G463: у соседнего проекта утечка съела диск до 100% и уронила Postgres).
