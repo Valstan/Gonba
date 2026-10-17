@@ -1,0 +1,43 @@
+[Unit]
+Description=OpenCode Web (anonymous pool: free models, no account) — v2 API + web UI on loopback
+Documentation=https://opencode.ai/v2/docs/cli/web/
+After=network-online.target
+Wants=network-online.target
+# Цикл перезапусков не должен превратиться в молотилку: 5 падений за 5 минут — стоп.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=valstan
+Group=valstan
+WorkingDirectory=/home/valstan/work/GONBA
+EnvironmentFile=/home/valstan/.config/opencode-web/anon.env
+Environment=HOME=/home/valstan
+# Отдельный каталог данных = отдельный пул лимитов (см. docs/plans/opencode-web-on-prod.md).
+Environment=XDG_DATA_HOME=/home/valstan/.local/share/opencode-anon
+ExecStart=/usr/local/bin/opencode serve --hostname 127.0.0.1 --port 49374
+Restart=on-failure
+RestartSec=5
+
+# --- Добрый сосед: 1 ядро и ~780 МБ свободной ОЗУ делятся с 6 сайтами и Postgres ---
+# Замер 17.10: холостой сервер держит ~370 МБ (MemoryCurrent 379 МБ при простое).
+# Потолок намеренно ниже «щедрого»: пусть агент получает kill, а не уводит бокс в swap.
+Nice=5
+CPUWeight=50
+IOWeight=50
+MemoryHigh=500M
+MemoryMax=700M
+MemorySwapMax=0
+# Ядро убивает агента охотнее, чем gonba/Postgres/nginx.
+OOMScoreAdjust=200
+
+# --- G463: opencode распаковывает fff-библиотеку в /tmp (5.5 МБ за запуск). ---
+# PrivateTmp отводит сервису собственный /tmp — общий /tmp бокса не растёт.
+PrivateTmp=yes
+
+# Агент не получает root: sudo/su внутри юнита не работают (прод-операции — руками владельца).
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "policies": [
+    { "action": "tool.use", "resource": "shell:git push origin main*", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:git push origin master*", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:git push -u origin main*", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:git push -u origin master*", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:git push --force origin main*", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:git push --force origin master*", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:git push --force-with-lease origin main*", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:git push --force-with-lease origin master*", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:gh workflow run deploy*", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:sudo *", "effect": "deny" },
+    { "action": "tool.use", "resource": "read:/etc/gonba/*", "effect": "deny" }
+  ]
+}
