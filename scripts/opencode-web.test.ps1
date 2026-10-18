@@ -104,7 +104,7 @@ Write-Host "   exit=$($red.code)"
 Write-Lines $red.out
 $redOk = ($red.code -ne 0) -and ($red.out -match 'InvokeMethodOnNull|значением NULL')
 if (-not $redOk -and $red.out -match 'НЕТ ОТВЕТА') {
-    Write-Host '   [повтор] ssh не ответил за 30 с — это дрожание сети, а не проверяемое свойство; гоняю ещё раз'
+    Write-Host '   [повтор] ssh не уложился в потолок запускателя — это дрожание сети, а не проверяемое свойство; гоняю ещё раз'
     $red = Invoke-Launcher -Path $buggyPath -Extra @('-Check')
     Write-Host "   exit=$($red.code) (повтор)"
     Write-Lines $red.out
@@ -118,11 +118,12 @@ Write-Host "   exit=$($green.code)"
 Write-Lines $green.out
 $greenOk = ($green.code -eq 0) -and ($green.out -match 'opencode v')
 if (-not $greenOk -and $green.out -match 'НЕТ ОТВЕТА') {
-    # Замерено 17.10 (2 из 2): первый ssh сразу после упавшего прогона может не
-    # уложиться в 30 с — на боксе 1 ядро, оборванная сессия ещё доживает. К
-    # проверяемому свойству это не относится, поэтому повторяем один раз и честно
-    # помечаем это в выводе, а не молчим.
-    Write-Host '   [повтор] ssh не ответил за 30 с — дрожание сети, а не регрессия; гоняю ещё раз'
+    # Замерено 17.10 (2 из 2) и подтверждено 18.10: первый ssh после паузы может не
+    # уложиться в потолок запускателя — на публичном :22 бокса висят сканеры (18.10
+    # в SYN-RECV стояло 70 чужих соединений, холодный вход занял 42 с), а на боксе
+    # 1 ядро. К проверяемому свойству это не относится, поэтому повторяем один раз и
+    # честно помечаем это в выводе, а не молчим.
+    Write-Host '   [повтор] ssh не уложился в потолок — дрожание сети, а не регрессия; гоняю ещё раз'
     $green = Invoke-Launcher -Path $fixedPath -Extra @('-Check')
     Write-Host "   exit=$($green.code) (повтор)"
     Write-Lines $green.out
