@@ -3,13 +3,13 @@
 **Status:** IDLE
 **Updated:** 2026-10-19
 **Branch:** main
-**Прод:** `b2faec9` (PR #314, деплой 39165215304 completed/success); бокс = `b2faec9`, health 200, главная 200 (161 КБ). `opencode-web` active (81 МБ), `opencode-web-watchdog.timer` active, `/api/info` → 401. Диск бокса ~81%. Туннель этой машины на `127.0.0.1:14974` поднят (pid 2524).
+**Прод:** `9e2f930` (доковые [#315](https://github.com/Valstan/Gonba/pull/315)/[#316](https://github.com/Valstan/Gonba/pull/316) поверх `b2faec9` — [#313](https://github.com/Valstan/Gonba/pull/313)/[#314](https://github.com/Valstan/Gonba/pull/314)); деплой 39169596847 completed/success, бокс = `9e2f930`, health 200, главная 200 (161 КБ). `opencode-web` active, `opencode-web-watchdog.timer` active, `/api/info` → 401. Диск бокса 82 % (триггер 85 %). Туннель этой машины на `127.0.0.1:14974` поднят (pid 2524).
 
 ---
 
 ## Текущая нитка
 
-Вечер 18.10 закрыт двумя релизами. **PR #313** — класс «служба активна и молчит»: cgroup упёрся в `MemoryHigh=500M` (548 МБ, pressure 100 %), `Restart=on-failure` не сработал, а живость проверялась HTTP-запросом **через туннель**, поэтому «молчит» и «выключена» давали один ноль; тупик теперь разбирает одна ssh-сессия (`Repair-OcAccess`), живость туннеля — по `ESTABLISHED`, `-Off` дожидается выхода из `active` (`TimeoutStopSec=30`, ожидание до 150 с), поставлен сторож `opencode-web-watchdog.timer`. **PR #314** — каталог серверов: `-Server <алиас>`/`--server` + папка `servers\` рядом со скриптом, форма Мозга принята как есть с одним отличием — нет фрагмента → остановка с перечнем того, что есть, а не молчаливый откат к умолчаниям. Оба смержены и задеплоены; квитанция Мозгу ушла (`mailbox/to-brain/2026-10-18-pult-form-accepted-server-flag.md`).
+Вечер 18.10 закрыт двумя релизами. **PR #313** — класс «служба активна и молчит»: cgroup упёрся в `MemoryHigh=500M` (548 МБ, pressure 100 %), `Restart=on-failure` не сработал, а живость проверялась HTTP-запросом **через туннель**, поэтому «молчит» и «выключена» давали один ноль; тупик теперь разбирает одна ssh-сессия (`Repair-OcAccess`), живость туннеля — по `ESTABLISHED`, `-Off` дожидается выхода из `active` (`TimeoutStopSec=30`, ожидание до 150 с), поставлен сторож `opencode-web-watchdog.timer`. **PR #314** — каталог серверов: `-Server <алиас>`/`--server` + папка `servers\` рядом со скриптом, форма Мозга принята как есть с одним отличием — нет фрагмента → остановка с перечнем того, что есть, а не молчаливый откат к умолчаниям. Оба смержены и задеплоены; квитанция Мозгу ушла (`mailbox/to-brain/2026-10-18-pult-form-accepted-server-flag.md`), а пятое письмо — переносимая находка из инцидента: [`2026-10-19-probe-through-the-thing-you-diagnose.md`](../mailbox/to-brain/2026-10-19-probe-through-the-thing-you-diagnose.md) (`kind=idea`: щуп не ходит через то, что диагностируешь; сторож не воскрешает выключенное владельцем).
 
 ## Следующий шаг
 
@@ -31,7 +31,7 @@
 - **`-Off`/`-On` на втором сервере не проверялся** — выключать чужую службу без слова владельца нельзя; отдельный шаг, когда он скажет.
 - **Копия запускателя на рабочем столе** — после правок сверять хеш; `opencode-web.ps1` обновлён 19.10 (бэкап `opencode-web.ps1.bak-20261019-0015` рядом).
 - **Фрагменты серверов в git не идут** (D-038, адрес + имя ключа) — в репозитории только `scripts/servers/README.md`.
-- **Диск бокса ~81 %** — триггер 85 %: `npx playwright uninstall` + `npm cache clean --force`.
+- **Диск бокса 82 %** (замер 19.10 после деплоя; триггер 85 %): `npx playwright uninstall` + `npm cache clean --force`.
 - **Ротация SSH наполовину (с 09.10):** новый ключ пускает только с этой машины, CI ходит старым — старую строку из `authorized_keys` не снимать до зелёного штатного деплоя. Полная ротация — до 2026-11-08.
 - **`web/next-env.d.ts`** переписывается при локальном `lint`/`build` — после гейтов `git status` и откат.
 - **Проверка пуша:** «push timed out» ≠ успех — всегда `git ls-remote <ref>` + сверка SHA.
@@ -45,4 +45,4 @@
 
 ---
 
-> Sticky note — 19.10: сессия закрыта, прод `b2faec9`, health 200. Сделано: лечение «активен и молчит» ([#313](https://github.com/Valstan/Gonba/pull/313) — `Repair-OcAccess`, живость по SSH-соединению, `TimeoutStopSec=30`, сторож-таймер), каталог серверов `-Server`/`--server` ([#314](https://github.com/Valstan/Gonba/pull/314)), письмо-квитанция Мозгу, живые проверки двух боксов, ранбук + tech-debt + `scripts/servers/README.md`. **Первым делом следующей сессии:** проверить почту Мозга (фрагменты/ключи + формат bootstrap-скрипта), затем `ubuntu-latest` на Ubuntu 26 (due сегодня). Открытые follow-ups: KARMAN Vault recovery, G135, DeepSeek top-up, ротация SSH CI-ключа до 08.11.
+> Sticky note — 19.10: сессия закрыта, прод `9e2f930`, health 200. Сделано: лечение «активен и молчит» ([#313](https://github.com/Valstan/Gonba/pull/313) — `Repair-OcAccess`, живость по SSH-соединению, `TimeoutStopSec=30`, сторож-таймер), каталог серверов `-Server`/`--server` ([#314](https://github.com/Valstan/Gonba/pull/314)), два письма Мозгу (квитанция по форме пульта + находка «щуп не ходит через то, что диагностируешь»), живые проверки двух боксов, ранбук + tech-debt + `scripts/servers/README.md`. **Первым делом следующей сессии:** проверить почту Мозга (фрагменты/ключи + формат bootstrap-скрипта), затем `ubuntu-latest` на Ubuntu 26 (due сегодня). Открытые follow-ups: KARMAN Vault recovery, G135, DeepSeek top-up, ротация SSH CI-ключа до 08.11.
