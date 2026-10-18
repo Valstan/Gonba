@@ -454,13 +454,19 @@ jobs:
             sudo systemctl daemon-reload
             echo "unit обновлён из репо"
           fi
-          # Таймеры и их сервисы — тоже из репо, тем же идемпотентным способом.
+          # Таймеры, их сервисы и OpenCode-веб — тоже из репо, тем же идемпотентным способом.
           # До этого деплой ставил ТОЛЬКО gonba.service, а `deploy/systemd/*.timer`
           # лежали в репозитории и не применялись ничем: правка расписания
           # выглядела сделанной, не будучи сделанной, и разошлась бы с боксом
           # молча. Файл, который никто не исполняет, — не источник правды.
+          # Та же логика распространена на opencode-web.service (замер 18.10: SuccessExitStatus=130
+          # пришлось ставить на бокс руками — без этого цикла репо и бокс разъезжаются молча).
+          # Важно: для opencode-web.service здесь только cp + daemon-reload БЕЗ restart —
+          # веб-сессии владельца не должны рваться от деплоя сайта; изменения вступают
+          # в силу при следующем старте службы.
           for unit in gonba-vk-sync.service gonba-vk-sync.timer \
-                      gonba-media-cache.service gonba-media-cache.timer; do
+                      gonba-media-cache.service gonba-media-cache.timer \
+                      opencode-web.service; do
             src="$BASE/deploy/systemd/$unit"
             [ -f "$src" ] || continue
             if ! cmp -s "$src" "/etc/systemd/system/$unit"; then

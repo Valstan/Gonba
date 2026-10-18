@@ -19,6 +19,12 @@ Environment=XDG_DATA_HOME=/home/valstan/.local/share/opencode-anon
 ExecStart=/usr/local/bin/opencode serve --hostname 127.0.0.1 --port 49374
 Restart=on-failure
 RestartSec=5
+# Замер 18.10: opencode завершается кодом 130 (SIGINT-стиль) по SIGTERM, и systemd
+# писал такую остановку как сбой (`Active: failed`) — а это штатный выключатель
+# ярлыка «выключить». Объявляем код успешным: `systemctl stop` даёт `inactive`,
+# а настоящие падения (SIGKILL, 137) по-прежнему считаются сбоем и триггерят
+# Restart=on-failure, так что страховка от крашей не ослаблена.
+SuccessExitStatus=130
 
 # --- Добрый сосед: 1 ядро и ~780 МБ свободной ОЗУ делятся с 6 сайтами и Postgres ---
 # Замер 17.10: холостой сервер держит ~370 МБ (MemoryCurrent 379 МБ при простое).

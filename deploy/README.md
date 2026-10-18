@@ -49,6 +49,28 @@ journalctl -u gonba -f
 
 > Канонический репо↔прод-маппинг всех юнитов и заметка про дрейф — в `docs/PROJECT.md → Systemd (production)`.
 
+## SSH (production drop-in)
+
+`deploy/ssh/20-gonba-load.conf` — запас sshd под постоянным потоком сканеров на публичном `:22`:
+`MaxStartups 50:30:150` и `LoginGraceTime 45`. Файл кладётся рядом с существующим
+`/etc/ssh/sshd_config.d/10-hardening.conf` (он задаёт только аутентификацию и `MaxStartups` не трогает,
+так что порядок имён безопасен; значения применяются как «первое вхождение выигрывает»):
+
+```bash
+scp deploy/ssh/20-gonba-load.conf GONBA:~/20-gonba-load.conf
+ssh GONBA "sudo install -m 0644 ~/20-gonba-load.conf /etc/ssh/sshd_config.d/ && sudo sshd -t && sudo systemctl reload ssh"
+ssh GONBA "sudo sshd -T | grep -E 'maxstartups|logingracetime'"   # 50:30:150 и 45
+# откат:
+ssh GONBA "sudo rm /etc/ssh/sshd_config.d/20-gonba-load.conf && sudo systemctl reload ssh"
+```
+
+Чего здесь **намеренно нет** и почему (не «забыли» — расклад в комментариях самого файла):
+`PerSourceMaxStartups` (общие адреса входа и деплоя — CGNAT/раннеры, риск отбить живой вход),
+правки fail2ban (удлинение бана бьёт по владельцу с динамического IP сильнее, чем по сканерам),
+`tcp_max_syn_backlog` (синкокуки включены, рукопожатия меряются 63–78 мс). Замер и вердикт по
+медленному входу (он оказался клиентским — OpenSSH 7.7p1 в Windows) — в
+`docs/plans/opencode-web-on-prod.md`, раздел «Почему вход ждёт минуту».
+
 ## VK Auto-Sync (systemd timer)
 
 Каждые 3 часа дёргает `POST /api/vk-auto-sync/trigger`, который запускает синхронизацию всех активных источников из коллекции `vk-auto-sync`.

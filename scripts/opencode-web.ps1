@@ -5,12 +5,20 @@
 # Пароль сервера нигде не печатается и на этом компьютере не хранится.
 #
 # Запуск (двойной клик — `opencode-web.cmd` рядом, либо из консоли):
-#   powershell -ExecutionPolicy Bypass -File opencode-web.ps1          # подключиться
+#   powershell -ExecutionPolicy Bypass -File opencode-web.ps1          # подключиться (выключенную службу поднимет сам)
 #   powershell -ExecutionPolicy Bypass -File opencode-web.ps1 -Setup   # настроить этот компьютер
 #   powershell -ExecutionPolicy Bypass -File opencode-web.ps1 -Check   # проверить, всё ли на месте
 #   powershell -ExecutionPolicy Bypass -File opencode-web.ps1 -NoOpen  # не открывать браузер
 #   powershell -ExecutionPolicy Bypass -File opencode-web.ps1 -NoWait  # не ждать Enter (туннель остаётся)
 #   powershell -ExecutionPolicy Bypass -File opencode-web.ps1 -Stop    # закрыть туннель этого компьютера
+#   powershell -ExecutionPolicy Bypass -File opencode-web.ps1 -Off     # ВЫКЛЮЧИТЬ: остановить службу на боксе и снять туннель
+#
+# Туннель и служба — разные вещи, и стоят они по-разному. Туннель — это одна ssh-сессия на боксе
+# и один процесс ssh на этом компьютере: держать его поднятым дёшево (владелец так и хочет —
+# закрыл браузер, туннель остался). А ест бокс САМ СЕРВЕР: юнит `opencode-web` в покое занимает
+# ~180 МБ (замер 18.10: 185,9 МБ) и растёт с сессиями — 18.10 именно он упёрся в MemoryHigh=500M
+# и задушил веб-UI. Поэтому `-Off` гасит службу (память возвращается боксу), а запуск без ключей
+# поднимает её обратно: владелец держит прод лёгким, когда не работает, и включает одним ярлыком.
 #
 # Настройки компьютера лежат рядом со скриптом, в `opencode-web.conf` (шаблон — `opencode-web.conf.example`):
 #   SSH_TARGET    — алиас из ~/.ssh/config этого компьютера либо user@host
@@ -38,7 +46,8 @@ param(
     [switch]$Check,
     [switch]$NoOpen,
     [switch]$NoWait,
-    [switch]$Stop
+    [switch]$Stop,
+    [switch]$Off
 )
 
 $ErrorActionPreference = 'Stop'
@@ -61,6 +70,41 @@ $DefaultRemotePort = 49374
 $RemoteUnit = 'opencode-web'
 $PairHelper = 'opencode-pair-link'
 $DoneMarker = 'OC_DONE'
+
+# Чем ходить на бокс. Замер 18.10.2026 на машине владельца, один и тот же адрес, одна минута:
+# curl и .NET открывают TCP за 78 мс, OpenSSH 10.5 из Git for Windows логинится целиком за 1,2 с,
+# а системный «OpenSSH for Windows 7.7p1» (C:\Windows\System32\OpenSSH, сборка 2018 года) —
+# за 11–30 с, а иногда не укладывается вообще. Копия того же файла под другим именем ведёт себя
+# точно так же, значит дело не в правилах по имени приложения, а в самом клиенте. Поэтому клиент
+# ВЫБИРАЕМ: берём самый свежий из найденных, системный — только если других нет (тогда `-Check`
+# честно скажет, что вход будет медленным, и что поставить).
+$SshExeCandidates = @(
+    (Join-Path $env:ProgramFiles 'Git\usr\bin\ssh.exe'),
+    $(if (${env:ProgramFiles(x86)}) { Join-Path ${env:ProgramFiles(x86)} 'Git\usr\bin\ssh.exe' }),
+    $(if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'Programs\OpenSSH\ssh.exe' }),
+    (Join-Path $env:SystemRoot 'System32\OpenSSH\ssh.exe')
+)
+# Ниже 9 — это ветка 2018 года: соединение до бокса висит 11–30 с вместо 1,2 с.
+$SshSlowMajorVersion = 9
+
+function Get-OcSshExe {
+    param([string[]]$Candidates)
+    $found = @()
+    foreach ($candidate in $Candidates) {
+        if (-not $candidate) { continue }
+        if (-not (Test-Path -LiteralPath $candidate)) { continue }
+        $text = ''
+        # `ssh -V` печатает версию в stderr, и при `$ErrorActionPreference = 'Stop'` это
+        # исключение NativeCommandError, а не пустая строка (проверено 18.10: версия ловилась
+        # в catch). Поэтому спрашиваем версию через cmd /c с явным 2>&1.
+        try { $text = (cmd /c "`"$candidate`" -V 2>&1").Trim() } catch { $text = '' }
+        $major = 0
+        if ($text -match 'OpenSSH[_\s]+(?:for_Windows_)?(\d+)') { $major = [int]$Matches[1] }
+        $found += [pscustomobject]@{ Path = $candidate; Major = $major; Text = $text }
+    }
+    if ($found.Count -eq 0) { return $null }
+    return ($found | Sort-Object -Property Major -Descending | Select-Object -First 1)
+}
 
 # Потолок одной ssh-сессии до бокса. Публичный :22 бокса живёт под сканерами, sshd придерживает
 # новые подключения: замер 18.10 — 78–81 соединение в SYN-RECV, холодный вход занял 42,5 с. Прежние
@@ -182,9 +226,19 @@ function Quote-OcArg {
     return $Value
 }
 
+# Достать значение маркера `OC_ИМЯ:значение` из вывода сессии на боксе.
+function Get-OcMarker {
+    param([string]$Text, [string]$Name)
+    if (-not $Text) { return '' }
+    if ($Text -match "$([regex]::Escape($Name))`:([^\r\n]+)") { return $Matches[1].Trim() }
+    return ''
+}
+
 function New-OcSshArgs {
     param([string]$Identity)
-    $args = @('-n', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8')
+    # `-T` вместо `-n`: команда уходит на бокс через stdin (см. Invoke-OcSshSession), поэтому
+    # stdin нужен живым, а псевдо-tty — нет.
+    $args = @('-T', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8')
     if ($Identity) { $args += @('-i', (Quote-OcArg $Identity)) }
     return $args
 }
@@ -200,17 +254,27 @@ function New-OcRemoteCommand {
 
 # Отдаём команду на бокс и ждём в выводе маркер `OC_DONE:<код>` (его печатает сама команда).
 # Процесс не ждём до конца: см. граблю клиента в шапке файла.
+#
+# Команда уходит НЕ аргументом, а потоком — `bash -s` со stdin, куда подставляется файл.
+# Замер 18.10.2026: через клиент из Git for Windows (MSYS) аргумент портится — `%{http_code}`
+# доезжал как `%http_code`, а точка с запятой исчезала, и маркер слипался с выводом curl
+# (`http=%http_codeOC_DONE:0`). С системным клиентом тот же аргумент доезжал целым, поэтому
+# баг был невидим; поток же не зависит от того, кто разбирает аргументы.
 function Invoke-OcSshSession {
     param([string[]]$SshArgs, [string]$Target, [string]$Command, [int]$TimeoutMs = 25000)
     $suffix = [guid]::NewGuid().ToString('N')
     $outFile = Join-Path $env:TEMP "oc_ssh_out_$suffix.txt"
     $errFile = Join-Path $env:TEMP "oc_ssh_err_$suffix.txt"
+    $scriptFile = Join-Path $env:TEMP "oc_ssh_cmd_$suffix.sh"
+    # UTF-8 без BOM: BOM перед первой командой сломал бы её. Переводы строк — LF (Unix).
+    $scriptText = ($Command -replace "`r`n", "`n") + "`n"
+    [System.IO.File]::WriteAllText($scriptFile, $scriptText, (New-Object System.Text.UTF8Encoding($false)))
     $started = Get-Date
     $text = ''
     $errText = ''
     $status = 'timeout'
-    $proc = Start-Process -FilePath 'ssh' -ArgumentList ($SshArgs + @($Target, $Command)) `
-        -RedirectStandardOutput $outFile -RedirectStandardError $errFile -NoNewWindow -PassThru
+    $proc = Start-Process -FilePath $SshExe -ArgumentList ($SshArgs + @($Target, 'bash', '-s')) `
+        -RedirectStandardInput $scriptFile -RedirectStandardOutput $outFile -RedirectStandardError $errFile -NoNewWindow -PassThru
     while (((Get-Date) - $started).TotalMilliseconds -lt $TimeoutMs) {
         if (Test-Path -LiteralPath $outFile) {
             $text = Read-OcRawText -Path $outFile
@@ -225,7 +289,7 @@ function Invoke-OcSshSession {
         try { $proc.Kill() } catch { }
         try { [void]$proc.WaitForExit(3000) } catch { }
     }
-    Remove-Item -LiteralPath $outFile, $errFile -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $outFile, $errFile, $scriptFile -Force -ErrorAction SilentlyContinue
 
     $code = $null
     if ($text -match "$DoneMarker`:(\d+)") { $code = [int]$Matches[1] }
@@ -291,6 +355,100 @@ function Get-OcKeyRecipe {
     Write-Host "Настройки лежат в: $ConfPath"
 }
 
+# ---------------------------------------------------------------- служба на боксе
+#
+# Владелец: «хочу, чтобы opencode не занимал ресурсы прод-сервера, когда я им не пользуюсь».
+# Поэтому служба на боксе — управляемая: `-Off` её гасит, запуск без ключей поднимает обратно.
+# Все команды на бокс идут БЕЗ двойных кавычек: `Start-Process` передаёт аргументы строкой,
+# разбор аргументов ssh на Windows срезает кавычки — команда доезжает искалеченной (замерено
+# на соблазне написать `curl -w "%{http_code}"`). Поэтому `-w %{http_code}` и `sed -n 2p`.
+
+# `free -m` второй строкой отдаёт: `Mem: total used free shared buff/cache available` —
+# доступная память это седьмое поле (индекс 6).
+function Get-OcAvailableMb {
+    param([string]$FreeLine)
+    if (-not $FreeLine) { return $null }
+    $parts = @($FreeLine.Trim() -split '\s+')
+    if ($parts.Count -lt 7) { return $null }
+    $value = 0
+    if ([int]::TryParse($parts[6], [ref]$value)) { return $value }
+    return $null
+}
+
+# `MemoryCurrent=185962496` (байты) → «178 МБ»; у остановленного юнита там `[not set]`.
+# Скобки в шаблоне обязательны: `$Matches[1]` заполняется только группой захвата, без неё
+# получался `$null` и «0 МБ» (поймано на живом прогоне -Check 18.10).
+function Format-OcMemory {
+    param([string]$Raw)
+    if (-not $Raw) { return 'память неизвестна' }
+    if ($Raw -match '(\d+)') { return ('{0} МБ' -f [math]::Round([int64]$Matches[1] / 1MB)) }
+    return 'память неизвестна'
+}
+
+# Жива ли служба — видно ЧЕРЕЗ УЖЕ ПОДНЯТЫЙ туннель, без отдельной ssh-сессии: 401/200 значит
+# opencode отвечает, 0 — служба выключена (туннель при этом жив и порт принимает, поэтому
+# проверять порт бесполезно — нужен настоящий HTTP-запрос).
+function Get-OcServiceHttp {
+    param([int]$Port, [int]$TimeoutMs = 4000)
+    try {
+        $request = [System.Net.HttpWebRequest]::Create("http://127.0.0.1:$Port/api/info")
+        $request.Proxy = $null   # системный прокси этой машины (127.0.0.1:10809) здесь только мешает
+        $request.Timeout = $TimeoutMs
+        $request.Method = 'GET'
+        $response = $request.GetResponse()
+        $code = [int]$response.StatusCode
+        $response.Close()
+        return $code
+    } catch [System.Net.WebException] {
+        if ($_.Exception.Response) { return [int]$_.Exception.Response.StatusCode }
+        return 0
+    } catch {
+        return 0
+    }
+}
+
+# Поднять службу на боксе (если погашена) и дождаться, пока она ответит на самом боксе.
+function Start-OcService {
+    param([string[]]$SshArgs, [string]$Target, [string]$Unit, [int]$Port, [int]$TimeoutMs = 90000)
+    $command = New-OcRemoteCommand -Template 'if systemctl is-active --quiet __UNIT__; then echo OC_UNIT:already; else sudo -n systemctl start __UNIT__; echo OC_UNIT:start:$?; fi; i=0; code=000; while [ $i -lt 45 ]; do code=$(curl -s -o /dev/null -w %{http_code} --max-time 2 http://127.0.0.1:__PORT__/api/info); if [ $code != 000 ]; then break; fi; sleep 1; i=$((i+1)); done; echo OC_HTTP:$code; echo OC_DONE:$?' -Values @{
+        __UNIT__ = $Unit; __PORT__ = $Port
+    }
+    return Invoke-OcSshSession -SshArgs $SshArgs -Target $Target -Command $command -TimeoutMs $TimeoutMs
+}
+
+# Погасить службу на боксе. Возвращает вместе с кодом замеры «сколько памяти вернулось» —
+# владельцу важно видеть, что выключение что-то значит, а не «нажал и не понял».
+function Stop-OcService {
+    param([string[]]$SshArgs, [string]$Target, [string]$Unit, [int]$TimeoutMs = 90000)
+    $command = New-OcRemoteCommand -Template 'echo OC_MEMBEFORE:$(systemctl show __UNIT__ -p MemoryCurrent); echo OC_AVAILBEFORE:$(free -m | sed -n 2p); sudo -n systemctl stop __UNIT__; echo OC_EXIT:$?; sleep 1; echo OC_STATE:$(systemctl is-active __UNIT__ 2>/dev/null); echo OC_MEMAFTER:$(systemctl show __UNIT__ -p MemoryCurrent); echo OC_AVAILAFTER:$(free -m | sed -n 2p); echo OC_DONE:$?' -Values @{ __UNIT__ = $Unit }
+    return Invoke-OcSshSession -SshArgs $SshArgs -Target $Target -Command $command -TimeoutMs $TimeoutMs
+}
+
+# Закрыть туннель ЭТОГО компьютера. $true — после уборки локальный порт свободен.
+function Close-OcTunnel {
+    param([int]$LocalPort, [int]$RemotePort)
+    $tunnels = @(Get-OcTunnel -LocalPort $LocalPort -RemotePort $RemotePort)
+    if ($tunnels.Count -eq 0) {
+        Write-Host "Туннеля на 127.0.0.1:$LocalPort нет — закрывать нечего."
+    } else {
+        foreach ($tunnelProc in $tunnels) {
+            try {
+                Stop-Process -Id $tunnelProc.ProcessId -Force -ErrorAction Stop
+                Write-Host "Туннель закрыт (pid $($tunnelProc.ProcessId))."
+            } catch {
+                Write-Host "Не удалось закрыть pid $($tunnelProc.ProcessId): $($_.Exception.Message)"
+            }
+        }
+    }
+    Start-Sleep -Milliseconds 500
+    if (Test-OcPort -Port $LocalPort) {
+        Write-Host "Порт 127.0.0.1:$LocalPort всё ещё занят — его держит не наш туннель."
+        return $false
+    }
+    Write-Host "Порт 127.0.0.1:$LocalPort свободен."
+    return $true
+}
+
 # ---------------------------------------------------------------- режимы
 
 function Invoke-OcSetup {
@@ -337,6 +495,18 @@ function Invoke-OcCheck {
     Write-Host "  ssh-цель:  $Target"
     Write-Host "  порты:     локальный $LocalPort → на боксе $RemotePort"
     if ($Identity) { Write-Host "  ключ:      $Identity" } else { Write-Host '  ключ:      по умолчанию / ssh-agent' }
+    if ($sshClient) {
+        Write-Host "  клиент:    $($sshClient.Path)"
+        Write-Host "             $($sshClient.Text)"
+        if ($sshClient.Major -gt 0 -and $sshClient.Major -lt $SshSlowMajorVersion) {
+            Write-Host "  [!] клиент старше $SshSlowMajorVersion-й ветки: соединение до бокса висит 11–30 с (замер 18.10.2026),"
+            Write-Host '      хотя сеть отвечает за 78 мс. Лаунчер всё равно работает, но медленно.'
+            Write-Host '      Лечится свежим клиентом: Git for Windows уже подхватится сам, либо штатный —'
+            Write-Host '      в PowerShell от администратора: Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0'
+        }
+    } else {
+        Write-Host '  клиент:    ssh из PATH (версию определить не удалось)'
+    }
     Write-Host ''
     if ($Identity -and -not (Test-Path -LiteralPath $Identity)) {
         Write-Host "  [!!] файла ключа нет: $Identity"
@@ -356,21 +526,27 @@ function Invoke-OcCheck {
         return 1
     }
 
-    $unitCmd = New-OcRemoteCommand -Template 'systemctl is-active __UNIT__; echo "OC_DONE:$?"' -Values @{ __UNIT__ = $RemoteUnit }
+    $unitCmd = New-OcRemoteCommand -Template 'echo OC_ACTIVE:$(systemctl is-active __UNIT__ 2>/dev/null); echo OC_ENABLED:$(systemctl is-enabled __UNIT__ 2>/dev/null); echo OC_MEM:$(systemctl show __UNIT__ -p MemoryCurrent); echo OC_DONE:$?' -Values @{ __UNIT__ = $RemoteUnit }
     $unit = (Invoke-OcSshSession -SshArgs $SshArgs -Target $Target -Command $unitCmd -TimeoutMs $SshSessionTimeoutMs).out
-    $unitState = (($unit -split "`r?`n") | Where-Object { $_ -and $_ -notmatch $DoneMarker }) -join ' '
-    if ($unitState -match 'active') {
-        Write-Host "   сервис:    $RemoteUnit — active"
+    $unitActive = Get-OcMarker -Text $unit -Name 'OC_ACTIVE'
+    $unitEnabled = Get-OcMarker -Text $unit -Name 'OC_ENABLED'
+    $unitMem = Format-OcMemory -Raw (Get-OcMarker -Text $unit -Name 'OC_MEM')
+    if ($unitActive -eq 'active') {
+        Write-Host "   сервис:    $RemoteUnit — active, ест $unitMem (автозапуск: $unitEnabled)"
     } else {
-        Write-Host "  [!!] сервис $RemoteUnit на боксе: $unitState"
-        Write-Host "       Поднять: ssh $Target `"sudo systemctl start $RemoteUnit`""
-        $failed = 1
+        # Выключенная служба — больше не авария: ровно так выглядит штатное «выключил, пока
+        # не работаю» (ярлык с ключом -Off). Запуск без ключей поднимет её сам, поэтому это
+        # замечание для сведения, а не провал проверки.
+        Write-Host "   сервис:    $RemoteUnit — $unitActive (выключена; запуск ярлыка поднимет её сам)"
+        Write-Host "       Вручную: ssh $Target `"sudo systemctl start $RemoteUnit`""
     }
 
     $httpCmd = New-OcRemoteCommand -Template 'curl -s -o /dev/null -w http=%{http_code} --max-time 8 http://127.0.0.1:__PORT__/api/info; echo "OC_DONE:$?"' -Values @{ __PORT__ = $RemotePort }
     $http = (Invoke-OcSshSession -SshArgs $SshArgs -Target $Target -Command $httpCmd -TimeoutMs $SshSessionTimeoutMs).out
     if ($http -match 'http=(401|403|200)') {
         Write-Host "   сервер:    отвечает на 127.0.0.1:$RemotePort (код $($Matches[1]) — 401 без пароля это норма)"
+    } elseif ($unitActive -ne 'active') {
+        Write-Host '   сервер:    не слушает — служба выключена (см. строку выше), это ожидаемо'
     } else {
         Write-Host "  [!!] сервер на 127.0.0.1:$RemotePort не ответил на /api/info (ответ: $http)"
         Write-Host "       Проверить: ssh $Target `"curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:$RemotePort/api/info`""
@@ -417,30 +593,68 @@ if ($IdentityFile) { $identity = Resolve-OcPath $IdentityFile }
 if ($LocalPort -gt 0) { $localPort = $LocalPort }
 if ($RemotePort -gt 0) { $remotePort = $RemotePort }
 
+# Клиент выбираем один раз на запуск: от него зависит, будет вход за секунду или за полминуты.
+$sshClient = Get-OcSshExe -Candidates $SshExeCandidates
+$SshExe = 'ssh'
+if ($sshClient) { $SshExe = $sshClient.Path }
+
 $sshArgs = New-OcSshArgs -Identity $identity
 
 # --- закрыть туннель этого компьютера (`-Stop`)
 if ($Stop) {
-    $tunnels = @(Get-OcTunnel -LocalPort $localPort -RemotePort $remotePort)
-    if ($tunnels.Count -eq 0) {
-        Write-Host "Туннеля на 127.0.0.1:$localPort нет — закрывать нечего."
-        exit 0
-    }
-    foreach ($tunnelProc in $tunnels) {
-        try {
-            Stop-Process -Id $tunnelProc.ProcessId -Force -ErrorAction Stop
-            Write-Host "Туннель закрыт (pid $($tunnelProc.ProcessId))."
-        } catch {
-            Write-Host "Не удалось закрыть pid $($tunnelProc.ProcessId): $($_.Exception.Message)"
+    if (Close-OcTunnel -LocalPort $localPort -RemotePort $remotePort) { exit 0 }
+    exit 1
+}
+
+# --- выключить (`-Off`): служба на боксе + туннель этого компьютера.
+# Ярлык «выключить» владельца. Смысл — вернуть боксу память: сам сервер держит ~180 МБ
+# и растёт с сессиями, а туннель без сервера бесполезен, поэтому убираем оба.
+if ($Off) {
+    Write-Host 'Выключаю: служба на боксе + туннель этого компьютера.'
+    Write-Host ''
+    # Имя переменной не `$stop`: в шапке объявлен ключ `[switch]$Stop`, а регистр в PowerShell
+    # не важен — присваивание хеш-таблицы в тот же слот падало «Hashtable → SwitchParameter».
+    # Стек при этом указывал на строку вызова, а не на присваивание (замер 18.10.2026).
+    $stopResult = Stop-OcService -SshArgs $sshArgs -Target $target -Unit $RemoteUnit
+    $stopExit = Get-OcMarker -Text $stopResult.out -Name 'OC_EXIT'
+    $stopState = Get-OcMarker -Text $stopResult.out -Name 'OC_STATE'
+    $memBefore = Format-OcMemory -Raw (Get-OcMarker -Text $stopResult.out -Name 'OC_MEMBEFORE')
+    $memAfter = Format-OcMemory -Raw (Get-OcMarker -Text $stopResult.out -Name 'OC_MEMAFTER')
+    $availBefore = Get-OcAvailableMb -FreeLine (Get-OcMarker -Text $stopResult.out -Name 'OC_AVAILBEFORE')
+    $availAfter = Get-OcAvailableMb -FreeLine (Get-OcMarker -Text $stopResult.out -Name 'OC_AVAILAFTER')
+    $failed = 0
+    if ($stopResult.status -eq 'timeout') {
+        Write-Host 'Бокс не ответил за отведённое время — состояние службы неизвестно.'
+        Write-Host "Проверь вручную: ssh $target `"systemctl is-active $RemoteUnit`""
+        $failed = 1
+    } elseif ($stopState -eq 'active') {
+        Write-Host "Служба $RemoteUnit на боксе осталась active (код остановки: $stopExit)."
+        if ($stopResult.err) { Write-Host $stopResult.err }
+        $failed = 1
+    } elseif (-not $stopState) {
+        Write-Host "Ответ бокса непонятен (код остановки: $stopExit)."
+        if ($stopResult.out) { Write-Host $stopResult.out }
+        $failed = 1
+    } else {
+        # `failed` здесь — не сбой: приложение завершается кодом 130 по SIGTERM, и без
+        # `SuccessExitStatus=130` в юните systemd записывает такую остановку как сбой.
+        # Для владельца это остановка, поэтому и слово человеческое.
+        $stateWord = if ($stopState -eq 'inactive' -or $stopState -eq 'failed') { 'остановлена' } else { "в состоянии $stopState" }
+        Write-Host "Служба $RemoteUnit на боксе: $stateWord."
+        Write-Host "  память службы:     $memBefore → $memAfter"
+        if ($null -ne $availBefore -and $null -ne $availAfter) {
+            Write-Host "  доступно на боксе: $availBefore МБ → $availAfter МБ"
         }
     }
-    Start-Sleep -Milliseconds 500
-    if (Test-OcPort -Port $localPort) {
-        Write-Host "Порт 127.0.0.1:$localPort всё ещё занят — его держит не наш туннель."
-        exit 1
+    Write-Host ''
+    [void](Close-OcTunnel -LocalPort $localPort -RemotePort $remotePort)
+    Write-Host ''
+    if ($failed -eq 0) {
+        Write-Host 'Бокс свободен от opencode. Включить обратно — ярлык запуска: он поднимет и службу, и туннель.'
+    } else {
+        Write-Host 'Выключение прошло не полностью — см. строки выше.'
     }
-    Write-Host "Порт 127.0.0.1:$localPort свободен."
-    exit 0
+    exit $failed
 }
 
 if ($Setup) {
@@ -474,7 +688,7 @@ if (Test-OcPort -Port $localPort) {
     $tunnelArgs += @('-L', "$localPort`:127.0.0.1:$remotePort", $target)
     # `-WindowStyle Hidden` — чтобы на экране не висело чёрное окно ssh.exe (оно и мешало владельцу).
     # Замер 18.10: с этим ключом окна нет (MainWindowHandle 0), форвардинг жив (401 через туннель).
-    $tunnel = Start-Process -FilePath 'ssh' -ArgumentList $tunnelArgs -PassThru -WindowStyle Hidden
+    $tunnel = Start-Process -FilePath $SshExe -ArgumentList $tunnelArgs -PassThru -WindowStyle Hidden
     $ownTunnel = $true
     # Ждём локальный порт до 60 с: ssh поднимает форвард только после аутентификации, а она
     # под сканерами на публичном :22 откладывается (замер 18.10: холодный вход 42 с).
@@ -495,6 +709,35 @@ if (Test-OcPort -Port $localPort) {
         if ($tunnel -and -not $tunnel.HasExited) { $tunnel.Kill() }
         exit 1
     }
+}
+
+# --- служба на боксе: погашенную владельцем поднимаем сами
+# Ярлык «выключить» (-Off) гасит службу, чтобы она не ела память бокса. Запуск должен
+# возвращать всё обратно одним кликом, иначе смысл выключателя теряется. Живость проверяем
+# через УЖЕ поднятый туннель (HTTP), а не отдельной ssh-сессией: на публичном :22 под
+# сканерами лишняя сессия стоит десятки секунд. В обычном случае (служба работает) здесь
+# не тратится ни одного ssh-подключения и ни одной секунды.
+$serviceCode = Get-OcServiceHttp -Port $localPort
+if ($serviceCode -eq 0) {
+    Write-Host ''
+    Write-Host "Служба $RemoteUnit на боксе выключена — поднимаю её."
+    $wake = Start-OcService -SshArgs $sshArgs -Target $target -Unit $RemoteUnit -Port $remotePort
+    $wakeHttp = Get-OcMarker -Text $wake.out -Name 'OC_HTTP'
+    $serviceCode = Get-OcServiceHttp -Port $localPort -TimeoutMs 8000
+    if ($serviceCode -eq 0) {
+        if ($wakeHttp -and $wakeHttp -ne '000') {
+            Write-Host "На боксе служба отвечает ($wakeHttp), а через туннель её не видно — подвис туннель."
+            Write-Host 'Закрой его ключом -Stop и запусти ярлык снова.'
+        } else {
+            Write-Host "Не удалось поднять службу $RemoteUnit на боксе."
+            if ($wake.status -eq 'timeout') { Write-Host 'Бокс не ответил за отведённое время.' }
+            if ($wake.err) { Write-Host $wake.err }
+            Write-Host "Вручную: ssh $target `"sudo systemctl start $RemoteUnit`""
+        }
+        if ($ownTunnel -and $tunnel -and -not $tunnel.HasExited) { $tunnel.Kill() }
+        exit 1
+    }
+    Write-Host "Служба поднялась — сервер отвечает (код $serviceCode)."
 }
 
 # --- одноразовая ссылка входа (пароль берётся на боксе, здесь не появляется)
