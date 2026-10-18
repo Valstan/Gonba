@@ -35,6 +35,21 @@
 # (запуск не из консоли), хотя команда на боксе уже отработала. Поэтому здесь НЕ полагаемся на
 # выход процесса: ждём в файле маркер `OC_DONE:<код>` и добиваем ssh, чтобы не оставлять зомби.
 # В интерактивной консоли ssh завершается сам — маркер просто подтвердит успех.
+#
+# Грабля 18.10.2026 (вечер): «служба выключена, не могу поднять» и вечный цикл у владельца.
+# На самом деле служба была **активна и молчала**: cgroup держал 548 МБ при MemoryHigh=500M,
+# memory pressure 100 %, OOM не случился (`NRestarts=0`), ядро не убило никого — сервер
+# задохнулся в пределах своего потолка и перестал отвечать на HTTP. Проверка службы «через
+# туннель» не отличает молчащую службу от выключенной, поэтому запускатель честно печатал
+# «поднимаю её» и делал `systemctl start` по **уже активному** юниту — то есть ничего, и так
+# по кругу. Плюс `-Stop`/`-Off` проигрывали гонку: в юните `TimeoutStopSec` по умолчанию 90 с,
+# а сессия запускателя ждала ровно столько же. Теперь тупик разбирается вопросом к боксу
+# (`Get-OcBoxState`: юнит активен? сервер отвечает НА БОКСЕ?) и тремя разными исходами:
+# выключен — поднять, активен и молчит — `restart`, активен и отвечает — виноват туннель,
+# пересоздать его. Плюс сторож `opencode-web-watchdog.timer` на боксе ловит этот же класс
+# без участия владельца (три немых проверки подряд → restart).
+# Регрессия: scripts/opencode-web.test.ps1 (сценарии «активен и молчит» / «виноват туннель» /
+# «выключен»).
 
 param(
     [string]$SshTarget = '',
@@ -208,6 +223,35 @@ function Get-OcTunnel {
     }
     return @(Get-CimInstance Win32_Process -Filter "Name='ssh.exe'" -ErrorAction SilentlyContinue |
         Where-Object { $_.CommandLine -and $_.CommandLine.Contains($needle) })
+}
+
+# Живой туннель — это НЕ «порт слушает». Замер 18.10.2026 (вечер): процесс ssh пережил
+# задохнувшийся сервер и висел с сотнями сокетов в CLOSE_WAIT — порт принимал соединения
+# (Test-OcPort доволен), а форвардить было некуда, и запускатель считал службу выключенной,
+# хотя на самом деле её надо было перезапускать. Признак жизни — установленное TCP-соединение
+# транспорта (наружу, не loopback), а не наличие слушателя.
+function Test-OcTunnelLive {
+    param([int]$LocalPort, [int]$RemotePort)
+    $tunnels = @(Get-OcTunnel -LocalPort $LocalPort -RemotePort $RemotePort)
+    if ($tunnels.Count -eq 0) { return $false }
+    # На Unix-ветке коннекты не разбираем: /proc уже доказал, что это наш процесс туннеля.
+    if ($env:OS -ne 'Windows_NT') { return $true }
+    foreach ($tunnelProc in $tunnels) {
+        try {
+            $established = @(Get-NetTCPConnection -OwningProcess $tunnelProc.ProcessId -State Established -ErrorAction Stop)
+        } catch {
+            # Проверить нечем (старая Windows без NetTCPIP, нет прав) — не мешаем работать:
+            # безопасное поведение здесь прежнее, «порт слушает = туннель есть».
+            return $true
+        }
+        foreach ($conn in $established) {
+            $remote = [string]$conn.RemoteAddress
+            if ($remote -and $remote -ne '127.0.0.1' -and $remote -ne '::1' -and $remote -ne '0.0.0.0' -and $remote -ne '::') {
+                return $true
+            }
+        }
+    }
+    return $false
 }
 
 function Resolve-OcPath {
@@ -409,8 +453,34 @@ function Get-OcServiceHttp {
 
 # Поднять службу на боксе (если погашена) и дождаться, пока она ответит на самом боксе.
 function Start-OcService {
-    param([string[]]$SshArgs, [string]$Target, [string]$Unit, [int]$Port, [int]$TimeoutMs = 90000)
-    $command = New-OcRemoteCommand -Template 'if systemctl is-active --quiet __UNIT__; then echo OC_UNIT:already; else sudo -n systemctl start __UNIT__; echo OC_UNIT:start:$?; fi; i=0; code=000; while [ $i -lt 45 ]; do code=$(curl -s -o /dev/null -w %{http_code} --max-time 2 http://127.0.0.1:__PORT__/api/info); if [ $code != 000 ]; then break; fi; sleep 1; i=$((i+1)); done; echo OC_HTTP:$code; echo OC_DONE:$?' -Values @{
+    param([string[]]$SshArgs, [string]$Target, [string]$Unit, [int]$Port, [int]$TimeoutMs = 120000)
+    $command = New-OcRemoteCommand -Template 'if systemctl is-active --quiet __UNIT__; then echo OC_UNIT:already; else sudo -n systemctl start __UNIT__; echo OC_UNIT:start:$?; fi; i=0; code=000; while [ $i -lt 60 ]; do code=$(curl -s -o /dev/null -w %{http_code} --max-time 2 http://127.0.0.1:__PORT__/api/info); if [ $code != 000 ]; then break; fi; sleep 1; i=$((i+1)); done; echo OC_HTTP:$code; echo OC_DONE:$?' -Values @{
+        __UNIT__ = $Unit; __PORT__ = $Port
+    }
+    return Invoke-OcSshSession -SshArgs $SshArgs -Target $Target -Command $command -TimeoutMs $TimeoutMs
+}
+
+# Перезапустить службу на боксе и дождаться, пока её сервер ответит НА БОКСЕ.
+# Зачем отдельная функция: `start` по уже активному юниту ничего не делает, поэтому
+# задохнувшуюся (активную и молчащую) службу им не вылечить — нужен именно `restart`.
+# Ждём до 90 с: остановка занимает до TimeoutStopSec (30 с в юните), старт — прогрев
+# сервера (замеры 17–18.10: первый ответ 10–20 с, под давлением дольше).
+function Restart-OcService {
+    param([string[]]$SshArgs, [string]$Target, [string]$Unit, [int]$Port, [int]$TimeoutMs = 150000)
+    $command = New-OcRemoteCommand -Template 'echo OC_MEMBEFORE:$(systemctl show __UNIT__ -p MemoryCurrent); sudo -n systemctl restart __UNIT__; echo OC_EXIT:$?; i=0; code=000; while [ $i -lt 90 ]; do code=$(curl -s -o /dev/null -w %{http_code} --max-time 2 http://127.0.0.1:__PORT__/api/info); if [ $code != 000 ]; then break; fi; sleep 1; i=$((i+1)); done; echo OC_HTTP:$code; echo OC_ACTIVEAFTER:$(systemctl is-active __UNIT__ 2>/dev/null); echo OC_MEMAFTER:$(systemctl show __UNIT__ -p MemoryCurrent); echo OC_DONE:$?' -Values @{
+        __UNIT__ = $Unit; __PORT__ = $Port
+    }
+    return Invoke-OcSshSession -SshArgs $SshArgs -Target $Target -Command $command -TimeoutMs $TimeoutMs
+}
+
+# Что на самом деле со службой: активна ли она, отвечает ли её сервер на САМОМ боксе,
+# сколько памяти и какое давление в cgroup. Одна ssh-сессия, и только в тупике (когда через
+# туннель — тишина). Без этого вопроса «выключена» и «задохнулась» неразличимы, а лечение
+# у них разное: поднять / перезапустить / пересоздать туннель (замер 18.10.2026 вечер —
+# запускатель честно выбирал первое и навсегда застревал в цикле).
+function Get-OcBoxState {
+    param([string[]]$SshArgs, [string]$Target, [string]$Unit, [int]$Port, [int]$TimeoutMs = 60000)
+    $command = New-OcRemoteCommand -Template 'echo OC_ACTIVE:$(systemctl is-active __UNIT__ 2>/dev/null); echo OC_ENABLED:$(systemctl is-enabled __UNIT__ 2>/dev/null); echo OC_BOXHTTP:$(curl -s -o /dev/null -w %{http_code} --max-time 5 http://127.0.0.1:__PORT__/api/info); echo OC_MEM:$(systemctl show __UNIT__ -p MemoryCurrent); echo OC_PRESSURE:$(sed -n 1p /sys/fs/cgroup/system.slice/__UNIT__.service/memory.pressure 2>/dev/null); echo OC_DONE:$?' -Values @{
         __UNIT__ = $Unit; __PORT__ = $Port
     }
     return Invoke-OcSshSession -SshArgs $SshArgs -Target $Target -Command $command -TimeoutMs $TimeoutMs
@@ -418,9 +488,14 @@ function Start-OcService {
 
 # Погасить службу на боксе. Возвращает вместе с кодом замеры «сколько памяти вернулось» —
 # владельцу важно видеть, что выключение что-то значит, а не «нажал и не понял».
+# Выход из `active` ждём внутри той же сессии, и терпеливее, чем systemd: задохнувшийся
+# сервер не отдаёт SIGTERM сразу, и systemd добивает его только по TimeoutStopSec.
+# Раньше сессия ждала ровно 90 с — столько же, сколько systemd по умолчанию, — и гонка
+# заканчивалась вничью: владелец видел «бокс не ответил» на успешной остановке
+# (замер 18.10.2026: ярлык «выключить» не срабатывает).
 function Stop-OcService {
-    param([string[]]$SshArgs, [string]$Target, [string]$Unit, [int]$TimeoutMs = 90000)
-    $command = New-OcRemoteCommand -Template 'echo OC_MEMBEFORE:$(systemctl show __UNIT__ -p MemoryCurrent); echo OC_AVAILBEFORE:$(free -m | sed -n 2p); sudo -n systemctl stop __UNIT__; echo OC_EXIT:$?; sleep 1; echo OC_STATE:$(systemctl is-active __UNIT__ 2>/dev/null); echo OC_MEMAFTER:$(systemctl show __UNIT__ -p MemoryCurrent); echo OC_AVAILAFTER:$(free -m | sed -n 2p); echo OC_DONE:$?' -Values @{ __UNIT__ = $Unit }
+    param([string[]]$SshArgs, [string]$Target, [string]$Unit, [int]$TimeoutMs = 150000)
+    $command = New-OcRemoteCommand -Template 'echo OC_MEMBEFORE:$(systemctl show __UNIT__ -p MemoryCurrent); echo OC_AVAILBEFORE:$(free -m | sed -n 2p); sudo -n systemctl stop __UNIT__; echo OC_EXIT:$?; i=0; state=$(systemctl is-active __UNIT__ 2>/dev/null); while [ $i -lt 60 ]; do state=$(systemctl is-active __UNIT__ 2>/dev/null); if [ $state != active ]; then break; fi; sleep 1; i=$((i+1)); done; echo OC_STATE:$state; echo OC_MEMAFTER:$(systemctl show __UNIT__ -p MemoryCurrent); echo OC_AVAILAFTER:$(free -m | sed -n 2p); echo OC_DONE:$?' -Values @{ __UNIT__ = $Unit }
     return Invoke-OcSshSession -SshArgs $SshArgs -Target $Target -Command $command -TimeoutMs $TimeoutMs
 }
 
@@ -447,6 +522,129 @@ function Close-OcTunnel {
     }
     Write-Host "Порт 127.0.0.1:$LocalPort свободен."
     return $true
+}
+
+# Поднять туннель и дождаться, пока он начнёт принимать локальные соединения.
+# Возвращает @{ ok = <порт занят>; proc = <процесс ssh> }. Печать проблем оставлена
+# вызывающему: при первом запуске это тупик, а при пересоздании — уже другой разговор.
+function New-OcTunnel {
+    param([string]$SshExe, [string]$Target, [string]$Identity, [int]$LocalPort, [int]$RemotePort)
+    $tunnelArgs = @(
+        '-n', '-N',
+        '-o', 'ServerAliveInterval=30',
+        '-o', 'ServerAliveCountMax=3',
+        '-o', 'ExitOnForwardFailure=yes'
+    )
+    if ($Identity) { $tunnelArgs += @('-i', (Quote-OcArg $Identity)) }
+    $tunnelArgs += @('-L', "$LocalPort`:127.0.0.1:$RemotePort", $Target)
+    # `-WindowStyle Hidden` — чтобы на экране не висело чёрное окно ssh.exe (оно и мешало владельцу).
+    # Замер 18.10: с этим ключом окна нет (MainWindowHandle 0), форвардинг жив (401 через туннель).
+    $proc = Start-Process -FilePath $SshExe -ArgumentList $tunnelArgs -PassThru -WindowStyle Hidden
+    # Ждём локальный порт до 60 с: ssh поднимает форвард только после аутентификации, а она
+    # под сканерами на публичном :22 откладывается (замер 18.10: холодный вход 42 с).
+    for ($i = 0; $i -lt 240; $i++) {
+        Start-Sleep -Milliseconds 250
+        if (Test-OcPort -Port $LocalPort) { break }
+        if ($proc.HasExited) { break }
+    }
+    return @{ ok = (Test-OcPort -Port $LocalPort); proc = $proc }
+}
+
+# «Туннель не поднялся» — общий диагноз для первого запуска и для пересоздания.
+function Show-OcTunnelProblem {
+    param($Proc, [int]$LocalPort)
+    Write-Host ''
+    Write-Host "Туннель не поднялся (127.0.0.1:$LocalPort)."
+    if ($Proc -and $Proc.HasExited) {
+        Write-Host "ssh завершился с кодом $($Proc.ExitCode) (окна у туннеля нет — он стартует скрыто; подробности даст ключ -Check)."
+    } else {
+        Write-Host 'ssh жив, но порт не занят: чаще всего бокс не успел пустить (сканеры на :22) — повтори запуск.'
+    }
+    Write-Host "Другая частая причина: локальный порт занят. Запусти с другим портом: -LocalPort $($LocalPort + 1000)"
+}
+
+# Пересоздать туннель ЭТОГО компьютера и сразу проверить, отвечает ли через него сервер.
+# Возвращает @{ ok = <туннель поднялся>; proc = <процесс ssh>; code = <код ответа через туннель> }.
+# Лечение для случая «на боксе сервер отвечает, а через туннель не видно»: порт занят живым
+# процессом, но канал уже не форвардит (18.10.2026: сотни CLOSE_WAIT на 14974).
+function Restore-OcTunnel {
+    param([string]$SshExe, [string]$Target, [string]$Identity, [int]$LocalPort, [int]$RemotePort)
+    [void](Close-OcTunnel -LocalPort $LocalPort -RemotePort $RemotePort)
+    $started = New-OcTunnel -SshExe $SshExe -Target $Target -Identity $Identity -LocalPort $LocalPort -RemotePort $RemotePort
+    $code = 0
+    if ($started.ok) { $code = Get-OcServiceHttp -Port $LocalPort -TimeoutMs 8000 }
+    return @{ ok = $started.ok; proc = $started.proc; code = $code }
+}
+
+# Тупик «через туннель сервер не отвечает»: спросить бокс и вылечить по обстоятельствам.
+# Снаружи выглядят одинаково три разных состояния, а лечение у них разное:
+#   служба не активна           → поднять (ярлык врёт, что «выключена», когда она молчит);
+#   активна и отвечает на боксе → виноват туннель, пересоздать;
+#   активна и молчит на боксе   → задохнулась в своём cgroup (MemoryHigh/OOM), лечится `restart`.
+# Возвращает @{ ok; code; proc; own; message }: proc/own нужны вызывающему, чтобы он знал,
+# за каким туннелем следить, а message — что сказать владельцу, если вылечить не удалось.
+function Repair-OcAccess {
+    param(
+        [string[]]$SshArgs, [string]$SshExe, [string]$Target, [string]$Identity,
+        [string]$Unit, [int]$LocalPort, [int]$RemotePort
+    )
+    $state = Get-OcBoxState -SshArgs $SshArgs -Target $Target -Unit $Unit -Port $RemotePort
+    if ($state.status -eq 'timeout') {
+        return @{
+            ok = $false; code = 0; proc = $null; own = $false
+            message = "Бокс не ответил за отведённое время — состояние службы неизвестно. Проверь вручную: ssh $Target `"systemctl is-active $Unit`""
+        }
+    }
+
+    $unitActive = Get-OcMarker -Text $state.out -Name 'OC_ACTIVE'
+    $boxHttp = Get-OcMarker -Text $state.out -Name 'OC_BOXHTTP'
+    if (-not $boxHttp) { $boxHttp = '000' }
+    $boxMem = Format-OcMemory -Raw (Get-OcMarker -Text $state.out -Name 'OC_MEM')
+    $pressureRaw = Get-OcMarker -Text $state.out -Name 'OC_PRESSURE'
+    $pressure = ''
+    if ($pressureRaw -match 'avg10=([\d.]+)') { $pressure = ('{0} %' -f [int][double]$Matches[1]) }
+    if (-not $pressure) { $pressure = 'неизвестно' }
+
+    if ($unitActive -ne 'active') {
+        Write-Host "Служба $Unit на боксе: $unitActive — поднимаю её."
+        $action = Start-OcService -SshArgs $SshArgs -Target $Target -Unit $Unit -Port $RemotePort
+        $boxHttp = Get-OcMarker -Text $action.out -Name 'OC_HTTP'
+        if (-not $boxHttp) { $boxHttp = '000' }
+    } elseif ($boxHttp -match '^(200|401|403)$') {
+        Write-Host "Служба $Unit активна и отвечает на боксе ($boxHttp) — виноват туннель."
+    } else {
+        Write-Host "Служба $Unit активна, но сервер на боксе молчит ($boxMem, давление памяти: $pressure) — перезапускаю её."
+        $action = Restart-OcService -SshArgs $SshArgs -Target $Target -Unit $Unit -Port $RemotePort
+        $boxHttp = Get-OcMarker -Text $action.out -Name 'OC_HTTP'
+        if (-not $boxHttp) { $boxHttp = '000' }
+        $memAfter = Format-OcMemory -Raw (Get-OcMarker -Text $action.out -Name 'OC_MEMAFTER')
+        Write-Host "  память службы: $boxMem → $memAfter"
+    }
+
+    $code = Get-OcServiceHttp -Port $LocalPort -TimeoutMs 8000
+    $tunnelProc = $null
+    $own = $false
+    if ($code -eq 0 -and $boxHttp -match '^(200|401|403)$') {
+        Write-Host "На боксе сервер отвечает ($boxHttp), а через туннель — нет: пересоздаю туннель."
+        $retry = Restore-OcTunnel -SshExe $SshExe -Target $Target -Identity $Identity -LocalPort $LocalPort -RemotePort $RemotePort
+        $tunnelProc = $retry.proc
+        $own = $retry.ok
+        $code = $retry.code
+        if (-not $retry.ok) {
+            return @{ ok = $false; code = 0; proc = $tunnelProc; own = $own; message = 'Новый туннель не поднялся — см. строки выше.' }
+        }
+    }
+
+    if ($code -ne 0) {
+        return @{ ok = $true; code = $code; proc = $tunnelProc; own = $own; message = '' }
+    }
+
+    $note = ''
+    if ($action -and $action.status -eq 'timeout') { $note = ' Бокс не ответил вовремя на команду службы.' }
+    return @{
+        ok = $false; code = 0; proc = $tunnelProc; own = $own
+        message = "Не помогло: сервер на боксе отвечает кодом $boxHttp, через туннель — тишина.$note Вручную: ssh $Target `"sudo systemctl restart $Unit`""
+    }
 }
 
 # ---------------------------------------------------------------- режимы
@@ -526,13 +724,23 @@ function Invoke-OcCheck {
         return 1
     }
 
-    $unitCmd = New-OcRemoteCommand -Template 'echo OC_ACTIVE:$(systemctl is-active __UNIT__ 2>/dev/null); echo OC_ENABLED:$(systemctl is-enabled __UNIT__ 2>/dev/null); echo OC_MEM:$(systemctl show __UNIT__ -p MemoryCurrent); echo OC_DONE:$?' -Values @{ __UNIT__ = $RemoteUnit }
+    $unitCmd = New-OcRemoteCommand -Template 'echo OC_ACTIVE:$(systemctl is-active __UNIT__ 2>/dev/null); echo OC_ENABLED:$(systemctl is-enabled __UNIT__ 2>/dev/null); echo OC_MEM:$(systemctl show __UNIT__ -p MemoryCurrent); echo OC_PRESSURE:$(sed -n 1p /sys/fs/cgroup/system.slice/__UNIT__.service/memory.pressure 2>/dev/null); echo OC_DONE:$?' -Values @{ __UNIT__ = $RemoteUnit }
     $unit = (Invoke-OcSshSession -SshArgs $SshArgs -Target $Target -Command $unitCmd -TimeoutMs $SshSessionTimeoutMs).out
     $unitActive = Get-OcMarker -Text $unit -Name 'OC_ACTIVE'
     $unitEnabled = Get-OcMarker -Text $unit -Name 'OC_ENABLED'
     $unitMem = Format-OcMemory -Raw (Get-OcMarker -Text $unit -Name 'OC_MEM')
+    # Давление памяти показываем, когда оно уже неприлично большое: cgroup под MemoryHigh
+    # начинает жить в reclaim и сервер может молчать, оставаясь «active» — ровно так это
+    # выглядело 18.10.2026 вечером (548 МБ при потолке 500 МБ, some avg10=100 %).
+    $unitPressureRaw = Get-OcMarker -Text $unit -Name 'OC_PRESSURE'
+    $unitPressure = $null
+    if ($unitPressureRaw -match 'avg10=([\d.]+)') { $unitPressure = [double]$Matches[1] }
+    $pressureNote = ''
+    if ($null -ne $unitPressure -and $unitPressure -ge 20) {
+        $pressureNote = " — ДАВЛЕНИЕ ПАМЯТИ $([int]$unitPressure) % (cgroup у потолка, сервер может молчать)"
+    }
     if ($unitActive -eq 'active') {
-        Write-Host "   сервис:    $RemoteUnit — active, ест $unitMem (автозапуск: $unitEnabled)"
+        Write-Host "   сервис:    $RemoteUnit — active, ест $unitMem (автозапуск: $unitEnabled)$pressureNote"
     } else {
         # Выключенная служба — больше не авария: ровно так выглядит штатное «выключил, пока
         # не работаю» (ярлык с ключом -Off). Запуск без ключей поднимет её сам, поэтому это
@@ -549,7 +757,15 @@ function Invoke-OcCheck {
         Write-Host '   сервер:    не слушает — служба выключена (см. строку выше), это ожидаемо'
     } else {
         Write-Host "  [!!] сервер на 127.0.0.1:$RemotePort не ответил на /api/info (ответ: $http)"
-        Write-Host "       Проверить: ssh $Target `"curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:$RemotePort/api/info`""
+        if ($unitActive -eq 'active') {
+            # Активна и молчит — это не «выключена»: `start` по активному юниту ничего не
+            # делает, лечится перезапуском. Так выглядел вечер 18.10.2026 у владельца.
+            Write-Host '       Служба при этом active — значит сервер задохнулся, а не выключен.'
+            Write-Host '       Запуск ярлыка перезапустит его сам; вручную:'
+            Write-Host "       ssh $Target `"sudo systemctl restart $RemoteUnit`""
+        } else {
+            Write-Host "       Проверить: ssh $Target `"curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:$RemotePort/api/info`""
+        }
         $failed = 1
     }
 
@@ -675,69 +891,52 @@ Write-Host "Веб-UI OpenCode: 127.0.0.1:$localPort → $target (127.0.0.1:$rem
 # Отдельной проверки SSH нет: её роль выполняет запрос ссылки — одна сессия вместо двух.
 $tunnel = $null
 $ownTunnel = $false
-if (Test-OcPort -Port $localPort) {
-    Write-Host "Туннель уже поднят на 127.0.0.1:$localPort — переиспользую его."
-} else {
-    $tunnelArgs = @(
-        '-n', '-N',
-        '-o', 'ServerAliveInterval=30',
-        '-o', 'ServerAliveCountMax=3',
-        '-o', 'ExitOnForwardFailure=yes'
-    )
-    if ($identity) { $tunnelArgs += @('-i', (Quote-OcArg $identity)) }
-    $tunnelArgs += @('-L', "$localPort`:127.0.0.1:$remotePort", $target)
-    # `-WindowStyle Hidden` — чтобы на экране не висело чёрное окно ssh.exe (оно и мешало владельцу).
-    # Замер 18.10: с этим ключом окна нет (MainWindowHandle 0), форвардинг жив (401 через туннель).
-    $tunnel = Start-Process -FilePath $SshExe -ArgumentList $tunnelArgs -PassThru -WindowStyle Hidden
-    $ownTunnel = $true
-    # Ждём локальный порт до 60 с: ssh поднимает форвард только после аутентификации, а она
-    # под сканерами на публичном :22 откладывается (замер 18.10: холодный вход 42 с).
-    for ($i = 0; $i -lt 240; $i++) {
-        Start-Sleep -Milliseconds 250
-        if (Test-OcPort -Port $localPort) { break }
-        if ($tunnel.HasExited) { break }
+$needTunnel = -not (Test-OcPort -Port $localPort)
+if (-not $needTunnel) {
+    if (Test-OcTunnelLive -LocalPort $localPort -RemotePort $remotePort) {
+        Write-Host "Туннель уже поднят на 127.0.0.1:$localPort — переиспользую его."
+    } else {
+        # Порт занят, а живого SSH-соединения за ним нет: так выглядит туннель, переживший
+        # падение сервера (замер 18.10.2026 вечер: сотни сокетов в CLOSE_WAIT, порт принимает
+        # соединения, а форвардить некуда — и служба «выключена» на ровном месте).
+        Write-Host "Порт 127.0.0.1:$localPort занят, но живого SSH-соединения за ним нет — пересоздаю туннель."
+        [void](Close-OcTunnel -LocalPort $localPort -RemotePort $remotePort)
+        $needTunnel = $true
     }
-    if (-not (Test-OcPort -Port $localPort)) {
-        Write-Host ''
-        Write-Host "Туннель не поднялся (127.0.0.1:$localPort)."
-        if ($tunnel.HasExited) {
-            Write-Host "ssh завершился с кодом $($tunnel.ExitCode) (окна у туннеля нет — он стартует скрыто; подробности даст ключ -Check)."
-        } else {
-            Write-Host 'ssh жив, но порт не занят: чаще всего бокс не успел пустить (сканеры на :22) — повтори запуск.'
-        }
-        Write-Host "Другая частая причина: локальный порт занят. Запусти с другим портом: -LocalPort $($localPort + 1000)"
-        if ($tunnel -and -not $tunnel.HasExited) { $tunnel.Kill() }
+}
+if ($needTunnel) {
+    $fresh = New-OcTunnel -SshExe $SshExe -Target $target -Identity $identity -LocalPort $localPort -RemotePort $remotePort
+    $tunnel = $fresh.proc
+    $ownTunnel = $fresh.ok
+    if (-not $fresh.ok) {
+        Show-OcTunnelProblem -Proc $fresh.proc -LocalPort $localPort
+        if ($fresh.proc -and -not $fresh.proc.HasExited) { $fresh.proc.Kill() }
         exit 1
     }
 }
 
-# --- служба на боксе: погашенную владельцем поднимаем сами
+# --- служба на боксе: выключенную поднимаем, задохнувшуюся перезапускаем, мёртвый туннель
+# пересоздаём — всё одним кликом.
 # Ярлык «выключить» (-Off) гасит службу, чтобы она не ела память бокса. Запуск должен
-# возвращать всё обратно одним кликом, иначе смысл выключателя теряется. Живость проверяем
-# через УЖЕ поднятый туннель (HTTP), а не отдельной ssh-сессией: на публичном :22 под
-# сканерами лишняя сессия стоит десятки секунд. В обычном случае (служба работает) здесь
-# не тратится ни одного ssh-подключения и ни одной секунды.
+# возвращать всё обратно, иначе смысл выключателя теряется. Живость проверяем через УЖЕ
+# поднятый туннель (HTTP), а не отдельной ssh-сессией: на публичном :22 под сканерами лишняя
+# сессия стоит десятки секунд. В обычном случае (служба работает) здесь не тратится ни одного
+# ssh-подключения и ни одной секунды; вопрос к боксу задаётся только в тупике — потому что
+# снаружи молчащая служба и выключенная выглядят одинаково (разбор — в шапке скрипта).
 $serviceCode = Get-OcServiceHttp -Port $localPort
 if ($serviceCode -eq 0) {
     Write-Host ''
-    Write-Host "Служба $RemoteUnit на боксе выключена — поднимаю её."
-    $wake = Start-OcService -SshArgs $sshArgs -Target $target -Unit $RemoteUnit -Port $remotePort
-    $wakeHttp = Get-OcMarker -Text $wake.out -Name 'OC_HTTP'
-    $serviceCode = Get-OcServiceHttp -Port $localPort -TimeoutMs 8000
-    if ($serviceCode -eq 0) {
-        if ($wakeHttp -and $wakeHttp -ne '000') {
-            Write-Host "На боксе служба отвечает ($wakeHttp), а через туннель её не видно — подвис туннель."
-            Write-Host 'Закрой его ключом -Stop и запусти ярлык снова.'
-        } else {
-            Write-Host "Не удалось поднять службу $RemoteUnit на боксе."
-            if ($wake.status -eq 'timeout') { Write-Host 'Бокс не ответил за отведённое время.' }
-            if ($wake.err) { Write-Host $wake.err }
-            Write-Host "Вручную: ssh $target `"sudo systemctl start $RemoteUnit`""
-        }
+    Write-Host 'Через туннель сервер не отвечает — спрашиваю бокс, что со службой.'
+    $repair = Repair-OcAccess -SshArgs $sshArgs -SshExe $SshExe -Target $target -Identity $identity -Unit $RemoteUnit -LocalPort $localPort -RemotePort $remotePort
+    if ($repair.proc) { $tunnel = $repair.proc }
+    if ($repair.own) { $ownTunnel = $true }
+    if (-not $repair.ok) {
+        Write-Host $repair.message
         if ($ownTunnel -and $tunnel -and -not $tunnel.HasExited) { $tunnel.Kill() }
         exit 1
     }
-    Write-Host "Служба поднялась — сервер отвечает (код $serviceCode)."
+    $serviceCode = $repair.code
+    Write-Host "Сервер отвечает (код $serviceCode)."
 }
 
 # --- одноразовая ссылка входа (пароль берётся на боксе, здесь не появляется)

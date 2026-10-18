@@ -346,6 +346,8 @@ ssh GONBA "journalctl -u opencode-web -n 50 --no-pager"   # логи серве�
 ssh GONBA "sudo systemctl restart opencode-web"           # перезапуск
 ssh GONBA "sudo systemctl stop opencode-web"              # стоп (освобождает ~370 МБ ОЗУ)
 ssh GONBA "systemctl list-timers opencode-tmp-sweep.timer --no-pager"
+ssh GONBA "systemctl list-timers opencode-web-watchdog.timer --no-pager"   # сторож жив
+ssh GONBA "journalctl -t opencode-web-watchdog -n 20 --no-pager"           # что делал сторож
 ```
 
 **Границы (осознанные):**
@@ -355,6 +357,7 @@ ssh GONBA "systemctl list-timers opencode-tmp-sweep.timer --no-pager"
 - `NoNewPrivileges=yes` + политики `deploy/opencode/opencode.json` → `sudo`/`su` внутри агента не работают; запрещены `git push origin main|master` (все формы), `gh workflow run deploy*` и чтение `/etc/gonba/*`. Прод-операции остаются за владельцем (#025).
 - **Сборок на боксе нет** (канон: сборка в CI, бокс runtime-only) — тяжёлые прогоны бьют соседей по общему боксу.
 - `PrivateTmp=yes` + метёлка `opencode-tmp-sweep` — защита от утечки fff в `/tmp` (G463: у соседнего проекта утечка съела диск до 100% и уронила Postgres).
+- **Сторож `opencode-web-watchdog.timer` (18.10.2026)** — страховка от класса «юнит активен, а сервер молчит»: cgroup под `MemoryHigh=500M` уходит в reclaim, OOM не случается, `Restart=on-failure` не срабатывает, и служба перестаёт отвечать, оставаясь «живой» (так выглядел вечер 18.10: 548 МБ, `memory.pressure` 100 %, `NRestarts=0`). Сторож раз в 2 минуты проверяет `curl 127.0.0.1:49374/api/info`: три `000` подряд при `active` → `restart` + запись в журнал. Выключенную владельцем службу (`-Off`) не трогает. `TimeoutStopSec=30` в юните — чтобы задохнувшийся сервер умирал за 30 с, а не за дефолтные 90.
 - **Бесплатные модели могут использоваться для обучения** → не давать агенту прод-секреты и приватные репозитории.
 - Тонкость: голый `opencode` на боксе пытается поднять свой фоновый сервис на `:49374` и конфликтует с юнитом — CLI запускать с `--server http://127.0.0.1:49374` (это же путь для `opencode models|run|stats`).
 
