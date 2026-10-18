@@ -33,6 +33,7 @@
 | Глобальный конфиг/политики | `deploy/opencode/opencode.json` → `/home/valstan/.config/opencode/opencode.json` |
 | Рабочий каталог агента | `/home/valstan/repo/Gonba` — **отдельный клон**, не боевое дерево `/home/valstan/GONBA`; юнит стартует через ярлык `~/work/GONBA` → `~/repo/Gonba` |
 | Метёлка `/tmp` (G463) | `scripts/opencode-tmp-sweep.sh` → `/usr/local/bin/opencode-tmp-sweep` + `opencode-tmp-sweep.{service,timer}` |
+| Сторож сервера | `scripts/opencode-web-watchdog.sh` → `/usr/local/bin/opencode-web-watchdog` + `opencode-web-watchdog.{service,timer}` (ставит деплой; активен + молчит 3 проверки → `restart`) |
 
 ## Как входить (с компьютера владельца)
 
@@ -133,6 +134,56 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\opencode-web.test.ps
 показывают «остановлена», а настоящие падения (SIGKILL → 137) остаются сбоем и триггерят
 `Restart=on-failure`. Юнит применён на бокс (`install` + `daemon-reload`, без рестарта работающей
 службы) и лежит в `deploy/systemd/opencode-web.service` — деплой сам сверит `cmp` и доедет.
+
+### Зависший сервер: «служба активна и молчит» (18.10.2026, вечер)
+
+Владелец: «не могу подключиться, пишет что тоннель уже есть а сервер упал, пытается его
+перезапустить, но не выходит, и так по кругу». Ярлык «выключить» (`-Off`) в этом состоянии
+тоже «не срабатывал».
+
+Что было на самом деле: юнит **активен**, сервер **молчит**. Замеры до вмешательства:
+`MemoryCurrent 548 МБ` при `MemoryHigh=500M`, до жёсткого `MemoryMax=700M` не дошёл →
+`memory.pressure some avg10=100.00 full avg10=99.00` (суммарно 13 000 с в reclaim),
+`NRestarts=0` — ядро никого не убило, `Restart=on-failure` не сработал. На боксе при этом
+было **351 МБ доступно** и `load average 5.02` на одном ядре, а `curl` на
+`127.0.0.1:49374/api/info` давал таймаут (код 28). То есть сервер задохнулся **внутри своего
+потолка** и перестал отвечать, оставаясь живым; `ssh` на бокс отвечал за секунды.
+
+Почему ярлык зацикливался — два дефекта, оба в запускателе:
+
+1. Живость службы он проверяет **HTTP через туннель**, а молчащая служба и выключенная дают
+   один и тот же ноль. Отсюда честная, но ложная строка «служба выключена — поднимаю её» и
+   `systemctl start` по **уже активному** юниту: пустая операция, из цикла выхода нет.
+2. `-Off` проигрывал гонку: в юните `TimeoutStopSec` был дефолтный **90 с**, а сессия ждала
+   ровно столько же — даже прошедшая остановка докладывалась как «бокс не ответил».
+
+Что теперь:
+
+- **тупик разбирается вопросом к боксу** — одна ssh-сессия, и только в тупике
+  (`Repair-OcAccess`): не активна → `start`; активна и отвечает на боксе → виноват туннель,
+  пересоздаём (`Restore-OcTunnel`); активна и молчит → `restart`. Здоровый путь по-прежнему
+  не тратит ни одной ssh-сессии и ни одной секунды;
+- **`-Off`** ждёт до 150 с и внутри той же сессии дожидается выхода юнита из `active`;
+  в юните `TimeoutStopSec=30`, поэтому задохнувшийся сервер умирает за 30 с, а не за 90;
+- **туннель считается живым только при живом SSH-соединении** (`Test-OcTunnelLive`), а не по
+  «порт слушает»: 18.10 на порту 14974 висели сотни сокетов в `CLOSE_WAIT` — порт принимал
+  соединения, а форвардить было некуда;
+- **сторож** (новое): `scripts/opencode-web-watchdog.sh` → `/usr/local/bin/opencode-web-watchdog`
+  + `opencode-web-watchdog.{service,timer}`. Раз в 2 минуты: юнит активен и `curl /api/info`
+  отвечает `000` три проверки подряд → `restart` и запись в журнал. Выключенную владельцем
+  службу (`-Off`) сторож не трогает — это решение владельца, а не авария. Скрипт и юниты
+  ставит **деплой** (root-owned, из репо), а не руки: файл, который никто не исполняет, — не
+  источник правды. Проверка сторожа вхолостую, без единого рестарта:
+  `sudo OC_WD_DRY=1 OC_WD_LIMIT=1 OC_WD_PORT=9 /usr/local/bin/opencode-web-watchdog`.
+- **регрессия** — вторая часть `scripts/opencode-web.test.ps1`: пять сценариев тупика на
+  подставном боксе (заглушки вместо ssh) плюс воспроизведение исторической логики «любой тупик
+  = поднимать». Полностью офлайновая, прод не трогает.
+
+Честная граница: **точная причина именно этого зависания не доказана** — замер снят уже после
+перезапуска, и тяжёлого ребёнка (как `npx tsc` в утреннем инциденте 18.10) в cgroup не было.
+Подпись однозначная (стопор в зоне `MemoryHigh` без OOM), но сторож закрывает **класс**, а не
+эту конкретную причину. Открытый вопрос владельцу прежний: поднимать ли `MemoryHigh`/`MemoryMax`
+на 2-ГБ боксе, где рядом живут шесть чужих Next-серверов.
 
 ### Почему вход ждёт минуту: sshd бокса под сканерами (замер 18.10, значение подтверждено)
 
@@ -379,16 +430,24 @@ cp ~/GONBA/deploy/opencode/opencode.json ~/.config/opencode/opencode.json
 [ -d ~/repo/Gonba ] || git clone https://github.com/Valstan/Gonba.git ~/repo/Gonba
 
 # 5. юниты и метёлка
+# ВНИМАНИЕ (18.10.2026): этот ручной блок — только для НОВОЙ машины. На боевом боксе юниты
+# и скрипт сторожа обновляет деплой (`.github/workflows/deploy-prod.yml`: cmp + cp из репо,
+# для таймеров reenable + restart), поэтому руками их больше править не нужно — иначе репо
+# и бокс разъедутся молча. Ручными остаются только метёлка и pair-link.
 sudo cp ~/GONBA/scripts/opencode-tmp-sweep.sh /usr/local/bin/opencode-tmp-sweep
 sudo chmod 0755 /usr/local/bin/opencode-tmp-sweep
 sudo cp ~/GONBA/scripts/opencode-pair-link.sh /usr/local/bin/opencode-pair-link
 sudo chmod 0755 /usr/local/bin/opencode-pair-link
 sudo cp ~/GONBA/deploy/systemd/opencode-web.service \
         ~/GONBA/deploy/systemd/opencode-tmp-sweep.service \
-        ~/GONBA/deploy/systemd/opencode-tmp-sweep.timer /etc/systemd/system/
+        ~/GONBA/deploy/systemd/opencode-tmp-sweep.timer \
+        ~/GONBA/deploy/systemd/opencode-web-watchdog.service \
+        ~/GONBA/deploy/systemd/opencode-web-watchdog.timer /etc/systemd/system/
+sudo install -m 0755 ~/GONBA/scripts/opencode-web-watchdog.sh /usr/local/bin/opencode-web-watchdog
 sudo systemctl daemon-reload
 sudo systemctl enable --now opencode-web.service
 sudo systemctl enable --now opencode-tmp-sweep.timer
+sudo systemctl enable --now opencode-web-watchdog.timer
 ```
 
 ## Приёмка (17.10.2026)

@@ -464,9 +464,18 @@ jobs:
           # Важно: для opencode-web.service здесь только cp + daemon-reload БЕЗ restart —
           # веб-сессии владельца не должны рваться от деплоя сайта; изменения вступают
           # в силу при следующем старте службы.
+          # Скрипт сторожа — тем же приёмом, и обязательно ДО юнитов: таймер стартует
+          # сразу после enables, и ExecStart должен уже существовать. На боксе файл
+          # root-owned (каталог репо принадлежит valstan, а исполняет скрипт root), поэтому
+          # он не остаётся ссылкой на valstan-writable дерево: копирует его sudo, как юниты.
+          if ! cmp -s "$BASE/scripts/opencode-web-watchdog.sh" /usr/local/bin/opencode-web-watchdog; then
+            sudo install -m 0755 "$BASE/scripts/opencode-web-watchdog.sh" /usr/local/bin/opencode-web-watchdog
+            echo "скрипт обновлён из репо: opencode-web-watchdog"
+          fi
           for unit in gonba-vk-sync.service gonba-vk-sync.timer \
                       gonba-media-cache.service gonba-media-cache.timer \
-                      opencode-web.service; do
+                      opencode-web.service \
+                      opencode-web-watchdog.service opencode-web-watchdog.timer; do
             src="$BASE/deploy/systemd/$unit"
             [ -f "$src" ] || continue
             if ! cmp -s "$src" "/etc/systemd/system/$unit"; then

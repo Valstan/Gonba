@@ -1,0 +1,10 @@
+[Unit]
+Description=OpenCode Web watchdog (юнит активен, а сервер молчит → restart)
+
+[Service]
+Type=oneshot
+# Перезапуск молчащего юнита занимает до TimeoutStopSec=30 с (плюс старт сервера),
+# поэтому потолок старта задан с запасом: не хотим, чтобы таймер снял сторожа ровно
+# в тот момент, когда он лечит.
+TimeoutStartSec=180
+ExecStart=/usr/local/bin/opencode-web-watchdog
