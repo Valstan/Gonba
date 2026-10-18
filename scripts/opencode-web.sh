@@ -11,10 +11,17 @@
 #   ./opencode-web.sh --check         # проверить, всё ли на месте
 #   ./opencode-web.sh --no-open       # не открывать браузер
 #   ./opencode-web.sh --no-wait       # не ждать Enter (туннель закрывается при выходе)
+#   ./opencode-web.sh --server <алиас>  # сервер из каталога (папка servers/)
+#   ./opencode-web.sh --servers       # какие серверы вообще лежат рядом
 #
 # Настройки компьютера лежат рядом со скриптом, в `opencode-web.conf`
 # (шаблон — `opencode-web.conf.example`). Файла нет — работают умолчания.
 # Скрипт переносимый: ни адреса, ни пользователя внутри нет.
+#
+# Серверов может быть несколько: в папке `servers/` рядом со скриптом лежат фрагменты
+# `servers/<алиас>.conf` — тот же диалект, что и `opencode-web.conf` (их раскладывает Мозг,
+# каталог серверов). Выбор сервера — `--server <алиас>`, что лежит рядом — `--servers`.
+# Названный сервер не подменяется молча: нет фрагмента — остановка с перечнем того, что есть.
 #
 # Грабля клиента: OpenSSH для Windows (в т.ч. из Git Bash) не завершает процесс, если его
 # std-хендлы перенаправлены, хотя команда на боксе уже отработала. Поэтому здесь НЕ полагаемся на
@@ -30,6 +37,7 @@ PAIR_HELPER='opencode-pair-link'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONF="$SCRIPT_DIR/opencode-web.conf"
+SERVER_DIR="$SCRIPT_DIR/servers"
 
 TARGET="$DEFAULT_TARGET"
 IDENTITY=''
@@ -39,9 +47,11 @@ DO_OPEN=1
 DO_WAIT=1
 DO_CHECK=0
 DO_SETUP=0
+DO_SERVERS=0
+SERVER_NAME=''
 
 usage() {
-    sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 while [ $# -gt 0 ]; do
@@ -51,6 +61,8 @@ while [ $# -gt 0 ]; do
         --local-port)  LOCAL_PORT="${2:-}"; shift 2 ;;
         --remote-port) REMOTE_PORT="${2:-}"; shift 2 ;;
         --config)      CONF="${2:-}"; shift 2 ;;
+        --server)      SERVER_NAME="${2:-}"; shift 2 ;;
+        --servers)     DO_SERVERS=1; shift ;;
         --setup)       DO_SETUP=1; shift ;;
         --check)       DO_CHECK=1; shift ;;
         --no-open)     DO_OPEN=0; shift ;;
@@ -59,6 +71,63 @@ while [ $# -gt 0 ]; do
         *) echo "Неизвестный параметр: $1 (см. --help)"; exit 2 ;;
     esac
 done
+
+# ---------------------------------------------------------------- каталог серверов
+
+# Какие фрагменты лежат рядом (`--servers`): список без подключения, ни одной ssh-сессии.
+if [ "$DO_SERVERS" = 1 ]; then
+    echo ''
+    echo "Серверы рядом (папка $SERVER_DIR):"
+    found=0
+    if [ -d "$SERVER_DIR" ]; then
+        for path in $(find "$SERVER_DIR" -maxdepth 1 -name '*.conf' -type f | sort); do
+            found=1
+            name="$(basename "$path" .conf)"
+            fragment_target="$(sed -n 's/^[[:space:]]*SSH_TARGET[[:space:]]*=[[:space:]]*//p' "$path" | head -n 1 | tr -d '\r' | sed -e 's/[[:space:]]*$//')"
+            if [ -n "$fragment_target" ]; then
+                echo "  $name  →  $fragment_target"
+            else
+                echo "  $name  →  ssh-цель во фрагменте не задана"
+            fi
+        done
+    fi
+    if [ "$found" = 0 ]; then
+        echo '  пусто — фрагментов нет.'
+        echo '  Их кладёт Мозг: каталог серверов, по одному файлу <алиас>.conf на сервер.'
+    else
+        echo ''
+        echo 'Запуск конкретного сервера: этот же скрипт с ключом --server <имя>.'
+    fi
+    echo ''
+    exit 0
+fi
+
+# Названный сервер не подменяется молча: фрагмента нет — останавливаемся и показываем, что есть.
+# При `--setup` фрагмент как раз и заводится, поэтому там отсутствие файла — норма.
+if [ -n "$SERVER_NAME" ] && [ "$DO_SETUP" != 1 ]; then
+    FRAGMENT="$SERVER_DIR/$SERVER_NAME.conf"
+    if [ ! -f "$FRAGMENT" ]; then
+        echo ''
+        echo "Сервер '$SERVER_NAME': фрагмента нет — $FRAGMENT"
+        neighbours=0
+        if [ -d "$SERVER_DIR" ]; then
+            for path in $(find "$SERVER_DIR" -maxdepth 1 -name '*.conf' -type f | sort); do
+                if [ "$neighbours" = 0 ]; then echo 'Рядом лежат:'; fi
+                neighbours=1
+                echo "  $(basename "$path" .conf)"
+            done
+        fi
+        if [ "$neighbours" = 0 ]; then
+            echo "Рядом ничего нет (папка $SERVER_DIR): фрагменты кладёт Мозг — каталог серверов."
+        fi
+        echo 'Посмотреть список: этот же скрипт с ключом --servers.'
+        echo 'Если сервер заводится не Мозгом, а здесь: --server <имя> --setup создаст фрагмент на месте.'
+        exit 1
+    fi
+    CONF="$FRAGMENT"
+elif [ -n "$SERVER_NAME" ]; then
+    CONF="$SERVER_DIR/$SERVER_NAME.conf"
+fi
 
 # ---------------------------------------------------------------- файл настроек
 
@@ -83,6 +152,8 @@ load_conf() {
 }
 
 save_conf() {
+    # Папки может не быть: фрагмент сервера (`servers/<алиас>.conf`) `--setup` заводит сам.
+    mkdir -p "$(dirname "$CONF")"
     {
         echo '# Настройки запускателя OpenCode Web на ЭТОМ компьютере.'
         echo '# Правится вручную или через `opencode-web.sh --setup`.'
@@ -259,6 +330,7 @@ if [ "$DO_CHECK" = 1 ]; then
     echo ''
     echo 'Проверка этого компьютера и бокса'
     echo ''
+    if [ -n "$SERVER_NAME" ]; then echo "  сервер:    $SERVER_NAME (фрагмент каталога)"; else echo '  сервер:    не выбран — настройки этого компьютера (opencode-web.conf)'; fi
     if [ -f "$CONF" ]; then echo "  настройки: $CONF"; else echo "  настройки: файла нет ($CONF) — работают умолчания"; fi
     echo "  ssh-цель:  $TARGET"
     echo "  порты:     локальный $LOCAL_PORT → на боксе $REMOTE_PORT"
@@ -304,6 +376,7 @@ if [ "$DO_CHECK" = 1 ]; then
     exit "$failed"
 fi
 
+if [ -n "$SERVER_NAME" ]; then echo "Сервер: $SERVER_NAME  (фрагмент $CONF)"; fi
 echo "Веб-UI OpenCode: 127.0.0.1:$LOCAL_PORT → $TARGET (127.0.0.1:$REMOTE_PORT)"
 
 ssh_run 'true; echo "OC_DONE:$?"'

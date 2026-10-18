@@ -12,6 +12,8 @@
 #   powershell -ExecutionPolicy Bypass -File opencode-web.ps1 -NoWait  # не ждать Enter (туннель остаётся)
 #   powershell -ExecutionPolicy Bypass -File opencode-web.ps1 -Stop    # закрыть туннель этого компьютера
 #   powershell -ExecutionPolicy Bypass -File opencode-web.ps1 -Off     # ВЫКЛЮЧИТЬ: остановить службу на боксе и снять туннель
+#   powershell -ExecutionPolicy Bypass -File opencode-web.ps1 -Server <алиас>  # сервер из каталога (папка servers\)
+#   powershell -ExecutionPolicy Bypass -File opencode-web.ps1 -Servers  # какие серверы вообще лежат рядом
 #
 # Туннель и служба — разные вещи, и стоят они по-разному. Туннель — это одна ssh-сессия на боксе
 # и один процесс ssh на этом компьютере: держать его поднятым дёшево (владелец так и хочет —
@@ -26,6 +28,14 @@
 #   LOCAL_PORT    — локальный порт туннеля (по умолчанию 14974)
 #   REMOTE_PORT   — порт сервера на боксе (по умолчанию 49374)
 # Файла нет — работают умолчания. Скрипт переносимый: ни адреса, ни пользователя внутри нет.
+#
+# Серверов может быть несколько: в папке `servers\` рядом со скриптом лежат фрагменты
+# `servers\<алиас>.conf` — тот же диалект, что выше (их раскладывает Мозг, каталог серверов
+# `docs/machines/servers/`). Выбор сервера — ключ `-Server <алиас>`, а что лежит рядом —
+# ключ `-Servers`. Форму Мозг предложил 18.10.2026 (письмо «Формат пульта») и она принята
+# как есть; отличие от умолчаний ровно одно: названный сервер не подменяется молча — нет
+# фрагмента, значит остановка с перечнем того, что есть. Опечатка в имени не должна уводить
+# запускатель на другой бокс, а «нет файла — работай как раньше» здесь означало бы именно это.
 # Окно запускателя — пульт, а не туннель: сам `ssh` стартует СКРЫТО (`-WindowStyle Hidden`), поэтому
 # чёрного окна ssh.exe на экране больше нет — 18.10 замерено, что оно есть и мешает (MainWindowHandle
 # 395146 → 0 после правки). Enter в окне запускателя закрывает туннель; с `-NoWait` окно закрывается
@@ -57,6 +67,8 @@ param(
     [int]$RemotePort = 0,
     [string]$IdentityFile = '',
     [string]$Config = '',
+    [string]$Server = '',
+    [switch]$Servers,
     [switch]$Setup,
     [switch]$Check,
     [switch]$NoOpen,
@@ -190,7 +202,72 @@ function Write-OcConfig {
         "REMOTE_PORT=$($Values.remote_port)"
     )
     $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    # Папки может не быть: фрагмент сервера (`servers\<алиас>.conf`) `-Setup` заводит сам,
+    # а на новой машине папки `servers\` ещё нет — WriteAllLines по несуществующему пути падает.
+    $dir = Split-Path -Parent $Path
+    if ($dir -and -not (Test-Path -LiteralPath $dir)) { [void](New-Item -ItemType Directory -Path $dir -Force) }
     [System.IO.File]::WriteAllLines($Path, $lines, $utf8NoBom)
+}
+
+# ---------------------------------------------------------------- выбор сервера
+
+# Каталог серверов: `servers\<алиас>.conf` рядом со скриптом, тот же диалект, что и
+# `opencode-web.conf`. Фрагменты (со адресами и именами ключей) в git НЕ идут — иначе
+# адреса боксов уехали бы в публичный репозиторий (D-038); поэтому в отслеживаемых файлах
+# лежит только README с форматом, а сами фрагменты кладёт Мозг на машину владельца.
+function Get-OcServerFragments {
+    param([string]$ServerDir)
+    if (-not (Test-Path -LiteralPath $ServerDir)) { return @() }
+    $found = @(Get-ChildItem -LiteralPath $ServerDir -Filter '*.conf' -File -ErrorAction SilentlyContinue |
+        Sort-Object -Property Name | ForEach-Object { $_.BaseName })
+    return $found
+}
+
+# Настройки запуска одним куском: файл (общий или фрагмент сервера) → параметры командной
+# строки поверх него. Возвращает `ok = $false`, если сервер назван, а фрагмента нет:
+# решает вызывающий, но подменять названный сервер умолчаниями мы не даём.
+function Resolve-OcSettings {
+    param(
+        [string]$ConfigPath, [string]$ServerName, [string]$ServerDir,
+        [string]$SshTarget, [string]$IdentityFile, [int]$LocalPort, [int]$RemotePort,
+        [string]$DefaultTarget, [int]$DefaultLocalPort, [int]$DefaultRemotePort,
+        [switch]$AllowMissing
+    )
+    $confPath = $ConfigPath
+    $available = @()
+    if ($ServerName) {
+        $available = Get-OcServerFragments -ServerDir $ServerDir
+        $fragment = Join-Path $ServerDir ($ServerName + '.conf')
+        if (-not (Test-Path -LiteralPath $fragment) -and -not $AllowMissing) {
+            return @{ ok = $false; confPath = $fragment; server = $ServerName; available = $available }
+        }
+        $confPath = $fragment
+    }
+
+    $settings = Read-OcConfig -Path $confPath
+    $target = $DefaultTarget
+    $identity = ''
+    $local = $DefaultLocalPort
+    $remote = $DefaultRemotePort
+    if ($settings.ContainsKey('SSH_TARGET') -and $settings['SSH_TARGET']) { $target = $settings['SSH_TARGET'] }
+    if ($settings.ContainsKey('IDENTITY_FILE') -and $settings['IDENTITY_FILE']) { $identity = Resolve-OcPath $settings['IDENTITY_FILE'] }
+    if ($settings.ContainsKey('LOCAL_PORT') -and $settings['LOCAL_PORT']) {
+        $parsed = 0
+        if ([int]::TryParse($settings['LOCAL_PORT'], [ref]$parsed)) { $local = $parsed }
+    }
+    if ($settings.ContainsKey('REMOTE_PORT') -and $settings['REMOTE_PORT']) {
+        $parsed = 0
+        if ([int]::TryParse($settings['REMOTE_PORT'], [ref]$parsed)) { $remote = $parsed }
+    }
+    if ($SshTarget) { $target = $SshTarget }
+    if ($IdentityFile) { $identity = Resolve-OcPath $IdentityFile }
+    if ($LocalPort -gt 0) { $local = $LocalPort }
+    if ($RemotePort -gt 0) { $remote = $RemotePort }
+
+    return @{
+        ok = $true; confPath = $confPath; server = $ServerName; available = $available
+        target = $target; identity = $identity; localPort = $local; remotePort = $remote
+    }
 }
 
 # ---------------------------------------------------------------- мелочи
@@ -680,15 +757,28 @@ function Invoke-OcSetup {
 }
 
 function Invoke-OcCheck {
-    param([string]$ConfPath, [string]$Target, [string]$Identity, [int]$LocalPort, [int]$RemotePort, [string[]]$SshArgs)
+    param([string]$ConfPath, [string]$ServerName, [string]$ServerDir, [string]$Target, [string]$Identity, [int]$LocalPort, [int]$RemotePort, [string[]]$SshArgs)
     $failed = 0
     Write-Host ''
     Write-Host 'Проверка этого компьютера и бокса'
     Write-Host ''
+    # Каким сервером пульт готов ходить — то, о чём просил Мозг (письмо «Формат пульта»):
+    # без `-Server` это прежнее поведение по `opencode-web.conf`, с ним — фрагмент каталога.
+    if ($ServerName) {
+        Write-Host "  сервер:    $ServerName (фрагмент каталога)"
+    } else {
+        Write-Host '  сервер:    не выбран — настройки этого компьютера (opencode-web.conf)'
+    }
     if (Test-Path -LiteralPath $ConfPath) {
         Write-Host "  настройки: $ConfPath"
     } else {
         Write-Host "  настройки: файла нет ($ConfPath) — работают умолчания"
+    }
+    if ($ServerDir) {
+        $others = @(Get-OcServerFragments -ServerDir $ServerDir | Where-Object { $_ -ne $ServerName })
+        if ($others.Count -gt 0) {
+            Write-Host "  рядом:     $($others -join ', ')   (запуск: -Server <имя>)"
+        }
     }
     Write-Host "  ssh-цель:  $Target"
     Write-Host "  порты:     локальный $LocalPort → на боксе $RemotePort"
@@ -788,26 +878,62 @@ function Invoke-OcCheck {
 $scriptDir = $PSScriptRoot
 if (-not $scriptDir) { $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition }
 if (-not $Config) { $Config = Join-Path $scriptDir 'opencode-web.conf' }
+$serverDir = Join-Path $scriptDir 'servers'
 
-$settings = Read-OcConfig -Path $Config
-$target = $DefaultTarget
-$identity = ''
-$localPort = $DefaultLocalPort
-$remotePort = $DefaultRemotePort
-if ($settings.ContainsKey('SSH_TARGET') -and $settings['SSH_TARGET']) { $target = $settings['SSH_TARGET'] }
-if ($settings.ContainsKey('IDENTITY_FILE') -and $settings['IDENTITY_FILE']) { $identity = Resolve-OcPath $settings['IDENTITY_FILE'] }
-if ($settings.ContainsKey('LOCAL_PORT') -and $settings['LOCAL_PORT']) {
-    $parsed = 0
-    if ([int]::TryParse($settings['LOCAL_PORT'], [ref]$parsed)) { $localPort = $parsed }
+# --- какие серверы вообще лежат рядом (`-Servers`): список без подключения, ни одной ssh-сессии.
+if ($Servers) {
+    $found = Get-OcServerFragments -ServerDir $serverDir
+    Write-Host ''
+    Write-Host "Серверы рядом (папка $serverDir):"
+    if ($found.Count -eq 0) {
+        Write-Host '  пусто — фрагментов нет.'
+        Write-Host '  Их кладёт Мозг: каталог серверов, по одному файлу <алиас>.conf на сервер.'
+    } else {
+        foreach ($name in $found) {
+            $fragmentSettings = Read-OcConfig -Path (Join-Path $serverDir ($name + '.conf'))
+            $fragmentTarget = ''
+            if ($fragmentSettings.ContainsKey('SSH_TARGET')) { $fragmentTarget = $fragmentSettings['SSH_TARGET'] }
+            if ($fragmentTarget) {
+                Write-Host "  $name  →  $fragmentTarget"
+            } else {
+                Write-Host "  $name  →  ssh-цель во фрагменте не задана"
+            }
+        }
+        Write-Host ''
+        Write-Host 'Запуск конкретного сервера: этот же скрипт с ключом -Server <имя>.'
+    }
+    Write-Host ''
+    exit 0
 }
-if ($settings.ContainsKey('REMOTE_PORT') -and $settings['REMOTE_PORT']) {
-    $parsed = 0
-    if ([int]::TryParse($settings['REMOTE_PORT'], [ref]$parsed)) { $remotePort = $parsed }
+
+$resolved = Resolve-OcSettings -ConfigPath $Config -ServerName $Server -ServerDir $serverDir `
+    -SshTarget $SshTarget -IdentityFile $IdentityFile -LocalPort $LocalPort -RemotePort $RemotePort `
+    -DefaultTarget $DefaultTarget -DefaultLocalPort $DefaultLocalPort -DefaultRemotePort $DefaultRemotePort `
+    -AllowMissing:$Setup
+
+if (-not $resolved.ok) {
+    Write-Host ''
+    Write-Host "Сервер '$Server': фрагмента нет — $($resolved.confPath)"
+    if ($resolved.available.Count -gt 0) {
+        Write-Host 'Рядом лежат:'
+        foreach ($name in $resolved.available) { Write-Host "  $name" }
+    } else {
+        Write-Host "Рядом ничего нет (папка $serverDir): фрагменты кладёт Мозг — каталог серверов."
+    }
+    Write-Host 'Посмотреть список: этот же скрипт с ключом -Servers.'
+    Write-Host 'Если сервер заводится не Мозгом, а здесь: -Server <имя> -Setup создаст фрагмент на месте.'
+    exit 1
 }
-if ($SshTarget) { $target = $SshTarget }
-if ($IdentityFile) { $identity = Resolve-OcPath $IdentityFile }
-if ($LocalPort -gt 0) { $localPort = $LocalPort }
-if ($RemotePort -gt 0) { $remotePort = $RemotePort }
+
+# Дальше весь скрипт работает с выбранным файлом настроек: без `-Server` это прежний
+# `opencode-web.conf`, с `-Server` — фрагмент каталога. Параметры командной строки
+# по-прежнему старше файла.
+$confPath = $resolved.confPath
+$serverName = $resolved.server
+$target = $resolved.target
+$identity = $resolved.identity
+$localPort = $resolved.localPort
+$remotePort = $resolved.remotePort
 
 # Клиент выбираем один раз на запуск: от него зависит, будет вход за секунду или за полминуты.
 $sshClient = Get-OcSshExe -Candidates $SshExeCandidates
@@ -874,7 +1000,7 @@ if ($Off) {
 }
 
 if ($Setup) {
-    $updated = Invoke-OcSetup -ConfPath $Config -Target $target -Identity $identity -LocalPort $localPort -RemotePort $remotePort
+    $updated = Invoke-OcSetup -ConfPath $confPath -Target $target -Identity $identity -LocalPort $localPort -RemotePort $remotePort
     $target = $updated[0]
     $identity = $updated[1]
     $localPort = $updated[2]
@@ -883,9 +1009,12 @@ if ($Setup) {
 }
 
 if ($Check) {
-    exit (Invoke-OcCheck -ConfPath $Config -Target $target -Identity $identity -LocalPort $localPort -RemotePort $remotePort -SshArgs $sshArgs)
+    exit (Invoke-OcCheck -ConfPath $confPath -ServerName $serverName -ServerDir $serverDir -Target $target -Identity $identity -LocalPort $localPort -RemotePort $remotePort -SshArgs $sshArgs)
 }
 
+if ($serverName) {
+    Write-Host "Сервер: $serverName  (фрагмент $confPath)"
+}
 Write-Host "Веб-UI OpenCode: 127.0.0.1:$localPort → $target (127.0.0.1:$remotePort)"
 
 # Отдельной проверки SSH нет: её роль выполняет запрос ссылки — одна сессия вместо двух.
@@ -965,7 +1094,7 @@ if ($link) {
     Write-Host ''
     Write-Host 'Не удалось получить ссылку входа.'
     if ($pair.status -eq 'exited') {
-        Show-OcSshProblem -Text $pair.err -Target $target -ConfPath $Config -Identity $identity
+        Show-OcSshProblem -Text $pair.err -Target $target -ConfPath $confPath -Identity $identity
     } elseif ($pair.status -eq 'timeout') {
         Write-Host "SSH не ответил за отведённое время. Проверь вручную: ssh $target `"true`""
     }
