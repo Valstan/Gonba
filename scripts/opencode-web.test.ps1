@@ -35,6 +35,13 @@
 # она полностью офлайновая (ssh-вызовы подменены заглушками, бокс подставной) и проверяет
 # пять сценариев плюс воспроизведение исторической логики. Ни одной ssh-сессии не тратит.
 #
+# Третья часть (18.10.2026, письмо Мозга «Формат пульта») — выбор сервера (`-Server`/`-Servers`):
+# тоже офлайновая, файлы фрагментов настоящие во временной папке, ssh не нужен. Проверяет, что
+# названный сервер не подменяется молча (нет фрагмента — остановка с перечнем), что параметры
+# командной строки старше файла, и что без `-Server` поведение прежнее. Красное — инъекция
+# исходной формы «файла нет — умолчания»: тот же сценарий становится зелёным по виду
+# и неправильным по сути.
+#
 # Usage:  powershell -NoProfile -ExecutionPolicy Bypass -File scripts/opencode-web.test.ps1 [-LocalPort 14974]
 # Exit:   0 — регрессия пройдена; 1 — не пройдена; 9 — не удалось собрать копии.
 
@@ -347,10 +354,175 @@ if ($tunnelRed) {
     $decisionOk = $false
 }
 
+# --- Часть 3 (18.10.2026, письмо Мозга «Формат пульта»): выбор сервера.
+#
+# Мозг предложил одно расширение — ключ `-Server <алиас>` читает `servers\<алиас>.conf` рядом
+# со скриптом как базу настроек. Форма принята, но с одним отличием: если фрагмента нет,
+# запускатель ОСТАНАВЛИВАЕТСЯ и перечисляет, что лежит рядом. Иначе опечатка в имени
+# (`alpha` вместо `alphа`) молча уводила бы владельца на другой бокс — а именно это и означает
+# исходная формулировка «файла нет — сегодняшнее поведение и умолчания».
+#
+# Проверяем офлайново: файлы фрагментов настоящие (временная папка), ssh не нужен вообще —
+# спрашиваем только разбор настроек (`Resolve-OcSettings`), который теперь отдельной функцией.
+# Красное — инъекция исходной формы: убираем защиту, и тот же сценарий «фрагмента нет»
+# становится зелёным по виду и неправильным по сути (подключение к чужому серверу по умолчанию).
+function Get-OcFunctionText {
+    param([string]$Path, [string]$Name)
+    $lines = @(Get-Content -LiteralPath $Path)
+    $start = -1
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match ('^function ' + [regex]::Escape($Name) + ' \{')) { $start = $i; break }
+    }
+    if ($start -lt 0) { return $null }
+    for ($j = $start + 1; $j -lt $lines.Count; $j++) {
+        if ($lines[$j] -eq '}') { return ($lines[$start..$j] -join "`r`n") }
+    }
+    return $null
+}
+
+$settingsHarnessHead = @'
+$ErrorActionPreference = 'Stop'
+'@
+$settingsHarnessTail = @'
+$r = Resolve-OcSettings -ConfigPath $env:OC_CONF -ServerName $env:OC_SERVER -ServerDir $env:OC_SERVERDIR -SshTarget $env:OC_TARGET -IdentityFile $env:OC_IDENTITY -LocalPort ([int]$env:OC_LP) -RemotePort ([int]$env:OC_RP) -DefaultTarget 'GONBA' -DefaultLocalPort 14974 -DefaultRemotePort 49374 -AllowMissing:([bool]::Parse($env:OC_ALLOW))
+Write-Output ('RESULT ok=' + $r.ok + ' target=' + $r.target + ' identity=' + $r.identity + ' local=' + $r.localPort + ' remote=' + $r.remotePort + ' conf=' + $r.confPath + ' available=' + ($r.available -join '|'))
+'@
+
+$settingsText = ''
+foreach ($fn in @('Read-OcConfig', 'Resolve-OcPath', 'Get-OcServerFragments', 'Resolve-OcSettings')) {
+    $text = Get-OcFunctionText -Path $source -Name $fn
+    if (-not $text) {
+        Write-Host "!!! разбор настроек не собрался: в opencode-web.ps1 нет функции $fn — поправь тест"
+        exit 9
+    }
+    $settingsText = $settingsText + $text + "`r`n"
+}
+
+$guardNeedle = 'if (-not (Test-Path -LiteralPath $fragment) -and -not $AllowMissing) {'
+$guardCount = ([regex]::Matches($settingsText, [regex]::Escape($guardNeedle))).Count
+if ($guardCount -ne 1) {
+    Write-Host "!!! защита от подмены сервера не нашлась ($guardCount раз) — структура Resolve-OcSettings изменилась, поправь тест"
+    exit 9
+}
+$settingsRedText = $settingsText.Replace($guardNeedle, 'if ($false) {')
+if ($settingsRedText -eq $settingsText) {
+    Write-Host '!!! инъекция исходной формы не применилась — тест ничего не доказывает'
+    exit 9
+}
+
+$settingsHarnessPath = Join-Path $tmp 'settings-harness.ps1'
+$settingsHarnessRedPath = Join-Path $tmp 'settings-harness-red.ps1'
+Set-Content -LiteralPath $settingsHarnessPath -Value ($settingsHarnessHead + "`r`n" + $settingsText + "`r`n" + $settingsHarnessTail) -Encoding UTF8
+Set-Content -LiteralPath $settingsHarnessRedPath -Value ($settingsHarnessHead + "`r`n" + $settingsRedText + "`r`n" + $settingsHarnessTail) -Encoding UTF8
+
+function Invoke-SettingsScenario {
+    param([string]$HarnessPath, [hashtable]$Scenario, [int]$Index)
+    $dir = Join-Path $tmp ('settings_' + $Index)
+    [void](New-Item -ItemType Directory -Path $dir -Force)
+    $serverDir = Join-Path $dir 'servers'
+    if ($Scenario.fragments) {
+        [void](New-Item -ItemType Directory -Path $serverDir -Force)
+        foreach ($name in $Scenario.fragments.Keys) {
+            Set-Content -LiteralPath (Join-Path $serverDir ($name + '.conf')) -Value $Scenario.fragments[$name] -Encoding UTF8
+        }
+    }
+    $confPath = Join-Path $dir 'opencode-web.conf'
+    if ($Scenario.conf) { Set-Content -LiteralPath $confPath -Value $Scenario.conf -Encoding UTF8 }
+    Set-Item -Path 'Env:OC_CONF' -Value $confPath
+    Set-Item -Path 'Env:OC_SERVERDIR' -Value $serverDir
+    Set-Item -Path 'Env:OC_SERVER' -Value $Scenario.server
+    Set-Item -Path 'Env:OC_TARGET' -Value $Scenario.target
+    Set-Item -Path 'Env:OC_IDENTITY' -Value $Scenario.identity
+    Set-Item -Path 'Env:OC_LP' -Value ([string]$Scenario.localPort)
+    Set-Item -Path 'Env:OC_RP' -Value ([string]$Scenario.remotePort)
+    Set-Item -Path 'Env:OC_ALLOW' -Value ([string]$Scenario.allow)
+    $cliArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $HarnessPath)
+    $out = (& powershell @cliArgs 2>&1 | Out-String)
+    return [string]$out
+}
+
+$confBase = @('SSH_TARGET=GONBA', 'LOCAL_PORT=14974', 'REMOTE_PORT=49374')
+$fragmentAlpha = @('SSH_TARGET=alpha-box', 'IDENTITY_FILE=~/.ssh/alpha_key', 'LOCAL_PORT=14001', 'REMOTE_PORT=49001')
+$settingsScenarios = @(
+    @{
+        name = 'фрагмент есть — настройки берутся из фрагмента, а не из общего файла'
+        conf = $confBase; fragments = @{ 'alpha' = $fragmentAlpha }
+        server = 'alpha'; target = ''; identity = ''; localPort = 0; remotePort = 0; allow = $false
+        want = @('ok=True', 'target=alpha-box', 'local=14001', 'remote=49001', 'servers\alpha.conf')
+        forbid = @('local=14974', 'identity=~/')
+    },
+    @{
+        name = 'фрагмента нет — остановка с перечнем того, что есть (никакой подмены)'
+        conf = $confBase; fragments = @{ 'beta' = $confBase; 'gamma' = $confBase }
+        server = 'alpha'; target = ''; identity = ''; localPort = 0; remotePort = 0; allow = $false
+        want = @('ok=False', 'available=beta|gamma', 'servers\alpha.conf')
+        forbid = @('ok=True', 'target=GONBA')
+    },
+    @{
+        name = 'без -Server — прежнее поведение (общий файл и умолчания)'
+        conf = $confBase; fragments = @{ 'alpha' = $fragmentAlpha }
+        server = ''; target = ''; identity = ''; localPort = 0; remotePort = 0; allow = $false
+        want = @('ok=True', 'target=GONBA', 'local=14974', 'opencode-web.conf')
+        forbid = @('target=alpha-box')
+    },
+    @{
+        name = 'параметры командной строки старше фрагмента'
+        conf = $confBase; fragments = @{ 'alpha' = $fragmentAlpha }
+        server = 'alpha'; target = 'cli-box'; identity = 'C:/keys/cli.key'; localPort = 15999; remotePort = 0; allow = $false
+        want = @('ok=True', 'target=cli-box', 'local=15999', 'remote=49001', 'identity=C:/keys/cli.key')
+        forbid = @('target=alpha-box')
+    },
+    @{
+        name = '-Server вместе с -Setup: фрагмент ещё не заведён, но путь уже его'
+        conf = $confBase; fragments = $null
+        server = 'alpha'; target = ''; identity = ''; localPort = 0; remotePort = 0; allow = $true
+        want = @('ok=True', 'servers\alpha.conf', 'target=GONBA')
+        forbid = @('ok=False')
+    }
+)
+
+$settingsOk = $true
+$settingsIndex = 0
+foreach ($scenario in $settingsScenarios) {
+    $settingsIndex++
+    Write-Host ''
+    Write-Host ("--- Сервер: " + $scenario.name + ' ---')
+    $out = Invoke-SettingsScenario -HarnessPath $settingsHarnessPath -Scenario $scenario -Index $settingsIndex
+    $checks = @()
+    $pass = $true
+    foreach ($want in $scenario.want) {
+        $hit = $out -match [regex]::Escape($want)
+        if (-not $hit) { $pass = $false }
+        $checks += ("есть '$want'=" + $hit)
+    }
+    foreach ($bad in $scenario.forbid) {
+        $hit = $out -match [regex]::Escape($bad)
+        if ($hit) { $pass = $false }
+        $checks += ("нет '$bad'=" + (-not $hit))
+    }
+    if (-not $pass) { $settingsOk = $false }
+    $verdict = if ($pass) { 'ok' } else { 'ПРОВАЛ' }
+    Write-Host ("   " + ($checks -join ' ') + " → $verdict")
+    Write-Lines $out
+}
+
 Write-Host ''
-if ($redOk -and $greenOk -and -not $e2eFail -and $decisionOk -and $tunnelRed) {
-    Write-Host "РЕГРЕССИЯ ПРОЙДЕНА: красное ($($red.code)) -> зелёное ($($green.code)); тупик: $($scenarios.Count) сценариев + красное воспроизведено; e2e: $e2eState."
+Write-Host '--- Сервер, красное: исходная форма («файла нет — сегодняшнее поведение и умолчания») ---'
+$redScenario = $settingsScenarios[1]
+$settingsRedOut = Invoke-SettingsScenario -HarnessPath $settingsHarnessRedPath -Scenario $redScenario -Index 99
+Write-Lines $settingsRedOut
+$settingsRed = ($settingsRedOut -match 'ok=True') -and ($settingsRedOut -match 'target=GONBA') -and -not ($settingsRedOut -match 'ok=False')
+if ($settingsRed) {
+    Write-Host '   красное воспроизвелось: фрагмента нет, а запускатель молча пошёл бы на сервер по умолчанию'
+} else {
+    Write-Host '   красное НЕ воспроизвелось — инъекция не сработала, тест ничего не доказывает'
+    $settingsOk = $false
+}
+
+Write-Host ''
+if ($redOk -and $greenOk -and -not $e2eFail -and $decisionOk -and $tunnelRed -and $settingsOk -and $settingsRed) {
+    Write-Host "РЕГРЕССИЯ ПРОЙДЕНА: красное ($($red.code)) -> зелёное ($($green.code)); тупик: $($scenarios.Count) сценариев + красное; сервер: $($settingsScenarios.Count) сценариев + красное; e2e: $e2eState."
     exit 0
 }
-Write-Host "РЕГРЕССИЯ НЕ ПРОЙДЕНА: red=$redOk green=$greenOk decision=$decisionOk redTunnel=$tunnelRed e2e=$e2eState"
+Write-Host "РЕГРЕССИЯ НЕ ПРОЙДЕНА: red=$redOk green=$greenOk decision=$decisionOk redTunnel=$tunnelRed settings=$settingsOk redSettings=$settingsRed e2e=$e2eState"
 exit 1
