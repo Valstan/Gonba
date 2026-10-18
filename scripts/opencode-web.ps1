@@ -10,6 +10,7 @@
 #   powershell -ExecutionPolicy Bypass -File opencode-web.ps1 -Check   # проверить, всё ли на месте
 #   powershell -ExecutionPolicy Bypass -File opencode-web.ps1 -NoOpen  # не открывать браузер
 #   powershell -ExecutionPolicy Bypass -File opencode-web.ps1 -NoWait  # не ждать Enter (туннель остаётся)
+#   powershell -ExecutionPolicy Bypass -File opencode-web.ps1 -Stop    # закрыть туннель этого компьютера
 #
 # Настройки компьютера лежат рядом со скриптом, в `opencode-web.conf` (шаблон — `opencode-web.conf.example`):
 #   SSH_TARGET    — алиас из ~/.ssh/config этого компьютера либо user@host
@@ -17,7 +18,10 @@
 #   LOCAL_PORT    — локальный порт туннеля (по умолчанию 14974)
 #   REMOTE_PORT   — порт сервера на боксе (по умолчанию 49374)
 # Файла нет — работают умолчания. Скрипт переносимый: ни адреса, ни пользователя внутри нет.
-# Окно держать открытым, пока работаешь: в нём живёт туннель. Enter — закрыть туннель.
+# Окно запускателя — пульт, а не туннель: сам `ssh` стартует СКРЫТО (`-WindowStyle Hidden`), поэтому
+# чёрного окна ssh.exe на экране больше нет — 18.10 замерено, что оно есть и мешает (MainWindowHandle
+# 395146 → 0 после правки). Enter в окне запускателя закрывает туннель; с `-NoWait` окно закрывается
+# само, а туннель остаётся поднятым — закрыть его потом одним ключом `-Stop` (он же нужен Пасеке).
 #
 # Грабля клиента: OpenSSH для Windows не завершает процесс, если его std-хендлы перенаправлены
 # (запуск не из консоли), хотя команда на боксе уже отработала. Поэтому здесь НЕ полагаемся на
@@ -33,7 +37,8 @@ param(
     [switch]$Setup,
     [switch]$Check,
     [switch]$NoOpen,
-    [switch]$NoWait
+    [switch]$NoWait,
+    [switch]$Stop
 )
 
 $ErrorActionPreference = 'Stop'
@@ -43,7 +48,7 @@ $ErrorActionPreference = 'Stop'
 trap {
     Write-Host ''
     Write-Host "Запускатель остановился с ошибкой: $($_.Exception.Message)"
-    Write-Host 'Если на экране осталось чёрное окно ssh.exe (туннель) — закрой его и запусти ярлык снова.'
+    Write-Host 'Если туннель остался поднятым (чёрного окна ssh.exe больше нет — он стартует скрыто) — закрой его ключом -Stop и запусти ярлык снова.'
     try {
         if ($ownTunnel -and $tunnel -and -not $tunnel.HasExited) { $tunnel.Kill() }
     } catch { }
@@ -56,6 +61,11 @@ $DefaultRemotePort = 49374
 $RemoteUnit = 'opencode-web'
 $PairHelper = 'opencode-pair-link'
 $DoneMarker = 'OC_DONE'
+
+# Потолок одной ssh-сессии до бокса. Публичный :22 бокса живёт под сканерами, sshd придерживает
+# новые подключения: замер 18.10 — 78–81 соединение в SYN-RECV, холодный вход занял 42,5 с. Прежние
+# 30 с давали ложное «SSH не ответил» и у `-Check`, и у ярлыка владельца (поймано на живом прогоне).
+$SshSessionTimeoutMs = 60000
 
 # ---------------------------------------------------------------- чтение вывода
 
@@ -136,6 +146,24 @@ function Test-OcPort {
         $client.Close()
         return $true
     } catch { return $false }
+}
+
+# Туннель мы поднимаем сами строкой `-L <локальный>:127.0.0.1:<удалённый>` — по ней его и находим
+# (окна у него нет, командная строка — единственный след). Порты берутся из конфига компьютера.
+function Get-OcTunnel {
+    param([int]$LocalPort, [int]$RemotePort)
+    $needle = "-L $LocalPort`:127.0.0.1:$RemotePort"
+    if ($env:OS -ne 'Windows_NT') {
+        $found = @()
+        foreach ($sshProc in @(Get-Process -Name ssh -ErrorAction SilentlyContinue)) {
+            $cmdline = ''
+            try { $cmdline = [System.IO.File]::ReadAllText("/proc/$($sshProc.Id)/cmdline") -replace "`0", ' ' } catch { }
+            if ($cmdline -like "*$needle*") { $found += [pscustomobject]@{ ProcessId = $sshProc.Id } }
+        }
+        return $found
+    }
+    return @(Get-CimInstance Win32_Process -Filter "Name='ssh.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -and $_.CommandLine.Contains($needle) })
 }
 
 function Resolve-OcPath {
@@ -315,7 +343,7 @@ function Invoke-OcCheck {
         $failed = 1
     }
 
-    $probe = Invoke-OcSshSession -SshArgs $SshArgs -Target $Target -Command 'true; echo "OC_DONE:$?"' -TimeoutMs 30000
+    $probe = Invoke-OcSshSession -SshArgs $SshArgs -Target $Target -Command 'true; echo "OC_DONE:$?"' -TimeoutMs $SshSessionTimeoutMs
     if ($probe.status -eq 'ready' -and $probe.code -eq 0) {
         Write-Host '   ssh:       ok'
     } elseif ($probe.status -eq 'exited') {
@@ -329,7 +357,7 @@ function Invoke-OcCheck {
     }
 
     $unitCmd = New-OcRemoteCommand -Template 'systemctl is-active __UNIT__; echo "OC_DONE:$?"' -Values @{ __UNIT__ = $RemoteUnit }
-    $unit = (Invoke-OcSshSession -SshArgs $SshArgs -Target $Target -Command $unitCmd -TimeoutMs 30000).out
+    $unit = (Invoke-OcSshSession -SshArgs $SshArgs -Target $Target -Command $unitCmd -TimeoutMs $SshSessionTimeoutMs).out
     $unitState = (($unit -split "`r?`n") | Where-Object { $_ -and $_ -notmatch $DoneMarker }) -join ' '
     if ($unitState -match 'active') {
         Write-Host "   сервис:    $RemoteUnit — active"
@@ -340,7 +368,7 @@ function Invoke-OcCheck {
     }
 
     $httpCmd = New-OcRemoteCommand -Template 'curl -s -o /dev/null -w http=%{http_code} --max-time 8 http://127.0.0.1:__PORT__/api/info; echo "OC_DONE:$?"' -Values @{ __PORT__ = $RemotePort }
-    $http = (Invoke-OcSshSession -SshArgs $SshArgs -Target $Target -Command $httpCmd -TimeoutMs 30000).out
+    $http = (Invoke-OcSshSession -SshArgs $SshArgs -Target $Target -Command $httpCmd -TimeoutMs $SshSessionTimeoutMs).out
     if ($http -match 'http=(401|403|200)') {
         Write-Host "   сервер:    отвечает на 127.0.0.1:$RemotePort (код $($Matches[1]) — 401 без пароля это норма)"
     } else {
@@ -349,7 +377,7 @@ function Invoke-OcCheck {
         $failed = 1
     }
 
-    $version = (Invoke-OcSshSession -SshArgs $SshArgs -Target $Target -Command 'opencode --version; echo "OC_DONE:$?"' -TimeoutMs 30000).out
+    $version = (Invoke-OcSshSession -SshArgs $SshArgs -Target $Target -Command 'opencode --version; echo "OC_DONE:$?"' -TimeoutMs $SshSessionTimeoutMs).out
     $versionText = (($version -split "`r?`n") | Where-Object { $_ -and $_ -notmatch $DoneMarker }) -join ' '
     Write-Host "   opencode:  $versionText"
 
@@ -391,6 +419,30 @@ if ($RemotePort -gt 0) { $remotePort = $RemotePort }
 
 $sshArgs = New-OcSshArgs -Identity $identity
 
+# --- закрыть туннель этого компьютера (`-Stop`)
+if ($Stop) {
+    $tunnels = @(Get-OcTunnel -LocalPort $localPort -RemotePort $remotePort)
+    if ($tunnels.Count -eq 0) {
+        Write-Host "Туннеля на 127.0.0.1:$localPort нет — закрывать нечего."
+        exit 0
+    }
+    foreach ($tunnelProc in $tunnels) {
+        try {
+            Stop-Process -Id $tunnelProc.ProcessId -Force -ErrorAction Stop
+            Write-Host "Туннель закрыт (pid $($tunnelProc.ProcessId))."
+        } catch {
+            Write-Host "Не удалось закрыть pid $($tunnelProc.ProcessId): $($_.Exception.Message)"
+        }
+    }
+    Start-Sleep -Milliseconds 500
+    if (Test-OcPort -Port $localPort) {
+        Write-Host "Порт 127.0.0.1:$localPort всё ещё занят — его держит не наш туннель."
+        exit 1
+    }
+    Write-Host "Порт 127.0.0.1:$localPort свободен."
+    exit 0
+}
+
 if ($Setup) {
     $updated = Invoke-OcSetup -ConfPath $Config -Target $target -Identity $identity -LocalPort $localPort -RemotePort $remotePort
     $target = $updated[0]
@@ -420,9 +472,13 @@ if (Test-OcPort -Port $localPort) {
     )
     if ($identity) { $tunnelArgs += @('-i', (Quote-OcArg $identity)) }
     $tunnelArgs += @('-L', "$localPort`:127.0.0.1:$remotePort", $target)
-    $tunnel = Start-Process -FilePath 'ssh' -ArgumentList $tunnelArgs -PassThru
+    # `-WindowStyle Hidden` — чтобы на экране не висело чёрное окно ssh.exe (оно и мешало владельцу).
+    # Замер 18.10: с этим ключом окна нет (MainWindowHandle 0), форвардинг жив (401 через туннель).
+    $tunnel = Start-Process -FilePath 'ssh' -ArgumentList $tunnelArgs -PassThru -WindowStyle Hidden
     $ownTunnel = $true
-    for ($i = 0; $i -lt 60; $i++) {
+    # Ждём локальный порт до 60 с: ssh поднимает форвард только после аутентификации, а она
+    # под сканерами на публичном :22 откладывается (замер 18.10: холодный вход 42 с).
+    for ($i = 0; $i -lt 240; $i++) {
         Start-Sleep -Milliseconds 250
         if (Test-OcPort -Port $localPort) { break }
         if ($tunnel.HasExited) { break }
@@ -431,9 +487,11 @@ if (Test-OcPort -Port $localPort) {
         Write-Host ''
         Write-Host "Туннель не поднялся (127.0.0.1:$localPort)."
         if ($tunnel.HasExited) {
-            Write-Host "ssh завершился с кодом $($tunnel.ExitCode) — подробности в его окне."
+            Write-Host "ssh завершился с кодом $($tunnel.ExitCode) (окна у туннеля нет — он стартует скрыто; подробности даст ключ -Check)."
+        } else {
+            Write-Host 'ssh жив, но порт не занят: чаще всего бокс не успел пустить (сканеры на :22) — повтори запуск.'
         }
-        Write-Host "Частая причина: локальный порт занят. Запусти с другим портом: -LocalPort $($localPort + 1000)"
+        Write-Host "Другая частая причина: локальный порт занят. Запусти с другим портом: -LocalPort $($localPort + 1000)"
         if ($tunnel -and -not $tunnel.HasExited) { $tunnel.Kill() }
         exit 1
     }
@@ -443,13 +501,14 @@ if (Test-OcPort -Port $localPort) {
 $pairCmd = New-OcRemoteCommand -Template '__HELPER__ __RPORT__ __LPORT__; echo "OC_DONE:$?"' -Values @{
     __HELPER__ = $PairHelper; __RPORT__ = $remotePort; __LPORT__ = $localPort
 }
-$pair = Invoke-OcSshSession -SshArgs $sshArgs -Target $target -Command $pairCmd -TimeoutMs 30000
+$pair = Invoke-OcSshSession -SshArgs $sshArgs -Target $target -Command $pairCmd -TimeoutMs $SshSessionTimeoutMs
 if ($pair.status -eq 'timeout') {
     # Бокс общий и маленький, а на его публичном :22 висит фон интернета — новое
-    # подключение иногда не укладывается в 30 с (замер 17.10: повтор помогал,
-    # подробности в ранбуке). Один повтор дешевле, чем мёртвое окно у владельца.
-    Write-Host 'SSH не ответил за 30 с — повторяю запрос ссылки один раз.'
-    $pair = Invoke-OcSshSession -SshArgs $sshArgs -Target $target -Command $pairCmd -TimeoutMs 30000
+    # подключение иногда не укладывается и в 60 с (замер 17.10: повтор помогал,
+    # 18.10: в SYN-RECV висело 78–81 чужое соединение, холодный вход занял 42,5 с).
+    # Один повтор дешевле, чем мёртвое окно у владельца.
+    Write-Host 'SSH не ответил за 60 с — повторяю запрос ссылки один раз.'
+    $pair = Invoke-OcSshSession -SshArgs $sshArgs -Target $target -Command $pairCmd -TimeoutMs $SshSessionTimeoutMs
 }
 $link = ''
 if ($pair.out -match 'http://\S+') { $link = $Matches[0] }
@@ -481,4 +540,8 @@ if ($ownTunnel -and -not $NoWait) {
     [void](Read-Host)
     if ($tunnel -and -not $tunnel.HasExited) { $tunnel.Kill() }
     Write-Host 'Туннель закрыт.'
+} elseif ($ownTunnel -and $NoWait) {
+    Write-Host ''
+    Write-Host 'Туннель остаётся поднятым и после закрытия окна (окно ssh скрыто).'
+    Write-Host 'Закрыть его: этот же скрипт с ключом -Stop.'
 }

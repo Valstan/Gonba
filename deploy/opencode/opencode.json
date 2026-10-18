@@ -11,6 +11,11 @@
     { "action": "tool.use", "resource": "shell:git push --force-with-lease origin master*", "effect": "deny" },
     { "action": "tool.use", "resource": "shell:gh workflow run deploy*", "effect": "deny" },
     { "action": "tool.use", "resource": "shell:sudo *", "effect": "deny" },
-    { "action": "tool.use", "resource": "read:/etc/gonba/*", "effect": "deny" }
+    { "action": "tool.use", "resource": "read:/etc/gonba/*", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:npx tsc*", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:npm run build*", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:npm run typecheck*", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:npm run lint*", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:npm --prefix * run build*", "effect": "deny" }
   ]
 }
