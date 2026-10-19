@@ -4,7 +4,7 @@ import { APIError } from 'payload'
 
 import { containsProfanity } from '../profanity'
 import { rateLimit } from '../rateLimit'
-import { clampText, clientIp, relId, UGC_MAX_AUTHOR } from '../ugc'
+import { clampText, clientIp, isContentStaff, relId, UGC_MAX_AUTHOR } from '../ugc'
 import { assertVisibleTarget } from './ugcHelpers'
 
 // Комментарий к публикации (POST /api/submission-comments). Анонимно, постмодерация
@@ -16,7 +16,9 @@ const MAX_BODY = 1000
 
 export const rateLimitComment: CollectionBeforeValidateHook = async ({ data, operation, req }) => {
   if (operation !== 'create') return data
-  if (req.user) return data
+  // Пропуск только для персонала (admin|editor): раньше `if (req.user)` снимал лимиты
+  // и дедуп для любой учётки коллекции `users` — аудит 2026-10-18 (F-5).
+  if (isContentStaff(req.user)) return data
   if (!data || typeof data !== 'object') throw new APIError('Некорректный запрос.', 400)
 
   const ip = clientIp(req.headers)

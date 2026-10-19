@@ -3,7 +3,7 @@ import type { CollectionBeforeValidateHook, Where } from 'payload'
 import { APIError } from 'payload'
 
 import { rateLimit } from '../rateLimit'
-import { clientIp, hashIp, ownerHashFromHeaders, relId } from '../ugc'
+import { clientIp, hashIp, isContentStaff, ownerHashFromHeaders, relId } from '../ugc'
 import { assertVisibleTarget } from './ugcHelpers'
 
 // Просмотр публикации (POST /api/submission-views). Анонимно, дедуп «один просмотр на
@@ -16,7 +16,9 @@ const WINDOW_MS = 10 * 60 * 1000 // за 10 минут на IP
 
 export const rateLimitView: CollectionBeforeValidateHook = async ({ data, operation, req }) => {
   if (operation !== 'create') return data
-  if (req.user) return data
+  // Пропуск только для персонала (admin|editor): раньше `if (req.user)` снимал дедуп
+  // просмотров для любой учётки коллекции `users` — накрутка (аудит 2026-10-18, F-5).
+  if (isContentStaff(req.user)) return data
   if (!data || typeof data !== 'object') throw new APIError('Некорректный запрос.', 400)
 
   const ip = clientIp(req.headers)

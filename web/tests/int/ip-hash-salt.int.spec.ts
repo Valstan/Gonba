@@ -95,14 +95,25 @@ describe('hashIp — соль', () => {
 })
 
 describe('getRequestIpHash — источник IP', () => {
-  it('берёт первый адрес из x-forwarded-for, иначе x-real-ip', async () => {
+  // До аудита 2026-10-18 здесь проверялся **первый** хоп `x-forwarded-for` — то есть
+  // закреплялось ровно то поведение, из-за которого аноним подставлял себе свежий «IP»
+  // и обнулял лимиты (класс G413). Порядок извлечения теперь: `x-real-ip` (его ставит
+  // наш nginx из `$remote_addr`) → **последний** хоп XFF (адрес, дописанный прокси) →
+  // `null`. Подробные кейсы — `tests/int/client-ip.int.spec.ts`; здесь только связка
+  // «хеш берёт тот же адрес, что и лимитер».
+  it('берёт доверенный адрес: x-real-ip, иначе последний хоп x-forwarded-for', async () => {
     process.env.IP_HASH_SALT = 'dedicated-salt'
     const { getRequestIpHash, hashIp } = await freshModule()
 
-    const forwarded = new Headers({ 'x-forwarded-for': '203.0.113.7, 70.41.3.18' })
+    // Первый хоп задаёт клиент — он не должен влиять на хеш.
+    const forwarded = new Headers({ 'x-forwarded-for': '70.41.3.18, 203.0.113.7' })
     expect(getRequestIpHash(forwarded)).toBe(hashIp('203.0.113.7'))
+    expect(getRequestIpHash(new Headers({ 'x-forwarded-for': '6.6.6.6, 203.0.113.7' }))).toBe(
+      hashIp('203.0.113.7'),
+    )
 
-    const real = new Headers({ 'x-real-ip': '203.0.113.9' })
+    // X-Real-IP (ставит наш nginx) важнее цепочки, даже если клиент подделал XFF.
+    const real = new Headers({ 'x-real-ip': '203.0.113.9', 'x-forwarded-for': '70.41.3.18' })
     expect(getRequestIpHash(real)).toBe(hashIp('203.0.113.9'))
 
     // без заголовков — стабильное значение для 'unknown', не исключение

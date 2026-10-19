@@ -3,7 +3,7 @@ import type { CollectionBeforeValidateHook } from 'payload'
 import { APIError } from 'payload'
 
 import { rateLimit } from '../rateLimit'
-import { clampText, clientIp, hashIp, UGC_REPORT_TARGETS } from '../ugc'
+import { clampText, clientIp, hashIp, isContentStaff, UGC_REPORT_TARGETS } from '../ugc'
 import { assertVisibleTarget } from './ugcHelpers'
 
 // Жалоба на публикацию/комментарий (POST /api/content-reports). Анонимно. Хук:
@@ -16,7 +16,10 @@ const MAX_REASON = 500
 
 export const rateLimitReport: CollectionBeforeValidateHook = async ({ data, operation, req }) => {
   if (operation !== 'create') return data
-  if (req.user) return data
+  // Пропуск только для персонала (admin|editor): раньше `if (req.user)` снимал и лимит,
+  // и дедуп `(targetType,targetId,ipHash)` — три жалобы подряд под любой учёткой
+  // авто-скрывали чужую публикацию (аудит 2026-10-18, F-5).
+  if (isContentStaff(req.user)) return data
   if (!data || typeof data !== 'object') throw new APIError('Некорректный запрос.', 400)
 
   const ip = clientIp(req.headers)

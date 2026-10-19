@@ -2,6 +2,8 @@ import { createHash } from 'crypto'
 
 import 'server-only'
 
+import { extractClientIp } from './clientIp'
+
 let warnedAboutFallback = false
 
 /**
@@ -45,6 +47,7 @@ function resolveSalt(): string {
   )
 }
 
+/** Необратимый (с солью) псевдоним адреса: 32 hex-символа sha256. */
 export function hashIp(rawIp: string | null | undefined): string {
   const salt = resolveSalt()
   const ip = (rawIp || 'unknown').trim()
@@ -52,10 +55,5 @@ export function hashIp(rawIp: string | null | undefined): string {
 }
 
 export function getRequestIpHash(headers: Headers): string {
-  const raw =
-    headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    headers.get('x-real-ip')?.trim() ||
-    null
-
-  return hashIp(raw)
+  return hashIp(extractClientIp(headers))
 }

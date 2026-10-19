@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { deleteObject } from '@/server/ugc/s3'
+import { isKeyReferencedByAnotherSubmission, selectDeletableKeys } from '@/server/ugc/referencedKeys'
 import { getPayloadClient, isOwnerOf, isStaffRequest, mutateRateOk } from '@/server/ugc/ugcOwner'
 
 // Удалить «свою» публикацию (автор по токену) ИЛИ любую (персонал). Мягкое удаление:
@@ -48,10 +49,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Нет прав на удаление.' }, { status: 403 })
   }
 
-  // Удаляем файлы из бакета (best-effort): обложку, её постер и ВСЕ доп. файлы поста.
+  // Удаляем файлы из бакета (best-effort): обложку, её постер и ВСЕ доп. файлы поста —
+  // но только те, на которые не ссылается другая публикация. Иначе «удалить своё» было
+  // способом стереть чужой файл: достаточно сослаться на чужой ключ в своей записи
+  // (ключи клиентские, уникальность верхнего objectKey обходится через media[]).
   const keys = [sub.objectKey, sub.posterKey]
   for (const m of sub.media ?? []) keys.push(m?.objectKey, m?.posterKey)
-  for (const key of keys) if (key) await deleteObject(key)
+  const { deletable, kept } = await selectDeletableKeys(keys, (key) =>
+    isKeyReferencedByAnotherSubmission(payload, id, key),
+  )
+  if (kept.length > 0) {
+    // Имена ключей не логируем (в них uuid чужой публикации) — только счётчик.
+    console.warn(`[ugc] удаление #${id}: ${kept.length} ключ(ей) оставлено — на них ссылаются другие публикации`)
+  }
+  for (const key of deletable) await deleteObject(key)
 
   await payload.update({
     collection: 'submissions',
