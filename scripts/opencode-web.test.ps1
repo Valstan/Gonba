@@ -42,6 +42,13 @@
 # исходной формы «файла нет — умолчания»: тот же сценарий становится зелёным по виду
 # и неправильным по сути.
 #
+# Четвёртая часть (19.10.2026, письмо Мозга «Замер запускателя на живом» — находки 2 и 3) — класс
+# повтора ssh-сессии и сверка цели при переиспользовании туннеля. Тоже полностью офлайновая: входные
+# данные — реальные тексты ошибок и реальные командные строки ssh-форвардов. Красное — инъекция
+# исторической формы (сверку цели вырезаем), после которой чужой бокс на том же локальном порту
+# снова сходит за свой. Плюс привязки в самом запускателе: тест ловит рефакторинг, который оставит
+# правильную функцию, но вернёт старый вызов.
+#
 # Usage:  powershell -NoProfile -ExecutionPolicy Bypass -File scripts/opencode-web.test.ps1 [-LocalPort 14974]
 # Exit:   0 — регрессия пройдена; 1 — не пройдена; 9 — не удалось собрать копии.
 
@@ -99,6 +106,20 @@ Write-Host "Источник: $source"
 Write-Host "Копии в:  $tmp"
 Write-Host ''
 
+# Есть ли на боксе сам движок. 19.10 агент (Пасека) снят с прод-серверов, `/usr/local/bin/opencode`
+# там удалён, юнит `opencode-web` погашен — то есть живой путь (ssh → туннель → ссылка входа)
+# проверять стало не на чем. Спрашиваем бокс напрямую, а не судим по пустой строке в выводе `-Check`:
+# «нечего проверять» — не то же самое, что «проверено» (pool #011), и зелёным такое не помечаем.
+$engineProbe = ''
+try {
+    $engineProbe = [string](& ssh -o BatchMode=yes -o ConnectTimeout=20 GONBA 'command -v opencode; true' 2>&1 | Out-String)
+} catch { $engineProbe = '' }
+$boxHasEngine = [bool]($engineProbe -match 'opencode')
+if (-not $boxHasEngine) {
+    Write-Host '[бокс без движка] `opencode` на боксе не найден — строку «opencode: <версия>» проверять не на чем.'
+    Write-Host '                   Это состояние бокса (Пасека снята с прод-серверов 19.10), а не регрессия запускателя.'
+}
+
 $b = New-EmptyStderrCopy -Dest $buggyPath -BreakNullGuard
 $f = New-EmptyStderrCopy -Dest $fixedPath
 if ($b.guard -ne 1 -or $f.guard -ne 0 -or $b.paths -ne 1 -or $f.paths -ne 1) {
@@ -127,7 +148,9 @@ Write-Host '--- GREEN: текущая версия (ожидаем «всё на
 $green = Invoke-Launcher -Path $fixedPath -Extra @('-Check')
 Write-Host "   exit=$($green.code)"
 Write-Lines $green.out
-$greenOk = ($green.code -eq 0) -and ($green.out -match 'opencode v')
+# Без движка на боксе строки «opencode: <версия>» в выводе нет и быть не может (см. пробу выше) —
+# тогда требуем от `-Check` того, что он обязан делать всегда: дойти до конца и вернуть 0.
+$greenOk = ($green.code -eq 0) -and (($green.out -match 'opencode v') -or (-not $boxHasEngine))
 if (-not $greenOk -and $green.out -match 'НЕТ ОТВЕТА') {
     # Замерено 17.10 (2 из 2) и подтверждено 18.10: первый ssh после паузы может не
     # уложиться в потолок запускателя — на публичном :22 бокса висят сканеры (18.10
@@ -138,7 +161,7 @@ if (-not $greenOk -and $green.out -match 'НЕТ ОТВЕТА') {
     $green = Invoke-Launcher -Path $fixedPath -Extra @('-Check')
     Write-Host "   exit=$($green.code) (повтор)"
     Write-Lines $green.out
-    $greenOk = ($green.code -eq 0) -and ($green.out -match 'opencode v')
+    $greenOk = ($green.code -eq 0) -and (($green.out -match 'opencode v') -or (-not $boxHasEngine))
 }
 
 Write-Host ''
@@ -519,10 +542,161 @@ if ($settingsRed) {
     $settingsOk = $false
 }
 
+# --- Часть 4 (19.10.2026, письмо Мозга «Замер запускателя на живом»): класс повтора и цель туннеля.
+#
+# Обе проверки офлайновые — ни ssh, ни прод не нужны, функции берём из ТЕКУЩЕГО скрипта тем же
+# приёмом, что и часть 3, а входные данные — то, что приходит с живого канала:
+#   находка 2 — тексты, с которыми ssh выходит на плохом канале (banner exchange / Connection timed
+#               out / preauth-обрыв) и тексты, на которых повторять НЕЛЬЗЯ (Permission denied,
+#               неизвестный хост): класс должен быть узким, иначе повтор затягивает осмысленный отказ;
+#   находка 3 — командные строки ssh-форвардов: своя цель, чужая цель на том же локом порту, чужие
+#               порты. Красное — инъекция исторической формы (сверку цели вырезаем): сценарий
+#               «порт тот же, цель чужая» становится «найден», то есть запускатель молча пошёл бы
+#               работать через чужой бокс — ровно то, что нашёл Мозг.
+$findingHarnessHead = @'
+$ErrorActionPreference = 'Stop'
+function Show-RetryCase {
+    param([string]$Name, [string]$Status, [string]$Err, [string]$Out)
+    $session = @{ status = $Status; code = 0; out = $Out; err = $Err }
+    Write-Output ('RETRY ' + $Name + '=' + (Test-OcRetryableSshFailure -Session $session))
+}
+function Show-TunnelCase {
+    param([string]$Name, [string]$CommandLine, [int]$LocalPort, [int]$RemotePort, [string]$Target)
+    $found = Test-OcTunnelCommandLine -CommandLine $CommandLine -LocalPort $LocalPort -RemotePort $RemotePort -Target $Target
+    Write-Output ('TUNNEL ' + $Name + '=' + $found)
+}
+'@
+$findingHarnessTail = @'
+Show-RetryCase -Name 'our_timeout' -Status 'timeout' -Err '' -Out ''
+Show-RetryCase -Name 'banner_exchange' -Status 'exited' -Err 'ssh: connect to host box port 22: timed out during banner exchange' -Out ''
+Show-RetryCase -Name 'conn_timed_out' -Status 'exited' -Err 'ssh: connect to host box port 22: Connection timed out' -Out ''
+Show-RetryCase -Name 'kex_ident' -Status 'exited' -Err 'kex_exchange_identification: read: Connection timed out' -Out ''
+Show-RetryCase -Name 'conn_closed_preauth' -Status 'exited' -Err 'Connection closed by 203.0.113.7 port 22' -Out ''
+Show-RetryCase -Name 'permission_denied' -Status 'exited' -Err 'user@box: Permission denied (publickey).' -Out ''
+Show-RetryCase -Name 'unresolved_host' -Status 'exited' -Err 'ssh: Could not resolve hostname alpha-box: Name or service not known' -Out ''
+Show-RetryCase -Name 'quiet_exit' -Status 'exited' -Err '' -Out ''
+Show-RetryCase -Name 'link_ok' -Status 'ready' -Err '' -Out 'http://127.0.0.1:14974/pair?code=abc'
+Show-TunnelCase -Name 'own_unquoted' -CommandLine '"C:\Program Files\Git\usr\bin\ssh.exe" -n -N -o ServerAliveInterval=30 -L 14974:127.0.0.1:49374 GONBA' -LocalPort 14974 -RemotePort 49374 -Target 'GONBA'
+Show-TunnelCase -Name 'own_with_identity' -CommandLine '"C:\Program Files\Git\usr\bin\ssh.exe" -n -N -o ExitOnForwardFailure=yes -i "C:\Users\Val Stan\.ssh\id_ed25519_opencode" -L 14974:127.0.0.1:49374 GONBA' -LocalPort 14974 -RemotePort 49374 -Target 'GONBA'
+Show-TunnelCase -Name 'own_quoted_target' -CommandLine '"C:\Program Files\Git\usr\bin\ssh.exe" -n -N -L 14974:127.0.0.1:49374 "GONBA"' -LocalPort 14974 -RemotePort 49374 -Target 'GONBA'
+Show-TunnelCase -Name 'linux_cmdline' -CommandLine 'ssh -n -N -L 14974:127.0.0.1:49374 GONBA ' -LocalPort 14974 -RemotePort 49374 -Target 'GONBA'
+# Регистр: ssh здесь регистрозависим (замер 19.10: при `Host GONBA` в ~/.ssh/config команда
+# `ssh gonba` отвечает «Could not resolve hostname gonba»), поэтому туннель к `gonba` — не наш.
+# `other_arg_last` — тоже не наша форма: свой туннель запускатель всегда кладёт цель последней.
+Show-TunnelCase -Name 'own_case_variant' -CommandLine '"C:\Program Files\Git\usr\bin\ssh.exe" -n -N -L 14974:127.0.0.1:49374 gonba' -LocalPort 14974 -RemotePort 49374 -Target 'GONBA'
+Show-TunnelCase -Name 'other_arg_last' -CommandLine '"C:\Program Files\Git\usr\bin\ssh.exe" -n -N -L 14974:127.0.0.1:49374 GONBA es-vps' -LocalPort 14974 -RemotePort 49374 -Target 'GONBA'
+Show-TunnelCase -Name 'foreign_target' -CommandLine '"C:\Program Files\Git\usr\bin\ssh.exe" -n -N -L 14974:127.0.0.1:49374 es-vps' -LocalPort 14974 -RemotePort 49374 -Target 'GONBA'
+Show-TunnelCase -Name 'foreign_ports' -CommandLine '"C:\Program Files\Git\usr\bin\ssh.exe" -n -N -L 14976:127.0.0.1:49374 GONBA' -LocalPort 14974 -RemotePort 49374 -Target 'GONBA'
+Show-TunnelCase -Name 'no_target_given' -CommandLine '"C:\Program Files\Git\usr\bin\ssh.exe" -n -N -L 14974:127.0.0.1:49374 GONBA' -LocalPort 14974 -RemotePort 49374 -Target ''
+Show-TunnelCase -Name 'not_ssh' -CommandLine 'notepad.exe C:\tmp\notes.txt' -LocalPort 14974 -RemotePort 49374 -Target 'GONBA'
+Show-TunnelCase -Name 'empty_cmdline' -CommandLine '' -LocalPort 14974 -RemotePort 49374 -Target 'GONBA'
+'@
+
+$findingText = ''
+foreach ($fn in @('Test-OcRetryableSshFailure', 'Test-OcTunnelCommandLine')) {
+    $text = Get-OcFunctionText -Path $source -Name $fn
+    if (-not $text) {
+        Write-Host "!!! находки не собрались: в opencode-web.ps1 нет функции $fn — поправь тест"
+        exit 9
+    }
+    $findingText = $findingText + $text + "`r`n"
+}
+
+# Красное: историческая форма поиска туннеля — по паре портов, без сверки цели.
+$targetGuard = 'if (-not $Target) { return $true }'
+$targetGuardHits = ([regex]::Matches($findingText, [regex]::Escape($targetGuard))).Count
+if ($targetGuardHits -ne 1) {
+    Write-Host "!!! сверка цели не нашлась ($targetGuardHits раз) — структура Test-OcTunnelCommandLine изменилась, поправь тест"
+    exit 9
+}
+$findingRedText = $findingText.Replace($targetGuard, 'return $true')
+if ($findingRedText -eq $findingText) {
+    Write-Host '!!! инъекция исторической формы не применилась — тест ничего не доказывает'
+    exit 9
+}
 Write-Host ''
-if ($redOk -and $greenOk -and -not $e2eFail -and $decisionOk -and $tunnelRed -and $settingsOk -and $settingsRed) {
-    Write-Host "РЕГРЕССИЯ ПРОЙДЕНА: красное ($($red.code)) -> зелёное ($($green.code)); тупик: $($scenarios.Count) сценариев + красное; сервер: $($settingsScenarios.Count) сценариев + красное; e2e: $e2eState."
+Write-Host '--- Находки: класс повтора и сверка цели туннеля ---'
+$findingHarnessPath = Join-Path $tmp 'findings-harness.ps1'
+$findingHarnessRedPath = Join-Path $tmp 'findings-harness-red.ps1'
+Set-Content -LiteralPath $findingHarnessPath -Value ($findingHarnessHead + "`r`n" + $findingText + "`r`n" + $findingHarnessTail) -Encoding UTF8
+Set-Content -LiteralPath $findingHarnessRedPath -Value ($findingHarnessHead + "`r`n" + $findingRedText + "`r`n" + $findingHarnessTail) -Encoding UTF8
+
+function Invoke-FindingHarness {
+    param([string]$HarnessPath)
+    $cliArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $HarnessPath)
+    return [string](& powershell @cliArgs 2>&1 | Out-String)
+}
+
+$findingOut = Invoke-FindingHarness -HarnessPath $findingHarnessPath
+# Ожидания по одной строке на сценарий: повторы — только там, где помогает; цель — только своя.
+$findingWant = @(
+    'RETRY our_timeout=True',
+    'RETRY banner_exchange=True',
+    'RETRY conn_timed_out=True',
+    'RETRY kex_ident=True',
+    'RETRY conn_closed_preauth=True',
+    'RETRY permission_denied=False',
+    'RETRY unresolved_host=False',
+    'RETRY quiet_exit=False',
+    'RETRY link_ok=False',
+    'TUNNEL own_unquoted=True',
+    'TUNNEL own_with_identity=True',
+    'TUNNEL own_quoted_target=True',
+    'TUNNEL linux_cmdline=True',
+    'TUNNEL own_case_variant=False',
+    'TUNNEL other_arg_last=False',
+    'TUNNEL foreign_target=False',
+    'TUNNEL foreign_ports=False',
+    'TUNNEL no_target_given=True',
+    'TUNNEL not_ssh=False',
+    'TUNNEL empty_cmdline=False'
+)
+$findingOk = $true
+foreach ($want in $findingWant) {
+    $hit = $findingOut -match [regex]::Escape($want)
+    if (-not $hit) { $findingOk = $false }
+    Write-Host ("   есть '" + $want + "'=" + $hit)
+}
+
+Write-Host ''
+Write-Host '--- Находка 3, красное: поиск туннеля по паре портов без сверки цели ---'
+$findingRedOut = Invoke-FindingHarness -HarnessPath $findingHarnessRedPath
+Write-Lines $findingRedOut
+$findingRed = ($findingRedOut -match 'TUNNEL foreign_target=True') -and -not ($findingRedOut -match 'TUNNEL foreign_target=False')
+if ($findingRed) {
+    Write-Host '   красное воспроизвелось: чужой бокс на том же локальном порту сошёл бы за свой'
+} else {
+    Write-Host '   красное НЕ воспроизвелось — инъекция не сработала, тест ничего не доказывает'
+    $findingOk = $false
+}
+
+# Структурные привязки: сама правка (а не только её функция). Так тест ловит будущий рефакторинг,
+# который вернёт старый вызов: функция может остаться правильной, а ход — снова её не спросив.
+Write-Host ''
+Write-Host '--- Находки: привязки в самом запускателе ---'
+$sourceText = Get-Content -LiteralPath $source -Raw
+$pinChecks = @(
+    @{ name = 'повтор пары заведён на класс вывода'; want = 1; pattern = 'Test-OcRetryableSshFailure -Session $pair' },
+    @{ name = 'переиспользование туннеля сверяет цель'; want = 1; pattern = 'Test-OcTunnelLive -LocalPort $localPort -RemotePort $remotePort -Target $target' },
+    @{ name = 'закрытие туннеля сверяет цель'; want = 3; pattern = 'Close-OcTunnel -LocalPort $localPort -RemotePort $remotePort -Target $target' },
+    @{ name = 'потолок согласования — из константы'; want = 1; pattern = 'ConnectTimeout=$SshConnectTimeoutSec' },
+    @{ name = 'жёсткой восьмёрки в потолке не осталось'; want = 0; pattern = 'ConnectTimeout=8' }
+)
+foreach ($pin in $pinChecks) {
+    $count = ([regex]::Matches($sourceText, [regex]::Escape($pin.pattern))).Count
+    $hit = ($count -eq $pin.want)
+    if (-not $hit) { $findingOk = $false }
+    Write-Host ("   '" + $pin.name + "': найдено $count, ожидалось $($pin.want)=" + $hit)
+}
+
+Write-Host ''
+$liveState = 'живой путь: проверен'
+if (-not $boxHasEngine) {
+    $liveState = 'живой путь: N/A (движка на боксе нет; проверено лишь то, что -Check доходит и возвращает 0)'
+}
+if ($redOk -and $greenOk -and -not $e2eFail -and $decisionOk -and $tunnelRed -and $settingsOk -and $settingsRed -and $findingOk -and $findingRed) {
+    Write-Host "РЕГРЕССИЯ ПРОЙДЕНА: красное ($($red.code)) -> зелёное ($($green.code)); тупик: $($scenarios.Count) сценариев + красное; сервер: $($settingsScenarios.Count) сценариев + красное; находки: $($findingWant.Count) сценариев + красное + $($pinChecks.Count) привязок; $liveState; e2e: $e2eState."
     exit 0
 }
-Write-Host "РЕГРЕССИЯ НЕ ПРОЙДЕНА: red=$redOk green=$greenOk decision=$decisionOk redTunnel=$tunnelRed settings=$settingsOk redSettings=$settingsRed e2e=$e2eState"
+Write-Host "РЕГРЕССИЯ НЕ ПРОЙДЕНА: red=$redOk green=$greenOk decision=$decisionOk redTunnel=$tunnelRed settings=$settingsOk redSettings=$settingsRed findings=$findingOk redFindings=$findingRed ($liveState) e2e=$e2eState"
 exit 1
