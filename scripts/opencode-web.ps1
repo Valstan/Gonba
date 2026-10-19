@@ -60,6 +60,25 @@
 # без участия владельца (три немых проверки подряд → restart).
 # Регрессия: scripts/opencode-web.test.ps1 (сценарии «активен и молчит» / «виноват туннель» /
 # «выключен»).
+#
+# Находки Мозга 18.10.2026 (письмо «Замер запускателя на живом»: он прогнал ярлык с COMPUTER до
+# чужого бокса, и канал там шёл через ВПН владельца). Первая находка — тихий `-LocalPort` — уже
+# вылечена каталогом (`Resolve-OcSettings`: параметры командной строки старше файла). Две эти —
+# здесь:
+#   (2) повтор сессии заведён на КЛАСС ВЫВОДА, а не только на собственный 60-секундный таймаут.
+#       На деградировавшем канале banner exchange занимал 10–15 с, ssh выходил САМ по
+#       `ConnectTimeout` (тогда там стояло 8 с), и повтор этого не ловил: пять мёртвых окон подряд,
+#       при том что туннель (он без потолка) поднимался всегда. Теперь потолок задан константой
+#       `$SshConnectTimeoutSec = 20`, а класс ловит Test-OcRetryableSshFailure;
+#   (3) туннель переиспользуется только у СВОЕЙ цели: прежде поиск шёл по паре портов, и туннель
+#       к другому серверу на том же локальном порту молча подошёл бы — ссылка входа от одного
+#       бокса, UI от другого. Теперь цель сверяется (Test-OcTunnelCommandLine), а «порт слушает»
+#       перестало быть доказательством, что слушает НАШ ssh (Test-OcPortMine): чужой форвард
+#       больше не подменяет собой свой.
+# Регрессия на оба класса — четвёртая часть scripts/opencode-web.test.ps1 (офлайновая, без ssh).
+# Честная граница: bash-версия (`opencode-web.sh`) этих правок не получила — она вообще осталась
+# на ревизии #314 и не знает ни `-Stop`/`-Off`, ни сверки живости туннеля. Расхождение записано,
+# а не спрятано: чинить его отдельной задачей, а не походя.
 
 param(
     [string]$SshTarget = '',
@@ -137,6 +156,13 @@ function Get-OcSshExe {
 # новые подключения: замер 18.10 — 78–81 соединение в SYN-RECV, холодный вход занял 42,5 с. Прежние
 # 30 с давали ложное «SSH не ответил» и у `-Check`, и у ярлыка владельца (поймано на живом прогоне).
 $SshSessionTimeoutMs = 60000
+
+# Потолок на СОГЛАСОВАНИЕ (`ConnectTimeout`) для одиночных сессий. Было 8 с — и на деградировавшем
+# канале (замер Мозга 18.10 вечером: COMPUTER → другой бокс через ВПН владельца, banner exchange
+# 10–15 с) ssh выходил САМ по этому потолку раньше, чем получал баннер: запрос ссылки падал
+# детерминированно, пять окон подряд, при том что туннель (у него потолка нет) поднимался всегда.
+# 20 с — не роскошь: повтор остаётся, но теперь первая же попытка имеет шанс дойти.
+$SshConnectTimeoutSec = 20
 
 # ---------------------------------------------------------------- чтение вывода
 
@@ -284,32 +310,74 @@ function Test-OcPort {
     } catch { return $false }
 }
 
-# Туннель мы поднимаем сами строкой `-L <локальный>:127.0.0.1:<удалённый>` — по ней его и находим
-# (окна у него нет, командная строка — единственный след). Порты берутся из конфига компьютера.
+# Слушает ли этот порт ИМЕННО наш процесс. «Порт занят» — не то же самое, что «наш туннель
+# поднялся»: порт мог держать чужой форвард (другой сервер на том же локальном порту) или
+# посторонний процесс. Тогда ssh выйдет по `ExitOnForwardFailure=yes`, а `Test-OcPort` всё равно
+# скажет «занят» — и запускатель молча работал бы через чужой туннель (та же находка 3, только
+# с другой стороны). Возвращает `$null`, если проверить нечем (старая Windows без NetTCPIP) —
+# вызывающий в этом случае возвращается к прежнему поведению «порт слушает».
+function Test-OcPortMine {
+    param([int]$Port, [int]$ProcessId)
+    try {
+        $mine = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Stop |
+            Where-Object { $_.OwningProcess -eq $ProcessId })
+        return ($mine.Count -gt 0)
+    } catch { return $null }
+}
+
+# След нашего туннеля в командной строке ssh: ПАРА ПОРТОВ и ЦЕЛЬ. Порты отвечают на вопрос «тот ли
+# это форвард», цель — «к тому ли боксу». Без второй сверки туннель, поднятый к другому серверу на
+# том же локальном порту, «переиспользовался» бы: ссылка входа — от одного бокса, UI — от другого
+# (находка 3 письма Мозга 18.10, замер на живом). Уникальность портов по каталогу серверов — это
+# договорённость машин владельца, а не свойство; сверка цели снимает класс целиком.
+# Цель идёт последним аргументом, а кавычки вокруг неё зависят от того, как Start-Process склеил
+# строку (Quote-OcArg кавычит только пробелы), поэтому принимаем три формы: без кавычек, в двойных
+# и в одинарных.
+function Test-OcTunnelCommandLine {
+    param([string]$CommandLine, [int]$LocalPort, [int]$RemotePort, [string]$Target = '')
+    if (-not $CommandLine) { return $false }
+    if (-not $CommandLine.Contains("-L $LocalPort`:127.0.0.1:$RemotePort")) { return $false }
+    if (-not $Target) { return $true }
+    $tail = $CommandLine.TrimEnd()
+    # Сравнение регистрозависимое — как у самого ssh: замер 19.10 на этой машине при `Host GONBA`
+    # в ~/.ssh/config: `ssh gonba` → «Could not resolve hostname gonba». То есть псевдоним в другом
+    # регистре — это не наш туннель (его и не могло появиться: ssh на нём падает). Держать здесь
+    # мягче самого ssh значило бы выдумать поведение, которого нет.
+    return ($tail.EndsWith(" $Target") -or
+        $tail.EndsWith(" `"$Target`"") -or
+        $tail.EndsWith(" '$Target'"))
+}
+
+# Туннель мы поднимаем сами строкой `-L <локальный>:127.0.0.1:<удалённый> <цель>` — по ней его и
+# находим (окна у него нет, командная строка — единственный след). Порты и цель — из конфига
+# компьютера. Цель можно не передавать (тогда сверяется только пара портов), но все вызовы из
+# основного хода её передают: без сверки переиспользование может подсунуть чужой бокс.
 function Get-OcTunnel {
-    param([int]$LocalPort, [int]$RemotePort)
-    $needle = "-L $LocalPort`:127.0.0.1:$RemotePort"
+    param([int]$LocalPort, [int]$RemotePort, [string]$Target = '')
     if ($env:OS -ne 'Windows_NT') {
         $found = @()
         foreach ($sshProc in @(Get-Process -Name ssh -ErrorAction SilentlyContinue)) {
             $cmdline = ''
             try { $cmdline = [System.IO.File]::ReadAllText("/proc/$($sshProc.Id)/cmdline") -replace "`0", ' ' } catch { }
-            if ($cmdline -like "*$needle*") { $found += [pscustomobject]@{ ProcessId = $sshProc.Id } }
+            if (Test-OcTunnelCommandLine -CommandLine $cmdline -LocalPort $LocalPort -RemotePort $RemotePort -Target $Target) {
+                $found += [pscustomobject]@{ ProcessId = $sshProc.Id }
+            }
         }
         return $found
     }
     return @(Get-CimInstance Win32_Process -Filter "Name='ssh.exe'" -ErrorAction SilentlyContinue |
-        Where-Object { $_.CommandLine -and $_.CommandLine.Contains($needle) })
+        Where-Object { Test-OcTunnelCommandLine -CommandLine $_.CommandLine -LocalPort $LocalPort -RemotePort $RemotePort -Target $Target })
 }
 
 # Живой туннель — это НЕ «порт слушает». Замер 18.10.2026 (вечер): процесс ssh пережил
 # задохнувшийся сервер и висел с сотнями сокетов в CLOSE_WAIT — порт принимал соединения
 # (Test-OcPort доволен), а форвардить было некуда, и запускатель считал службу выключенной,
 # хотя на самом деле её надо было перезапускать. Признак жизни — установленное TCP-соединение
-# транспорта (наружу, не loopback), а не наличие слушателя.
+# транспорта (наружу, не loopback), а не наличие слушателя. Цель передаём и здесь: туннель,
+# поднятый к ДРУГОМУ боксу, для нас не туннель вовсе (находка 3).
 function Test-OcTunnelLive {
-    param([int]$LocalPort, [int]$RemotePort)
-    $tunnels = @(Get-OcTunnel -LocalPort $LocalPort -RemotePort $RemotePort)
+    param([int]$LocalPort, [int]$RemotePort, [string]$Target = '')
+    $tunnels = @(Get-OcTunnel -LocalPort $LocalPort -RemotePort $RemotePort -Target $Target)
     if ($tunnels.Count -eq 0) { return $false }
     # На Unix-ветке коннекты не разбираем: /proc уже доказал, что это наш процесс туннеля.
     if ($env:OS -ne 'Windows_NT') { return $true }
@@ -359,7 +427,7 @@ function New-OcSshArgs {
     param([string]$Identity)
     # `-T` вместо `-n`: команда уходит на бокс через stdin (см. Invoke-OcSshSession), поэтому
     # stdin нужен живым, а псевдо-tty — нет.
-    $args = @('-T', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8')
+    $args = @('-T', '-o', 'BatchMode=yes', '-o', "ConnectTimeout=$SshConnectTimeoutSec")
     if ($Identity) { $args += @('-i', (Quote-OcArg $Identity)) }
     return $args
 }
@@ -420,6 +488,24 @@ function Invoke-OcSshSession {
         $errText = (($errText -split "`r?`n") | Where-Object { $_ -and $_ -notmatch 'GetConsoleMode' }) -join "`n"
     }
     return @{ status = $status; code = $code; out = $text; err = $errText.Trim() }
+}
+
+# Стоит ли повторять сессию. Повтор заведён на КЛАСС ВЫВОДА, а не только на собственный таймаут
+# запускателя: на плохом канале ssh завершается САМ по `ConnectTimeout` («timed out during banner
+# exchange»), и прежнее условие `status -eq 'timeout'` такой заход не ловило — замер Мозга 18.10
+# (COMPUTER → бокс через ВПН): пять мёртвых окон подряд, в журнале бокса на каждый заход
+# `Connection closed by <адрес> [preauth]`, а ручные ssh проходили со 2–3-й попытки.
+# Класс узкий и про соединение ДО аутентификации — ровно там, где повтор помогает: отказ по ключу
+# (`Permission denied`), неизвестный хост и прочие осмысленные ошибки сюда не попадают, их повтор
+# только затянул бы. `Connection closed by`/`reset by peer` — тот же preauth-класс: sshd под
+# сканерами придерживает слоты и рвёт часть новых соединений (MaxStartups 50:30:150 на боксе).
+function Test-OcRetryableSshFailure {
+    param($Session)
+    if (-not $Session) { return $false }
+    if ($Session.status -eq 'timeout') { return $true }
+    $text = "$($Session.err)`n$($Session.out)"
+    if (-not $text.Trim()) { return $false }
+    return [bool]($text -match 'timed out during banner exchange|Connection timed out|Connection closed by|Connection reset by peer|kex_exchange_identification')
 }
 
 function Show-OcSshProblem {
@@ -577,11 +663,15 @@ function Stop-OcService {
 }
 
 # Закрыть туннель ЭТОГО компьютера. $true — после уборки локальный порт свободен.
+# Цель — часть того, что мы ищем: туннель к другому серверу (пусть и на том же порту) нам не
+# принадлежит, и трогать его нельзя — иначе `-Stop`/`-Off` одного сервера гасили бы чужой.
 function Close-OcTunnel {
-    param([int]$LocalPort, [int]$RemotePort)
-    $tunnels = @(Get-OcTunnel -LocalPort $LocalPort -RemotePort $RemotePort)
+    param([int]$LocalPort, [int]$RemotePort, [string]$Target = '')
+    $tunnels = @(Get-OcTunnel -LocalPort $LocalPort -RemotePort $RemotePort -Target $Target)
     if ($tunnels.Count -eq 0) {
-        Write-Host "Туннеля на 127.0.0.1:$LocalPort нет — закрывать нечего."
+        $whom = ''
+        if ($Target) { $whom = " к $Target" }
+        Write-Host "Туннеля$whom на 127.0.0.1:$LocalPort нет — закрывать нечего."
     } else {
         foreach ($tunnelProc in $tunnels) {
             try {
@@ -594,7 +684,7 @@ function Close-OcTunnel {
     }
     Start-Sleep -Milliseconds 500
     if (Test-OcPort -Port $LocalPort) {
-        Write-Host "Порт 127.0.0.1:$LocalPort всё ещё занят — его держит не наш туннель."
+        Write-Host "Порт 127.0.0.1:$LocalPort всё ещё занят — его держит не наш туннель (возможно, форвард к другому серверу)."
         return $false
     }
     Write-Host "Порт 127.0.0.1:$LocalPort свободен."
@@ -602,8 +692,8 @@ function Close-OcTunnel {
 }
 
 # Поднять туннель и дождаться, пока он начнёт принимать локальные соединения.
-# Возвращает @{ ok = <порт занят>; proc = <процесс ssh> }. Печать проблем оставлена
-# вызывающему: при первом запуске это тупик, а при пересоздании — уже другой разговор.
+# Возвращает @{ ok = <порт занят именно нашим ssh>; proc = <процесс ssh> }. Печать проблем
+# оставлена вызывающему: при первом запуске это тупик, а при пересоздании — уже другой разговор.
 function New-OcTunnel {
     param([string]$SshExe, [string]$Target, [string]$Identity, [int]$LocalPort, [int]$RemotePort)
     $tunnelArgs = @(
@@ -619,12 +709,19 @@ function New-OcTunnel {
     $proc = Start-Process -FilePath $SshExe -ArgumentList $tunnelArgs -PassThru -WindowStyle Hidden
     # Ждём локальный порт до 60 с: ssh поднимает форвард только после аутентификации, а она
     # под сканерами на публичном :22 откладывается (замер 18.10: холодный вход 42 с).
+    # Успех — это порт, занятый ИМЕННО нашим ssh: если порт уже держал чужой форвард, ssh выйдет
+    # по `ExitOnForwardFailure`, а `Test-OcPort` скажет «занят» — и без этой сверки запускатель
+    # выдал бы чужой туннель за свой (находка 3 с другой стороны). Проверить владельца нечем —
+    # работаем как раньше, «порт слушает».
+    $ok = $false
     for ($i = 0; $i -lt 240; $i++) {
         Start-Sleep -Milliseconds 250
-        if (Test-OcPort -Port $LocalPort) { break }
         if ($proc.HasExited) { break }
+        $mine = Test-OcPortMine -Port $LocalPort -ProcessId $proc.Id
+        if ($null -eq $mine) { $mine = Test-OcPort -Port $LocalPort }
+        if ($mine) { $ok = $true; break }
     }
-    return @{ ok = (Test-OcPort -Port $LocalPort); proc = $proc }
+    return @{ ok = $ok; proc = $proc }
 }
 
 # «Туннель не поднялся» — общий диагноз для первого запуска и для пересоздания.
@@ -634,6 +731,9 @@ function Show-OcTunnelProblem {
     Write-Host "Туннель не поднялся (127.0.0.1:$LocalPort)."
     if ($Proc -and $Proc.HasExited) {
         Write-Host "ssh завершился с кодом $($Proc.ExitCode) (окна у туннеля нет — он стартует скрыто; подробности даст ключ -Check)."
+        if (Test-OcPort -Port $LocalPort) {
+            Write-Host 'Порт при этом занят, но не нашим туннелем — вероятно, это форвард к другому серверу или посторонний процесс.'
+        }
     } else {
         Write-Host 'ssh жив, но порт не занят: чаще всего бокс не успел пустить (сканеры на :22) — повтори запуск.'
     }
@@ -646,7 +746,7 @@ function Show-OcTunnelProblem {
 # процессом, но канал уже не форвардит (18.10.2026: сотни CLOSE_WAIT на 14974).
 function Restore-OcTunnel {
     param([string]$SshExe, [string]$Target, [string]$Identity, [int]$LocalPort, [int]$RemotePort)
-    [void](Close-OcTunnel -LocalPort $LocalPort -RemotePort $RemotePort)
+    [void](Close-OcTunnel -LocalPort $LocalPort -RemotePort $RemotePort -Target $Target)
     $started = New-OcTunnel -SshExe $SshExe -Target $Target -Identity $Identity -LocalPort $LocalPort -RemotePort $RemotePort
     $code = 0
     if ($started.ok) { $code = Get-OcServiceHttp -Port $LocalPort -TimeoutMs 8000 }
@@ -944,7 +1044,7 @@ $sshArgs = New-OcSshArgs -Identity $identity
 
 # --- закрыть туннель этого компьютера (`-Stop`)
 if ($Stop) {
-    if (Close-OcTunnel -LocalPort $localPort -RemotePort $remotePort) { exit 0 }
+    if (Close-OcTunnel -LocalPort $localPort -RemotePort $remotePort -Target $target) { exit 0 }
     exit 1
 }
 
@@ -989,7 +1089,7 @@ if ($Off) {
         }
     }
     Write-Host ''
-    [void](Close-OcTunnel -LocalPort $localPort -RemotePort $remotePort)
+    [void](Close-OcTunnel -LocalPort $localPort -RemotePort $remotePort -Target $target)
     Write-Host ''
     if ($failed -eq 0) {
         Write-Host 'Бокс свободен от opencode. Включить обратно — ярлык запуска: он поднимет и службу, и туннель.'
@@ -1022,14 +1122,15 @@ $tunnel = $null
 $ownTunnel = $false
 $needTunnel = -not (Test-OcPort -Port $localPort)
 if (-not $needTunnel) {
-    if (Test-OcTunnelLive -LocalPort $localPort -RemotePort $remotePort) {
+    if (Test-OcTunnelLive -LocalPort $localPort -RemotePort $remotePort -Target $target) {
         Write-Host "Туннель уже поднят на 127.0.0.1:$localPort — переиспользую его."
     } else {
-        # Порт занят, а живого SSH-соединения за ним нет: так выглядит туннель, переживший
-        # падение сервера (замер 18.10.2026 вечер: сотни сокетов в CLOSE_WAIT, порт принимает
-        # соединения, а форвардить некуда — и служба «выключена» на ровном месте).
-        Write-Host "Порт 127.0.0.1:$localPort занят, но живого SSH-соединения за ним нет — пересоздаю туннель."
-        [void](Close-OcTunnel -LocalPort $localPort -RemotePort $remotePort)
+        # Порт занят, а живого SSH-соединения за ним нет (или соединение ведёт к ДРУГОМУ серверу —
+        # сверка цели в Test-OcTunnelLive): так выглядит туннель, переживший падение сервера
+        # (замер 18.10.2026 вечер: сотни сокетов в CLOSE_WAIT, порт принимает соединения, а
+        # форвардить некуда — и служба «выключена» на ровном месте).
+        Write-Host "Порт 127.0.0.1:$localPort занят, но нашего живого SSH-соединения за ним нет — пересоздаю туннель."
+        [void](Close-OcTunnel -LocalPort $localPort -RemotePort $remotePort -Target $target)
         $needTunnel = $true
     }
 }
@@ -1073,12 +1174,17 @@ $pairCmd = New-OcRemoteCommand -Template '__HELPER__ __RPORT__ __LPORT__; echo "
     __HELPER__ = $PairHelper; __RPORT__ = $remotePort; __LPORT__ = $localPort
 }
 $pair = Invoke-OcSshSession -SshArgs $sshArgs -Target $target -Command $pairCmd -TimeoutMs $SshSessionTimeoutMs
-if ($pair.status -eq 'timeout') {
-    # Бокс общий и маленький, а на его публичном :22 висит фон интернета — новое
-    # подключение иногда не укладывается и в 60 с (замер 17.10: повтор помогал,
-    # 18.10: в SYN-RECV висело 78–81 чужое соединение, холодный вход занял 42,5 с).
-    # Один повтор дешевле, чем мёртвое окно у владельца.
-    Write-Host 'SSH не ответил за 60 с — повторяю запрос ссылки один раз.'
+if (Test-OcRetryableSshFailure -Session $pair) {
+    # Бокс общий и маленький, а на его публичном :22 висит фон интернета: новое подключение
+    # иногда не укладывается в 60 с (замер 17.10: повтор помогал; 18.10: в SYN-RECV висело
+    # 78–81 чужое соединение, холодный вход занял 42,5 с), а на плохом канале ssh выходит сам
+    # по `ConnectTimeout`, и прежний повтор ждал своего таймаута зря. Класс — в
+    # Test-OcRetryableSshFailure. Один повтор дешевле, чем мёртвое окно у владельца.
+    if ($pair.status -eq 'timeout') {
+        Write-Host 'SSH не ответил за 60 с — повторяю запрос ссылки один раз.'
+    } else {
+        Write-Host 'SSH оборвался на согласовании (banner exchange / таймаут соединения) — повторяю запрос ссылки один раз.'
+    }
     $pair = Invoke-OcSshSession -SshArgs $sshArgs -Target $target -Command $pairCmd -TimeoutMs $SshSessionTimeoutMs
 }
 $link = ''
