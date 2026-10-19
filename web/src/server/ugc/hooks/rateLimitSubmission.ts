@@ -8,6 +8,7 @@ import { isAllowedMime } from '../s3'
 import {
   clampText,
   clientIp,
+  isContentStaff,
   OBJECT_KEY_RE,
   UGC_MAX_AUTHOR,
   UGC_MAX_CAPTION,
@@ -60,7 +61,11 @@ function validateMediaDescriptor(m: unknown, where: string): void {
 
 export const rateLimitSubmission: CollectionBeforeValidateHook = ({ data, operation, req }) => {
   if (operation !== 'create') return data
-  if (req.user) return data
+  // Пропуск только для персонала (admin|editor). Раньше здесь стояло `if (req.user) return data`,
+  // и любая учётка коллекции `users` (роль `user`/`support`/`manager`) отключала и проверку
+  // формата objectKey, и mime, и размеров, и rate-limit: аудит 2026-10-18 показал, что через
+  // это аутентифицированный мог подсунуть чужой ключ в `media[]` и удалить чужое медиа.
+  if (isContentStaff(req.user)) return data
   if (!data || typeof data !== 'object') throw new APIError('Некорректный запрос.', 400)
 
   // 1) rate-limit по IP — до обращения к БД. Одна публикация = один POST, даже если в

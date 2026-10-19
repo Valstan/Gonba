@@ -2,7 +2,7 @@ import type { CollectionConfig } from 'payload'
 
 import { slugField } from 'payload'
 import { adminOrEditor } from '../../access/adminOrEditor'
-import { anyone } from '../../access/anyone'
+import { authenticatedOrPublished } from '../../access/authenticatedOrPublished'
 import { populatePublishedAt } from '../../hooks/populatePublishedAt'
 import { defaultLexical } from '@/fields/defaultLexical'
 
@@ -15,7 +15,7 @@ export const Services: CollectionConfig<'services'> = {
   access: {
     create: adminOrEditor,
     delete: adminOrEditor,
-    read: anyone,
+    read: authenticatedOrPublished,
     update: adminOrEditor,
   },
   admin: {

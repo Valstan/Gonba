@@ -12,6 +12,7 @@ import { beforeSyncWithSearch } from '@/search/beforeSync'
 
 import { Page, Post } from '@/payload-types'
 import { getServerSideURL } from '@/utilities/getURL'
+import { adminOrEditor } from '@/access/adminOrEditor'
 
 const generateTitle: GenerateTitle<Post | Page> = ({ doc }) => {
   return doc?.title ? `${doc.title} | Жемчужина Вятки` : 'Жемчужина Вятки'
@@ -30,6 +31,15 @@ export const plugins: Plugin[] = [
       labels: {
         singular: 'Редирект',
         plural: 'Редиректы',
+      },
+      // Плагин задаёт только `read: () => true`; остальные операции падали в дефолт ядра
+      // `Boolean(user)` — то есть **любая** учётка `users` (включая роль `user`) могла
+      // создать `from: /любой-путь → https://чужой-сайт` и получить открытый редирект с
+      // нашего домена, а также править и удалять настоящие редиректы (аудит 2026-10-18).
+      access: {
+        create: adminOrEditor,
+        update: adminOrEditor,
+        delete: adminOrEditor,
       },
       // @ts-expect-error - This is a valid override, mapped fields don't resolve to the same type
       fields: ({ defaultFields }) => {
@@ -67,6 +77,15 @@ export const plugins: Plugin[] = [
         singular: 'Форма',
         plural: 'Формы',
       },
+      // Коллекция `forms` хранит адресатов уведомлений (`emails`), и плагин не задаёт ей
+      // права на запись — по дефолту ядра их получал любой аутентифицированный. Достаточно
+      // было `PATCH /api/forms/:id` с подменённым `emailTo`, чтобы **все последующие**
+      // заявки сайта уходили на чужой адрес (аудит 2026-10-18).
+      access: {
+        create: adminOrEditor,
+        update: adminOrEditor,
+        delete: adminOrEditor,
+      },
       fields: ({ defaultFields }) => {
         return defaultFields.map((field) => {
           if ('name' in field && field.name === 'confirmationMessage') {
@@ -92,6 +111,14 @@ export const plugins: Plugin[] = [
         singular: 'Отправка формы',
         plural: 'Отправки форм',
       },
+      // Здесь ПДн обратившихся (имя, телефон, e-mail, текст сообщения). Дефолт плагина —
+      // `read: req.user?.collection === config.admin.user`, а это **любая** учётка коллекции
+      // `users` любой роли; `delete` вообще не был задан и падал в `Boolean(user)`.
+      // Создание оставляем публичным: форму заполняет анонимный посетитель.
+      access: {
+        read: adminOrEditor,
+        delete: adminOrEditor,
+      },
     },
   }),
   searchPlugin({
@@ -101,6 +128,13 @@ export const plugins: Plugin[] = [
       labels: {
         singular: 'Результат поиска',
         plural: 'Результаты поиска',
+      },
+      // Индекс поиска: `create` плагин запрещает (`() => false`), `read` оставляет публичным,
+      // а `update`/`delete` не задаёт — их получал любой аутентифицированный (порча/чистка
+      // индекса). Права на запись — персоналу (аудит 2026-10-18).
+      access: {
+        update: adminOrEditor,
+        delete: adminOrEditor,
       },
       fields: ({ defaultFields }) => {
         return [...defaultFields, ...searchFields]

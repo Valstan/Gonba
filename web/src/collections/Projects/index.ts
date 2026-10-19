@@ -2,7 +2,7 @@ import type { CollectionConfig } from 'payload'
 
 import { slugField } from 'payload'
 import { adminOrEditor } from '../../access/adminOrEditor'
-import { anyone } from '../../access/anyone'
+import { authenticatedOrPublished } from '../../access/authenticatedOrPublished'
 import { populatePublishedAt } from '../../hooks/populatePublishedAt'
 import { populateProjectTitle } from '../../hooks/populateProjectTitle'
 import { revalidateProject, revalidateProjectDelete } from './hooks/revalidateProject'
@@ -17,7 +17,7 @@ export const Projects: CollectionConfig<'projects'> = {
   access: {
     create: adminOrEditor,
     delete: adminOrEditor,
-    read: anyone,
+    read: authenticatedOrPublished,
     update: adminOrEditor,
   },
   admin: {

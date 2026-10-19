@@ -1,7 +1,6 @@
 import type { CollectionConfig } from 'payload'
 
 import { adminOrManager } from '../../access/adminOrManager'
-import { anyone } from '../../access/anyone'
 
 export const Orders: CollectionConfig<'orders'> = {
   slug: 'orders',
@@ -10,7 +9,11 @@ export const Orders: CollectionConfig<'orders'> = {
     plural: 'Заказы',
   },
   access: {
-    create: anyone,
+    // Заказы создаются только из админки: в витрине нет оформления заказа, ни один
+    // маршрут приложения их не пишет (аудит 2026-10-18 — проверено grep'ом по `collection: 'orders'`).
+    // Публичное `create: anyone` означало, что аноним мог наполнить очередь заказов
+    // поддельными заявками с произвольной суммой и статусом оплаты.
+    create: adminOrManager,
     delete: adminOrManager,
     read: adminOrManager,
     update: adminOrManager,

@@ -10,6 +10,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 import { adminOrEditor } from '../access/adminOrEditor'
+import { adminOrEditorField } from '../access/adminOrEditorField'
 import { anyone } from '../access/anyone'
 import {
   deleteYandexResource,
@@ -23,6 +24,24 @@ import { preventDeleteIfInUse } from '../server/media-usage/preventDeleteHook'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
+
+/**
+ * Служебные поля связи с Яндекс.Диском (`yandex*`).
+ *
+ * `admin.readOnly` — только UI-флаг: он не мешает записать поле через REST/GraphQL.
+ * Аудит 2026-10-18 нашёл обе стороны одной дыры: публичный REST отдавал `yandexPublicUrl`
+ * (прямая ссылка на Диск в обход нашего прокси), а редактор мог через `PATCH /api/media/:id`
+ * подставить в `yandexPath` **чужой** путь и удалить свою медиазапись — `afterDelete` стирает
+ * файл на Диске по этому пути (`permanently: true`), то есть пропадал файл чужой публикации.
+ *
+ * Чтение и запись — только персоналу. Внутренние операции (синк, прокси файла, home-carousel)
+ * читают и пишут эти поля через Local API с `overrideAccess: true` и под ограничение не попадают.
+ */
+const yandexFieldAccess = {
+  read: adminOrEditorField,
+  create: adminOrEditorField,
+  update: adminOrEditorField,
+}
 
 export const Media: CollectionConfig = {
   slug: 'media',
@@ -82,6 +101,7 @@ export const Media: CollectionConfig = {
     {
       name: 'yandexPath',
       type: 'text',
+      access: yandexFieldAccess,
       admin: {
         position: 'sidebar',
         readOnly: true,
@@ -90,6 +110,7 @@ export const Media: CollectionConfig = {
     {
       name: 'yandexResourceId',
       type: 'text',
+      access: yandexFieldAccess,
       admin: {
         position: 'sidebar',
         readOnly: true,
@@ -98,6 +119,7 @@ export const Media: CollectionConfig = {
     {
       name: 'yandexPublicKey',
       type: 'text',
+      access: yandexFieldAccess,
       admin: {
         position: 'sidebar',
         readOnly: true,
@@ -106,6 +128,7 @@ export const Media: CollectionConfig = {
     {
       name: 'yandexPublicUrl',
       type: 'text',
+      access: yandexFieldAccess,
       admin: {
         position: 'sidebar',
         readOnly: true,
@@ -114,6 +137,7 @@ export const Media: CollectionConfig = {
     {
       name: 'yandexSha256',
       type: 'text',
+      access: yandexFieldAccess,
       admin: {
         position: 'sidebar',
         readOnly: true,
@@ -122,6 +146,7 @@ export const Media: CollectionConfig = {
     {
       name: 'yandexSyncedAt',
       type: 'date',
+      access: yandexFieldAccess,
       admin: {
         position: 'sidebar',
         readOnly: true,
@@ -130,6 +155,7 @@ export const Media: CollectionConfig = {
     {
       name: 'yandexCheckedAt',
       type: 'date',
+      access: yandexFieldAccess,
       admin: {
         position: 'sidebar',
         readOnly: true,
@@ -138,6 +164,7 @@ export const Media: CollectionConfig = {
     {
       name: 'yandexError',
       type: 'text',
+      access: yandexFieldAccess,
       admin: {
         position: 'sidebar',
         readOnly: true,

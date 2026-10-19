@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto'
 
+import { extractClientIp } from '@/utilities/clientIp'
+
 // Общие константы и утилиты «Народной ленты» (UGC фото/видео). Портировано из Sabantuy
 // (docs/plans/sabantuy-borrowings.md, этап 1); фазы фестиваля убраны — GONBA без сезона.
 // Разделяемы между коллекциями, хуками и роутами — единый источник правды по лимитам.
@@ -33,11 +35,28 @@ export const UGC_MAX_FILES = Number(process.env.UGC_MAX_FILES) || 20
 export const OBJECT_KEY_RE =
   /^media\/[a-z0-9-]+\/\d{6}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[a-z0-9]{2,5}$/
 
-/** IP клиента из заголовков прокси (на проде nginx ставит X-Forwarded-For / X-Real-IP). */
+/** IP клиента — с доверенного хопа (первый хоп XFF задаёт сам клиент, см. `extractClientIp`). */
 export function clientIp(headers: Headers): string {
-  const xff = headers.get('x-forwarded-for')
-  if (xff) return xff.split(',')[0]!.trim()
-  return headers.get('x-real-ip')?.trim() || 'unknown'
+  return extractClientIp(headers) || 'unknown'
+}
+
+/**
+ * Персонал контента: роли, которым можно пропускать анти-абуз UGC-хуков.
+ *
+ * **Почему отдельная функция.** В этих хуках раньше стояло `if (req.user) return data` —
+ * то есть «аутентифицирован» читалось как «персонал». Любая учётка коллекции `users`
+ * (включая роль `user`/`support`/`manager`) отключала и валидацию ключей объекта, и
+ * rate-limit, и дедуп жалоб: анонимные предохранители обходились бесплатно, а три
+ * жалобы подряд авто-скрывали чужую публикацию. Персонал — это ровно те роли, что и в
+ * `adminOrEditor` (admin|editor); `manager` — инфраструктурная роль (Я.Диск, VK-импорт),
+ * модерация ленты ей не вверена.
+ */
+export const CONTENT_STAFF_ROLES = ['admin', 'editor'] as const
+
+export function isContentStaff(user: unknown): boolean {
+  const roles = (user as { roles?: unknown } | null)?.roles
+  if (!Array.isArray(roles)) return false
+  return roles.some((role) => (CONTENT_STAFF_ROLES as readonly string[]).includes(String(role)))
 }
 
 /**
