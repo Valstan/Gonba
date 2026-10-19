@@ -29,16 +29,31 @@ const dirname = path.dirname(filename)
  * Служебные поля связи с Яндекс.Диском (`yandex*`).
  *
  * `admin.readOnly` — только UI-флаг: он не мешает записать поле через REST/GraphQL.
- * Аудит 2026-10-18 нашёл обе стороны одной дыры: публичный REST отдавал `yandexPublicUrl`
+ * Аудит 2026-10-18 нашёл две стороны одной дыры: публичный REST отдавал `yandexPublicUrl`
  * (прямая ссылка на Диск в обход нашего прокси), а редактор мог через `PATCH /api/media/:id`
  * подставить в `yandexPath` **чужой** путь и удалить свою медиазапись — `afterDelete` стирает
  * файл на Диске по этому пути (`permanently: true`), то есть пропадал файл чужой публикации.
  *
- * Чтение и запись — только персоналу. Внутренние операции (синк, прокси файла, home-carousel)
- * читают и пишут эти поля через Local API с `overrideAccess: true` и под ограничение не попадают.
+ * **Разделение на два набора — не косметика, а урок 19.10.** Первая версия правки закрыла
+ * чтение **всем** `yandex*` полям разом, и прод отдал битые картинки: `afterRead`-хук
+ * переписывает `doc.url` на прокси `/api/media/file/{id}` только если **видит**
+ * `yandexPath`/`yandexResourceId`. Там, где чтение идёт с соблюдением прав (публичный REST,
+ * SSR-запросы с `overrideAccess: false`), поля приходили пустыми, хук не срабатывал, и
+ * наружу уезжал сырой payload'овский url `/api/media/file/<filename>` — а этот маршрут
+ * принимает **id** и отдаёт 404. То есть закрытие чтения «лишнего» поля ломает не утечку,
+ * а раздачу файлов.
+ *
+ * Поэтому: чтение закрыто ровно там, где лежит **прямая ссылка на файл в обход прокси**
+ * (`yandexPublicUrl` и `yandexPublicKey`, из которого ссылку можно собрать); поля, от которых
+ * зависит хук раздачи, читаются как раньше. Запись — персоналу во всех случаях.
  */
-const yandexFieldAccess = {
+const yandexLinkAccess = {
   read: adminOrEditorField,
+  create: adminOrEditorField,
+  update: adminOrEditorField,
+}
+
+const yandexFieldAccess = {
   create: adminOrEditorField,
   update: adminOrEditorField,
 }
@@ -119,7 +134,7 @@ export const Media: CollectionConfig = {
     {
       name: 'yandexPublicKey',
       type: 'text',
-      access: yandexFieldAccess,
+      access: yandexLinkAccess,
       admin: {
         position: 'sidebar',
         readOnly: true,
@@ -128,7 +143,7 @@ export const Media: CollectionConfig = {
     {
       name: 'yandexPublicUrl',
       type: 'text',
-      access: yandexFieldAccess,
+      access: yandexLinkAccess,
       admin: {
         position: 'sidebar',
         readOnly: true,
