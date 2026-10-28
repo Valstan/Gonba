@@ -1,0 +1,20 @@
+[Unit]
+Description=Neural egress VPN client (Xray, NextGenVPN subscription) — loopback socks+http
+Documentation=file:///home/valstan/repo/Gonba/deploy/neural/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=nobody
+Group=nogroup
+ExecStart=/usr/local/bin/xray run -config /etc/neural/vpn/client.json
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadOnlyPaths=/etc/neural/vpn
+
+[Install]
+WantedBy=multi-user.target

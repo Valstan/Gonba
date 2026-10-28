@@ -472,9 +472,43 @@ jobs:
             sudo install -m 0755 "$BASE/scripts/opencode-web-watchdog.sh" /usr/local/bin/opencode-web-watchdog
             echo "скрипт обновлён из репо: opencode-web-watchdog"
           fi
+          # pair-link и метёлка /tmp раньше ставились руками (17.10) и после снятия движка
+          # 19.10 исчезли — ярлык «Чат» тогда падал бы на отсутствии команды. Тот же
+          # идемпотентный цикл: файл, который никто не исполняет, — не источник правды.
+          for s in opencode-pair-link.sh:opencode-pair-link opencode-tmp-sweep.sh:opencode-tmp-sweep; do
+            src="$BASE/scripts/${s%%:*}"
+            dst="/usr/local/bin/${s##*:}"
+            [ -f "$src" ] || continue
+            if ! cmp -s "$src" "$dst"; then
+              sudo install -m 0755 "$src" "$dst"
+              echo "скрипт обновлён из репо: ${s##*:}"
+            fi
+          done
+          # Egress движка через ВПН (D-152, письмо Мозга 2026-10-22): скрипты смены
+          # сервера и обновления подписки — тоже из репо, тем же идемпотентным способом.
+          # Секрета здесь нет и не будет: в репо едут только скрипты, которые читают
+          # ссылку подписки с бокса (/etc/neural/vpn/subscription.url, 600 root).
+          # Каталог /etc/neural/vpn — 750 root:nogroup: xray работает под nobody.
+          sudo install -d -m 0755 /usr/local/lib/neural
+          sudo install -d -m 0750 /etc/neural/egress.d
+          sudo install -d -m 0750 /etc/neural/vpn
+          sudo install -d -m 0755 /var/lib/neural/vpn
+          if ! sudo cmp -s "$BASE/deploy/neural/refresh-subscription.sh" /usr/local/lib/neural/refresh-subscription.sh; then
+            sudo install -m 0755 "$BASE/deploy/neural/refresh-subscription.sh" /usr/local/lib/neural/refresh-subscription.sh
+            echo "скрипт обновлён из репо: refresh-subscription"
+          fi
+          # `sudo cmp`, не просто `cmp`: /etc/neural/egress.d — 0750 root:root, valstan
+          # его не читает, и обычный cmp всегда «отличается» → скрипт переустанавливался
+          # бы на каждом деплое (замер 28.10: ложное «обновлён» вместо тишины).
+          if ! sudo cmp -s "$BASE/deploy/neural/10-nextgenvpn.sh" /etc/neural/egress.d/10-nextgenvpn.sh; then
+            sudo install -m 0755 "$BASE/deploy/neural/10-nextgenvpn.sh" /etc/neural/egress.d/10-nextgenvpn.sh
+            echo "скрипт обновлён из репо: 10-nextgenvpn"
+          fi
           for unit in gonba-vk-sync.service gonba-vk-sync.timer \
                       gonba-media-cache.service gonba-media-cache.timer \
                       opencode-web.service \
+                      neural-vpn.service \
+                      opencode-tmp-sweep.service opencode-tmp-sweep.timer \
                       opencode-web-watchdog.service opencode-web-watchdog.timer; do
             src="$BASE/deploy/systemd/$unit"
             [ -f "$src" ] || continue
