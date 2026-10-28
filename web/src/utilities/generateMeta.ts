@@ -39,6 +39,25 @@ const getImageURL = (image?: Media | Config['db']['defaultIDType'] | null) => {
 
 const clean = (value?: string | null): string => (typeof value === 'string' ? value.trim() : '')
 
+/** Длина заголовка без суффикса сайта: в выдаче он всё равно обрезается. */
+const TITLE_MAX = 60
+
+/**
+ * Мягкое усечение по границе слова. Применяется только к заголовку документа
+ * (у VK-импорта это целая строка поста — 190 знаков в `<title>`), а не к
+ * `meta.title`: там текст задан руками и обрезать его — значит спорить с
+ * автором.
+ */
+const shorten = (value: string, max: number): string => {
+  if (value.length <= max) return value
+
+  const cut = value.slice(0, max)
+  const lastSpace = cut.lastIndexOf(' ')
+  const head = lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut
+
+  return `${head.trimEnd()}…`
+}
+
 export const generateMeta = async (args: { doc: MetaDoc | null }): Promise<Metadata> => {
   const { doc } = args
 
@@ -50,7 +69,7 @@ export const generateMeta = async (args: { doc: MetaDoc | null }): Promise<Metad
   // документа. Суффикс дописываем только если его там ещё нет: иначе страница
   // остаётся с голым названием проекта («Жемчужина Вятки») и в выдаче не
   // отличается от остальных — рекомендация Вебмастера 22.10.
-  const titleBase = clean(doc?.meta?.title) || docTitle
+  const titleBase = clean(doc?.meta?.title) || shorten(docTitle, TITLE_MAX)
   const title = !titleBase
     ? SITE.name
     : titleBase.includes(SITE.name)
@@ -63,7 +82,7 @@ export const generateMeta = async (args: { doc: MetaDoc | null }): Promise<Metad
   const description =
     clean(doc?.meta?.description) ||
     clean(doc?.summary) ||
-    (docTitle ? `${docTitle} — ${SITE.description}` : SITE.description)
+    (docTitle ? `${docTitle}: ${SITE.description}` : SITE.description)
 
   return {
     description,
