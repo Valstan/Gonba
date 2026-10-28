@@ -234,6 +234,16 @@ function Wait-Engine {
 function Show-Header { param([string]$Text) Write-Host ''; Write-Host "=== $Text ===" -ForegroundColor Cyan }
 
 # ---------- действия ----------
+function Update-AgentClone {
+    # Деплой обновляет боевое дерево (~/GONBA), а клон агента — нет. Без этого улей
+    # открывается на коде недельной давности, и это выглядит как «модель тупит», а не
+    # как устаревшее дерево. `--ff-only`: чужие локальные коммиты и грязное дерево
+    # останавливают обновление, а не переписываются.
+    $r = Invoke-Remote 'cd /home/valstan/repo/Gonba && git pull --ff-only --quiet 2>&1 | tail -2; git log -1 --format="клон агента: %h %ad" --date=short'
+    if ($r.Output) { Write-Host $r.Output -ForegroundColor DarkGray }
+    if ($r.Code -ne 0) { Write-Host 'клон агента не обновился (грязное дерево или свои коммиты) — работаю на том, что есть.' -ForegroundColor Yellow }
+}
+
 function Action-Chat {
     Show-Header 'Чат OpenCode на боксе Гоньбы'
     if ((Get-EngineState) -ne 'up') {
@@ -243,11 +253,12 @@ function Action-Chat {
         if (-not (Wait-Engine -TimeoutSec 45)) {
             # Показываем не «не поднялось», а состояние и хвост журнала: иначе владелец
             # снова гадает, что случилось (это уже стоило полутора суток 18.10).
-            $diag = Invoke-RemoteRoot 'systemctl is-active opencode-web; systemctl show opencode-web -p Result -p NRestarts; journalctl -u opencode-web -n 8 --no-pager -o cat'
+            $diag = Invoke-RemoteRoot 'systemctl is-active opencode-web || true; systemctl show opencode-web -p Result -p NRestarts; journalctl -u opencode-web -n 8 --no-pager -o cat'
             throw "Движок не поднялся за 45 с.`n$($diag.Output)"
         }
     }
     Start-ChatTunnel
+    Update-AgentClone
     $r = Invoke-Remote "opencode-pair-link $($cfg.ENGINE_PORT) $($cfg.CHAT_LOCAL_PORT)"
     Assert-RemoteOk $r 'Не удалось получить ссылку входа'
     $link = ($r.Output -split "`r?`n" | Where-Object { $_ -match '^https?://' } | Select-Object -Last 1)
