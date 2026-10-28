@@ -1,9 +1,9 @@
 # Session Handoff
 
 **Status:** IDLE
-**Updated:** 2026-10-28
+**Updated:** 2026-10-29
 **Branch:** main
-**Прод:** содержимое прода = `fda87a7` ([PR #328](https://github.com/Valstan/Gonba/pull/328)), деплой `40765223637` success; перед ним `4f29210` ([PR #327](https://github.com/Valstan/Gonba/pull/327)), деплой success. Health 200, главная 200, admin 200. **Улей** (движок `opencode v2.0.32` на loopback `127.0.0.1:49374`, `neural-vpn` поднят, оба юнита `disabled`) — без изменений с прошлой сессии. Диск 83 % (триггер 85 %), RAM: доступно ~498 МБ.
+**Прод:** содержимое прода = `fda87a7` ([PR #328](https://github.com/Valstan/Gonba/pull/328)); фактически задеплоен `b9f1aa8` ([PR #329](https://github.com/Valstan/Gonba/pull/329), docs — на поведение не влияет), деплой success; перед ним `fda87a7` и `4f29210` ([PR #327](https://github.com/Valstan/Gonba/pull/327)) — все три деплоя success. Health 200, главная 200, admin 200. **Улей** (движок `opencode v2.0.32` на loopback `127.0.0.1:49374`, `neural-vpn` поднят, оба юнита `disabled`) — без изменений с прошлой сессии. Диск 83 % (триггер 85 %), RAM: доступно ~498 МБ.
 
 ---
 
@@ -22,7 +22,7 @@
 ## Следующий шаг
 
 1. **Почта Мозга** — на `/start` смотреть `from-brain/` двухканально. Ответ по вебмастеру отправлен: `mailbox/to-brain/2026-10-28-webmaster-titles-fixed-and-salvage-closed.md` (маршруты, причина, что сделано + строка о сносе salvage + попутно про образ раннера).
-2. **`ubuntu-latest` → Ubuntu 26 (due 25.10 — срок прошёл).** Пункт закрыт по существу 28.10: образ **по-прежнему Ubuntu 24.04** (`Image Release: ubuntu24/20261012.334`). Метод, который сработал, — не `gh run view --log` (он отдаёт пустой лог), а API-zip: `curl -sL -H "Authorization: token $(gh auth token)" -o ci.zip https://api.github.com/repos/Valstan/Gonba/actions/runs/<id>/logs` + `grep "Runner Image"`. Возврат: первый красный прогон на этой теме.
+2. **`ubuntu-latest` → Ubuntu 26 — пункт закрыт 28.10 измерением** (в backlog, `docs/followups/tech-debt.md`): образ **по-прежнему Ubuntu 24.04** (`Image Release: ubuntu24/20261012.334`), переезда не было. Метод: `gh run view --log` отдаёт пустой лог, а лог достаётся API-zip'ом — `curl -sL -H "Authorization: token $(gh auth token)" -o ci.zip https://api.github.com/repos/Valstan/Gonba/actions/runs/<id>/logs` + `grep "Runner Image"`. Возврат — **первый красный прогон** на этой теме.
 3. **Два клиентских запускателя** (`scripts/opencode-web.ps1` vs `scripts/gonba-kit/`) — решить: поглощение или разделение ролей в шапках.
 4. **Диск 83 %** (`~/.cache/ms-playwright` 681 МБ + `~/.npm` 390 МБ — замер 28.10): снять, это не данные.
 5. **Открытые вопросы к владельцу:** восстановление комнаты KARMAN (bootstrap-токен + происхождение значения в GH secret); G135 — шесть FK-мин (design + прод-DDL, `#025`); DeepSeek top-up (VK-план «Афиша»); ротация SSH CI-ключа **до 08.11**.
