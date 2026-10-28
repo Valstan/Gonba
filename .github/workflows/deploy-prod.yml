@@ -504,6 +504,15 @@ jobs:
             sudo install -m 0755 "$BASE/deploy/neural/10-nextgenvpn.sh" /etc/neural/egress.d/10-nextgenvpn.sh
             echo "скрипт обновлён из репо: 10-nextgenvpn"
           fi
+          # Глобальный конфиг движка (политики: что агенту можно, что в deny) до 28.10
+          # копировался на бокс руками при установке — то есть правка политики в репо
+          # не доезжала до бокса, и это ничем не подсвечивалось. Тот же cmp+install.
+          # restart не нужен: конфиг читается при старте службы, а её сессии рвать нельзя.
+          mkdir -p /home/valstan/.config/opencode
+          if ! cmp -s "$BASE/deploy/opencode/opencode.json" /home/valstan/.config/opencode/opencode.json; then
+            install -m 0644 "$BASE/deploy/opencode/opencode.json" /home/valstan/.config/opencode/opencode.json
+            echo "конфиг движка обновлён из репо: opencode.json (вступит в силу при следующем старте)"
+          fi
           for unit in gonba-vk-sync.service gonba-vk-sync.timer \
                       gonba-media-cache.service gonba-media-cache.timer \
                       opencode-web.service \
