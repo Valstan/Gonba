@@ -1,3 +1,5 @@
+import type { Metadata } from 'next'
+
 import configPromise from '@payload-config'
 import { getPayload } from 'payload'
 import Link from 'next/link'
@@ -6,9 +8,17 @@ import { Breadcrumbs } from '@/components/Breadcrumbs'
 import { AdminManageActions } from '@/components/AdminOverlay'
 import { Media } from '@/components/Media'
 import { withRetry } from '@/utilities/withRetry'
+import { SITE } from '@/seo/site'
 
 export const dynamic = 'force-static'
 export const revalidate = 600
+
+// Афиша отдавалась совсем без <title> (рекомендация Вебмастера 22.10).
+export const metadata: Metadata = {
+  title: `События — ${SITE.name}`,
+  description:
+    'Афиша событий усадьбы Гоньба: мастер-классы, экскурсии и праздники. Даты, места и запись — село Гоньба, Малмыжский район Кировской области.',
+}
 
 export default async function EventsPage() {
   const payload = await getPayload({ config: configPromise })

@@ -1,3 +1,5 @@
+import type { Metadata } from 'next'
+
 import configPromise from '@payload-config'
 import { getPayload } from 'payload'
 import { draftMode } from 'next/headers'
@@ -10,6 +12,7 @@ import type { Event } from '@/payload-types'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
 import { AdminOverlay } from '@/components/AdminOverlay'
 import { withRetry } from '@/utilities/withRetry'
+import { generateMeta } from '@/utilities/generateMeta'
 import { JsonLd } from '@/components/seo/JsonLd'
 import { eventJsonLd } from '@/seo/jsonld'
 
@@ -33,6 +36,16 @@ type Args = {
   params: Promise<{
     slug?: string
   }>
+}
+
+// Карточка события отдавалась совсем без <title> (рекомендация Вебмастера
+// 22.10): у маршрута не было generateMetadata. Заголовок — title документа,
+// описание — summary.
+export async function generateMetadata({ params: paramsPromise }: Args): Promise<Metadata> {
+  const { slug = '' } = await paramsPromise
+  const event = await queryEventBySlug({ slug: decodeURIComponent(slug) })
+
+  return generateMeta({ doc: event })
 }
 
 export default async function EventPage({ params: paramsPromise }: Args) {

@@ -174,5 +174,7 @@ export default async function Page({ searchParams: searchParamsPromise }: Args) 
 export function generateMetadata(): Metadata {
   return {
     title: 'Поиск — Жемчужина Вятки',
+    description:
+      'Полнотекстовый поиск по сайту «Жемчужина Вятки»: проекты, события, услуги и публикации усадьбы Гоньба.',
   }
 }
