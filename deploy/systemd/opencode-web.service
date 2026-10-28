@@ -1,8 +1,9 @@
 [Unit]
 Description=OpenCode Web (anonymous pool: free models, no account) — v2 API + web UI on loopback
 Documentation=https://opencode.ai/v2/docs/cli/web/
-After=network-online.target
-Wants=network-online.target
+# Egress — только через ВПН (D-152): движок подтягивает свой ВПН-клиент сам.
+After=network-online.target neural-vpn.service
+Wants=network-online.target neural-vpn.service
 # Цикл перезапусков не должен превратиться в молотилку: 5 падений за 5 минут — стоп.
 StartLimitIntervalSec=300
 StartLimitBurst=5
@@ -11,11 +12,20 @@ StartLimitBurst=5
 Type=simple
 User=valstan
 Group=valstan
-WorkingDirectory=/home/valstan/work/GONBA
+WorkingDirectory=/home/valstan/repo/Gonba
 EnvironmentFile=/home/valstan/.config/opencode-web/anon.env
 Environment=HOME=/home/valstan
 # Отдельный каталог данных = отдельный пул лимитов (см. docs/plans/opencode-web-on-prod.md).
 Environment=XDG_DATA_HOME=/home/valstan/.local/share/opencode-anon
+# --- Egress через ВПН (D-152, письмо Мозга 2026-10-22) ---
+# Free-модели квотируются на СЕТЬ: без ВПН улей ест квоту прод-IP, а на общем белом
+# адресе суммарную частоту не видит никто. Bun уважает HTTPS_PROXY (socks — нет),
+# поэтому юнит ходит в HTTP-инбаунд xray (:8118). nft-redirect по uid здесь нельзя:
+# движок и сайт под одним пользователем valstan, redirect увёл бы в туннель весь прод.
+# Fail-closed: нет xray — нет выхода в модели; тихого прямого выхода не бывает.
+Environment=HTTPS_PROXY=http://127.0.0.1:8118
+Environment=HTTP_PROXY=http://127.0.0.1:8118
+Environment=NO_PROXY=localhost,127.0.0.1,::1
 ExecStart=/usr/local/bin/opencode serve --hostname 127.0.0.1 --port 49374
 Restart=on-failure
 RestartSec=5
