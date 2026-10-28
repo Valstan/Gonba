@@ -89,6 +89,8 @@ export async function generateMetadata({ params: paramsPromise }: Args): Promise
   const { pageNumber } = await paramsPromise
   return {
     title: `Посты — страница ${pageNumber || ''} | Жемчужина Вятки`,
+    description:
+      'Новости и публикации усадьбы Гоньба: события, мастер-классы и жизнь проектов в Малмыжском районе Кировской области.',
   }
 }
 

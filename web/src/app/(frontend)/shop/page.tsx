@@ -1,3 +1,5 @@
+import type { Metadata } from 'next'
+
 import configPromise from '@payload-config'
 import { getPayload } from 'payload'
 import Link from 'next/link'
@@ -8,9 +10,17 @@ import { Breadcrumbs } from '@/components/Breadcrumbs'
 import { Media } from '@/components/Media'
 import { AdminManageActions } from '@/components/AdminOverlay'
 import { withRetry } from '@/utilities/withRetry'
+import { SITE } from '@/seo/site'
 
 export const dynamic = 'force-static'
 export const revalidate = 600
+
+// Витрина отдавалась совсем без <title> (рекомендация Вебмастера 22.10).
+export const metadata: Metadata = {
+  title: `Магазин — ${SITE.name}`,
+  description:
+    'Товары ручной работы и продукция усадьбы Гоньба: изделия местных мастеров и вятские сувениры. Доставка и самовывоз — Малмыжский район Кировской области.',
+}
 
 export default async function ShopPage() {
   const payload = await getPayload({ config: configPromise })

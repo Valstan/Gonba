@@ -1,9 +1,27 @@
 import type { Metadata } from 'next'
 
-import type { Media, Page, Post, Config } from '../payload-types'
+import type { Media, Config } from '../payload-types'
 
 import { mergeOpenGraph } from './mergeOpenGraph'
 import { getServerSideURL } from './getURL'
+import { SITE } from '@/seo/site'
+
+/**
+ * Документ, из которого собирается `<title>`/`description`. Структурный тип, а
+ * не объединение моделей Payload: SEO-группа `meta` есть у `pages`/`posts`, а у
+ * `events`/`services`/`products` роль описания играет `summary`. Требование к
+ * результату одно и то же, поэтому и форма входа одна.
+ */
+type MetaDoc = {
+  title?: string | null
+  slug?: string | null
+  summary?: string | null
+  meta?: {
+    title?: string | null
+    description?: string | null
+    image?: Media | Config['db']['defaultIDType'] | null
+  } | null
+}
 
 const getImageURL = (image?: Media | Config['db']['defaultIDType'] | null) => {
   const serverUrl = getServerSideURL()
@@ -19,21 +37,38 @@ const getImageURL = (image?: Media | Config['db']['defaultIDType'] | null) => {
   return url
 }
 
-export const generateMeta = async (args: {
-  doc: Partial<Page> | Partial<Post> | null
-}): Promise<Metadata> => {
+const clean = (value?: string | null): string => (typeof value === 'string' ? value.trim() : '')
+
+export const generateMeta = async (args: { doc: MetaDoc | null }): Promise<Metadata> => {
   const { doc } = args
 
   const ogImage = getImageURL(doc?.meta?.image)
 
-  const title = doc?.meta?.title
-    ? `${doc.meta.title} | Жемчужина Вятки`
-    : 'Жемчужина Вятки'
+  const docTitle = clean(doc?.title)
+
+  // `meta.title` из админки приходит без суффикса сайта, `doc.title` — заголовок
+  // документа. Суффикс дописываем только если его там ещё нет: иначе страница
+  // остаётся с голым названием проекта («Жемчужина Вятки») и в выдаче не
+  // отличается от остальных — рекомендация Вебмастера 22.10.
+  const titleBase = clean(doc?.meta?.title) || docTitle
+  const title = !titleBase
+    ? SITE.name
+    : titleBase.includes(SITE.name)
+      ? titleBase
+      : `${titleBase} | ${SITE.name}`
+
+  // Пустой `description` — вторая половина той же рекомендации: без него
+  // страница отдаётся без сниппета. Порядок: SEO-поле → summary документа →
+  // описание сайта вместе с заголовком страницы (тогда текст уникален).
+  const description =
+    clean(doc?.meta?.description) ||
+    clean(doc?.summary) ||
+    (docTitle ? `${docTitle} — ${SITE.description}` : SITE.description)
 
   return {
-    description: doc?.meta?.description,
+    description,
     openGraph: mergeOpenGraph({
-      description: doc?.meta?.description || '',
+      description,
       images: ogImage
         ? [
             {

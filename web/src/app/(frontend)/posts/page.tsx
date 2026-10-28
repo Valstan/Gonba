@@ -70,5 +70,7 @@ export default async function Page() {
 export function generateMetadata(): Metadata {
   return {
     title: 'Посты — Жемчужина Вятки',
+    description:
+      'Новости и публикации усадьбы Гоньба: события, мастер-классы и жизнь проектов в Малмыжском районе Кировской области.',
   }
 }

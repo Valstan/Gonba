@@ -1,3 +1,5 @@
+import type { Metadata } from 'next'
+
 import configPromise from '@payload-config'
 import { getPayload } from 'payload'
 import React, { cache } from 'react'
@@ -8,6 +10,7 @@ import RichText from '@/components/RichText'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
 import { AdminOverlay } from '@/components/AdminOverlay'
 import { withRetry } from '@/utilities/withRetry'
+import { generateMeta } from '@/utilities/generateMeta'
 import { JsonLd } from '@/components/seo/JsonLd'
 import { productJsonLd } from '@/seo/jsonld'
 
@@ -31,6 +34,14 @@ type Args = {
   params: Promise<{
     slug?: string
   }>
+}
+
+// Карточка товара отдавалась без <title> (рекомендация Вебмастера 22.10).
+export async function generateMetadata({ params: paramsPromise }: Args): Promise<Metadata> {
+  const { slug = '' } = await paramsPromise
+  const product = await queryProductBySlug({ slug: decodeURIComponent(slug) })
+
+  return generateMeta({ doc: product })
 }
 
 export default async function ProductPage({ params: paramsPromise }: Args) {
