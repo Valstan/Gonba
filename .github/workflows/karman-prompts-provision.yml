@@ -1,0 +1,106 @@
+name: KARMAN prompts provision
+
+# Одноразовый выпуск секционного токена промтов Гоньбы.
+# Мандат Мозга 08.11 (D-190) + erratum 09.11: проект забирает СВОИ промты и
+# готовые планы из раздела КАРМАНА, выполняет и отправляет промт в архив.
+#
+# ПОЧЕМУ ОТДЕЛЬНЫЙ WORKFLOW, А НЕ ШАГ В deploy-prod.yml:
+#   - это РАЗОВОЕ действие (выпустить токен раздела), а не часть выкладки;
+#   - deploy-prod.yml триггерится на merge в main, и выпуск токена на каждом
+#     деплое пересоздавал бы токен на каждый релиз;
+#   - шаг идёт НА БОКС, потому что КАРМАН слушает loopback и из раннера до него
+#     не достучаться (ADR-0012) — ровно как шаг доставки секретов в деплое.
+#
+# ПОРЯДОК ЗАПУСКА (важно, иначе шаг упадёт):
+#   1. смержить PR с этим workflow;
+#   2. ДОЖДАТЬСЯ деплоя — бокс забирает репозиторий во время выкладки
+#      (`git pull --ff-only origin main` на боксе), и только после этого там
+#      появляется scripts/provision-prompts-token.sh;
+#   3. `gh workflow run karman-prompts-provision.yml -f target_slug=<slug>`.
+#   Без шага 2 на боксе нет файла — это ожидаемо, а не поломка.
+#
+# ПРО target_slug: это slug комнаты, ИЗ КОТОРОЙ СЕРВИС РЕАЛЬНО ЧИТАЕТ секреты.
+# Erratum от 09.11: «karman» из шаблона мандата — имя из реестра, а не факт.
+# Факт берётся из GET /api/secrets/self на боксе, который отдаёт
+# /api/prompts/section. Грант в комнату, которую сервис не читает, принимается
+# (201, pending → active), токен в неё кладётся — и раздел остаётся 503.
+# Симптом неотличим от «токена нет», поэтому шаг проверяет адресата, а не
+# только результат (см. scripts/provision-prompts-token.sh, шаг 6).
+#
+# Значение токена НИКОГДА не покидает бокс и не печатается: оно генерируется на
+# боксе, уходит в комнату и оттуда — в env (шаг доставки в деплое).
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_slug:
+        description: 'Комната-получатель: slug той комнаты, из которой сервис реально читает секреты (erratum 09.11 — не имя «karman» из шаблона, а факт из GET /api/secrets/self)'
+        required: true
+        default: 'karman-hotline'
+
+permissions:
+  contents: read
+  # Паспортный вход в комнату: job запрашивает у GitHub подписанное удостоверение
+  # этого репозитория. Общей строки-пароля при этом не существует нигде —
+  # ни в секретах, ни на боксе (ADR-0012).
+  id-token: write
+
+jobs:
+  provision:
+    name: Выпустить токен раздела промтов GONBA
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Адрес и пользователь бокса — секретами, а не литералами: репо публичный
+          # с 17.08, литерал в файле = recon-поверхность (D-038).
+          SSH_HOST: ${{ secrets.GONBA_SSH_HOST }}
+          SSH_USER: ${{ secrets.GONBA_SSH_USER }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SSH_PRIVATE_KEY}" ] || [ -z "${SSH_HOST}" ] || [ -z "${SSH_USER}" ]; then
+            echo "::error::не заданы SSH_PRIVATE_KEY / GONBA_SSH_HOST / GONBA_SSH_USER"
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${SSH_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
+          # Heredoc БЕЗ кавычек вокруг EOF — иначе ${SSH_HOST}/${SSH_USER} попадут
+          # в конфиг буквально (та же форма, что в deploy-prod.yml).
+          cat > ~/.ssh/config <<EOF
+          Host GONBA
+            HostName ${SSH_HOST}
+            Port 22
+            User ${SSH_USER}
+            IdentityFile ~/.ssh/id_ed25519
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ServerAliveInterval 30
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Паспортное удостоверение репозитория
+        id: assertion
+        run: |
+          set -euo pipefail
+          # Удостоверение живёт минуты и одноразово (КАРМАН отбивает повтор jti).
+          ASSERTION="$(curl -sS --max-time 15             -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN"             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=karman-vault" | jq -r '.value // empty' || true)"
+          if [ -z "$ASSERTION" ]; then
+            echo "::error::не удалось получить OIDC-удостоверение"
+            exit 1
+          fi
+          echo "assertion=${ASSERTION}" >> "$GITHUB_OUTPUT"
+
+      - name: Выпустить токен, записать в свою комнату, предложить грант
+        env:
+          ASSERTION: ${{ steps.assertion.outputs.assertion }}
+          TARGET_SLUG: ${{ inputs.target_slug }}
+        run: |
+          set -euo pipefail
+          # Удостоверение — на stdin, а не аргументом: аргументы видны в ps на
+          # общем боксе. Значения секретов через раннер не идут вообще: обмен,
+          # запись и проверка происходят внутри бокса.
+          printf '%s' "${ASSERTION}" | ssh GONBA "TARGET_SLUG='${TARGET_SLUG}' bash /home/valstan/GONBA/scripts/provision-prompts-token.sh"
