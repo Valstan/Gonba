@@ -28,11 +28,9 @@
  */
 
 import { readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const require = createRequire(import.meta.url)
 const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 const fail = (message) => {
@@ -135,7 +133,7 @@ const SELF_TEST_CASES = [
 const selfTestFailures = SELF_TEST_CASES.filter((testCase) => {
   try {
     return satisfiesRange(testCase.version, PEER_RANGE_SAMPLE) !== testCase.expected
-  } catch (error) {
+  } catch {
     return true
   }
 })
