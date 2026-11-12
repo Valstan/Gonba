@@ -8,11 +8,11 @@
 
 ## Стек
 
-- **Next.js 15** (App Router) + **React 19**
+- **Next.js 16** (App Router) + **React 19** — с 12.11 на 16.3.8, закрыт peer-долг L-1 (`@payloadcms/next` 3.90.1 требует `next >=16.3.3 <17.0.0`)
 - **Payload CMS 3.90** в том же Next-приложении
-- **PostgreSQL 16** через `@payloadcms/db-postgres` (Drizzle ORM)
+- **PostgreSQL 17** через `@payloadcms/db-postgres` (Drizzle ORM) — на проде 17.11 с 08.10 (апгрейд с 16)
 - **TypeScript 5.7**, **TailwindCSS 4**
-- **npm** (единый пакетный менеджер, #256; лок — `package-lock.json`)
+- **npm** (единый пакетный менеджер, #256; лок — `package-lock.json`; лок пишет **npm 11** — пересборка старым npm вырезает аннотации `"libc"`, G590)
 - **Node 20** на проде, **24** локально
 
 ## Структура репо

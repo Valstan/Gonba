@@ -6,8 +6,8 @@
   "type": "module",
   "scripts": {
     "build": "node ./scripts/run-with-watchdog.mjs --idle-ms=600000 --stagnation-ms=900000 --max-ms=1800000 -- npm run build:raw",
-    "build:raw": "NODE_OPTIONS='--no-deprecation --max-old-space-size=6144' payload generate:importmap && NODE_OPTIONS='--no-deprecation --max-old-space-size=6144' next build && next-sitemap --config next-sitemap.config.cjs",
-    "dev": "NODE_OPTIONS='--no-deprecation --max-old-space-size=3072' next dev",
+    "build:raw": "NODE_OPTIONS='--no-deprecation --max-old-space-size=6144' payload generate:importmap && NODE_OPTIONS='--no-deprecation --max-old-space-size=6144' next build --webpack && next-sitemap --config next-sitemap.config.cjs",
+    "dev": "NODE_OPTIONS='--no-deprecation --max-old-space-size=3072' next dev --webpack",
     "dev:prod": "NODE_OPTIONS=--no-deprecation rm -rf .next && npm run build && npm start",
     "generate:importmap": "NODE_OPTIONS=--no-deprecation payload generate:importmap",
     "generate:types": "NODE_OPTIONS=--no-deprecation payload generate:types",
@@ -18,6 +18,7 @@
     "reinstall": "NODE_OPTIONS=--no-deprecation rm -rf node_modules && npm install",
     "start": "NODE_OPTIONS='--no-deprecation --max-old-space-size=4096' next start",
     "typecheck": "NODE_OPTIONS=--no-deprecation tsc --noEmit",
+    "check:next-peer": "node ./scripts/check-next-peer.mjs",
     "test": "npm run test:int && npm run test:e2e",
     "test:e2e": "npm run build && node ./scripts/run-with-watchdog.mjs --idle-ms=120000 --stagnation-ms=180000 --max-ms=900000 -- sh -lc 'E2E_TEST_SECRET=local-e2e-secret NODE_OPTIONS=\"--no-deprecation --max-old-space-size=3072 --import=tsx/esm\" npx playwright test --config=playwright.config.ts --reporter=line'",
     "test:int": "node ./scripts/run-with-watchdog.mjs --idle-ms=90000 --stagnation-ms=240000 --max-ms=900000 -- npm run test:int:raw",
@@ -59,7 +60,7 @@
     "geist": "^1.3.0",
     "graphql": "^16.8.2",
     "lucide-react": "0.563.0",
-    "next": "15.5.28",
+    "next": "16.3.8",
     "next-sitemap": "^4.2.3",
     "payload": "3.90.1",
     "prism-react-renderer": "^2.3.1",
@@ -84,7 +85,8 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "4.5.2",
     "eslint": "^9.16.0",
-    "eslint-config-next": "15.5.24",
+    "eslint-config-next": "16.3.8",
+    "eslint-plugin-react-hooks": "7.1.1",
     "jsdom": "28.0.0",
     "knip": "^6.16.1",
     "playwright": "1.56.1",
@@ -100,6 +102,6 @@
   },
   "engines": {
     "node": "^18.20.2 || >=20.9.0",
-    "npm": "^10"
+    "npm": ">=10"
   }
 }
