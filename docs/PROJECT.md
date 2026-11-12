@@ -157,12 +157,12 @@ VK через шлюз SARAFAN (read-only, основной путь с 2026-07-
 
 Ключевые:
 
-- Next.js 15 (App Router)
-- Payload CMS 3.75
+- Next.js 16 (App Router) — 16.3.8, ветка, совместимая с peer-диапазоном `@payloadcms/next` 3.90.1
+- Payload CMS 3.90.1
 - React 19
 - TypeScript 5.7
 - TailwindCSS 4
-- PostgreSQL 16 (через docker-compose)
+- PostgreSQL 17 (локально — PG на машине владельца через `web/docker-compose.yml`; на проде 17.11)
 
 Тесты:
 
